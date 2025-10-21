@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HKMU FYP Matching System - Admin Portal</title>
+    <link rel="stylesheet" href="admin.css">
+</head>
+<body>
+    <div class="admin-container">
+        <!-- 側邊欄導航 -->
+        <nav class="sidebar">
+            <div class="sidebar-header">
+                <h2>HKMU FYP Matching System</h2>
+                <p>Admin Portal</p>
+            </div>
+            
+            <ul class="sidebar-menu">
+                <li class="menu-item">
+                    <a href="#project-review" class="menu-link active">Project Review</a>
+                </li>
+                <li class="menu-item">
+                    <a href="#matching-control" class="menu-link">Matching Control</a>
+                </li>
+                <li class="menu-item">
+                    <a href="#final-assignment" class="menu-link">Final Assignment</a>
+                </li>
+                <li class="menu-item">
+                    <a href="#deadline-management" class="menu-link">Deadline Management</a>
+                </li>
+            </ul>
+            
+            <div class="sidebar-footer">
+                <div class="user-welcome">
+                    <p>Welcome, Admin Wang</p>
+                    <button class="logout-btn" onclick="logout()">Logout</button>
+                </div>
+            </div>
+        </nav>
+
+        <!-- 主內容區域 -->
+        <main class="main-content">
+            <!-- 麵包屑導航 -->
+            <div class="breadcrumb">
+                <span>Home</span>
+                <span class="breadcrumb-separator">→</span>
+                <span id="current-page">Project Review</span>
+            </div>
+
+            <!-- 項目審核頁面 -->
+            <section id="project-review" class="content-section active">
+                <div class="section-header">
+                    <h1>Project Review</h1>
+                    <div class="progress-indicator">
+                        Review Progress: <strong>25/45 (56%)</strong>
+                    </div>
+                </div>
+
+                <div class="pending-review">
+                    <h3>Pending Review (2)</h3>
+                    
+                    <div class="review-controls">
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="selectAll"> Select all projects (2)
+                        </label>
+                    </div>
+
+                    <div class="project-list">
+                        <!-- 項目 1 -->
+                        <div class="project-card">
+                            <div class="project-header">
+                                <label class="checkbox-label">
+                                    <input type="checkbox" class="project-checkbox">
+                                    <span class="project-title">Web Development</span>
+                                </label>
+                            </div>
+                            <div class="project-details">
+                                <p class="supervisor">Supervisor: Prof. Lin</p>
+                                <div class="description">
+                                    <strong>Description:</strong>
+                                    <ul>
+                                        <li>E-commerce platform with modern features</li>
+                                    </ul>
+                                </div>
+                                <div class="required-skills">
+                                    <strong>Required Skills:</strong> React, Node.js, Database
+                                </div>
+                            </div>
+                            <div class="action-buttons">
+                                <button class="btn-approve" onclick="approveProject(0)">Approve</button>
+                                <button class="btn-reject" onclick="rejectProject(0)">Reject</button>
+                                <button class="btn-comment" onclick="addComment(0)">Comment</button>
+                            </div>
+                        </div>
+
+                        <!-- 項目 2 -->
+                        <div class="project-card">
+                            <div class="project-header">
+                                <label class="checkbox-label">
+                                    <input type="checkbox" class="project-checkbox">
+                                    <span class="project-title">Cybersecurity System</span>
+                                </label>
+                            </div>
+                            <div class="project-details">
+                                <p class="supervisor">Supervisor: Prof. Wang</p>
+                                <div class="description">
+                                    <strong>Description:</strong>
+                                    <ul>
+                                        <li>Network security monitoring tool</li>
+                                    </ul>
+                                </div>
+                                <div class="required-skills">
+                                    <strong>Required Skills:</strong> Security, Networks, Python
+                                </div>
+                            </div>
+                            <div class="action-buttons">
+                                <button class="btn-approve" onclick="approveProject(1)">Approve</button>
+                                <button class="btn-reject" onclick="rejectProject(1)">Reject</button>
+                                <button class="btn-comment" onclick="addComment(1)">Comment</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 匹配控制頁面 -->
+            <section id="matching-control" class="content-section">
+                <div class="section-header">
+                    <h1>Matching Control</h1>
+                    <div class="breadcrumb">
+                        <span>Home</span>
+                        <span class="breadcrumb-separator">→</span>
+                        <span>Matching Control</span>
+                    </div>
+                </div>
+
+                <div class="matching-control-panel">
+                    <h2>Matching System Control</h2>
+                    
+                    <div class="phase-info">
+                        <div class="current-phase">
+                            <strong>Current Phase:</strong> 
+                            <span class="phase-dates">
+                                2024-03-21 00:01 [Init: 2024-04-05 23:39]
+                            </span>
+                        </div>
+                    </div>
+
+                    <div class="control-buttons">
+                        <button class="btn-primary" onclick="startMatching()">Start Matching</button>
+                        <button class="btn-secondary" onclick="showAdvancedSettings()">Advanced Setting</button>
+                    </div>
+
+                    <div class="live-statistics">
+                        <h3>Live Statistics</h3>
+                        <div class="stats-grid">
+                            <div class="stat-item">
+                                <span class="stat-label">Total Students:</span>
+                                <span class="stat-value">150</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-label">Submitted Preferences:</span>
+                                <span class="stat-value">143</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-label">Available Projects:</span>
+                                <span class="stat-value">45</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-label">Matching Algorithm Status:</span>
+                                <span class="stat-value status-ready">Ready</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-label">Estimated Completion:</span>
+                                <span class="stat-value">2024-04-06 12:00</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 最終分配頁面 -->
+            <section id="final-assignment" class="content-section">
+                <div class="section-header">
+                    <h1>Final Assignment</h1>
+                    <div class="breadcrumb">
+                        <span>Home</span>
+                        <span class="breadcrumb-separator">→</span>
+                        <span>Final Assignment</span>
+                    </div>
+                </div>
+
+                <div class="assignment-header">
+                    <h2>Unmatched Students (7)</h2>
+                    <button class="btn-primary" onclick="autoAssignAll()">Auto-assign All</button>
+                </div>
+
+                <div class="assignment-container">
+                    <div class="students-section">
+                        <div class="section-controls">
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="selectAllStudents"> Select all students (7)
+                            </label>
+                        </div>
+
+                        <table class="students-table">
+                            <thead>
+                                <tr>
+                                    <th>Student ID</th>
+                                    <th>Name</th>
+                                    <th>GPA</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>S001</td>
+                                    <td>Alex Johnston</td>
+                                    <td>3.45</td>
+                                    <td><button class="btn-assign" onclick="assignStudent(0)">💬 Assign Projects</button></td>
+                                </tr>
+                                <tr>
+                                    <td>S002</td>
+                                    <td>Lisa Brown</td>
+                                    <td>3.52</td>
+                                    <td><button class="btn-assign" onclick="assignStudent(1)">💬 Assign Projects</button></td>
+                                </tr>
+                                <!-- 更多學生行 -->
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="projects-section">
+                        <h3>Available Projects (5)</h3>
+                        <div class="project-list">
+                            <div class="available-project">
+                                <span class="project-name">Database Optimization</span>
+                                <span class="supervisor">- Prof. Zhang</span>
+                            </div>
+                            <div class="available-project">
+                                <span class="project-name">Cloud Computing Platform</span>
+                                <span class="supervisor">- Prof. Liu</span>
+                            </div>
+                            <!-- 更多項目 -->
+                        </div>
+                        
+                        <button class="btn-export" onclick="exportReport()">📌 Export Report</button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 截止日期管理頁面 -->
+            <section id="deadline-management" class="content-section">
+                <div class="section-header">
+                    <h1>Deadline Management</h1>
+                    <div class="breadcrumb">
+                        <span>Home</span>
+                        <span class="breadcrumb-separator">→</span>
+                        <span>Deadline Management</span>
+                    </div>
+                </div>
+
+                <div class="deadline-management-panel">
+                    <div class="management-header">
+                        <h2>System Deadlines</h2>
+                        <p>Manage deadlines for different phases of the FYP matching process. These deadlines are visible to all students and teachers.</p>
+                    </div>
+
+                    <div class="deadline-list">
+                        <!-- 提案階段 -->
+                        <div class="deadline-card">
+                            <div class="deadline-header">
+                                <h3>Proposal Phase</h3>
+                                <button class="btn-edit" onclick="editDeadline('proposal')">Edit</button>
+                            </div>
+                            <div class="deadline-content">
+                                <div class="deadline-overview">
+                                    <strong>Overview</strong>
+                                    <div class="deadline-date">2025-03-20 23:59</div>
+                                    <p class="deadline-description">Submit your project proposal</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 匹配階段 -->
+                        <div class="deadline-card">
+                            <div class="deadline-header">
+                                <h3>Matching Phase</h3>
+                                <button class="btn-edit" onclick="editDeadline('matching')">Edit</button>
+                            </div>
+                            <div class="deadline-content">
+                                <div class="deadline-overview">
+                                    <strong>Overview</strong>
+                                    <div class="deadline-date">2025-04-15 22:59</div>
+                                    <p class="deadline-description">Select your project preferences</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 項目管理階段 -->
+                        <div class="deadline-card">
+                            <div class="deadline-header">
+                                <h3>Project Management</h3>
+                                <button class="btn-edit" onclick="editDeadline('project')">Edit</button>
+                            </div>
+                            <div class="deadline-content">
+                                <div class="deadline-overview">
+                                    <strong>Overview</strong>
+                                    <div class="deadline-date">2025-05-30 23:59</div>
+                                    <p class="deadline-description">Submit project updates and reviews</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="deadline-tips">
+                        <h3>Tips for Setting Deadlines</h3>
+                        <ul>
+                            <li>Set realistic deadlines that give students and teachers sufficient time to complete tasks</li>
+                            <li>Consider weekends and holidays when setting deadlines</li>
+                            <li>Communicate any deadline changes to all users through official channels</li>
+                            <li>System will automatically show urgent warnings 7 days before the deadline</li>
+                        </ul>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script src="admin.js"></script>
+</body>
+</html>
