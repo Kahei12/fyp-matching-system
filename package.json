@@ -1,22 +1,17 @@
 {
   "name": "fyp-matching-system",
   "version": "1.0.0",
-  "description": "FYP Matching System with React frontend and Express backend",
+  "description": "",
   "main": "server.js",
   "scripts": {
-    "server": "node server.js",
-    "server:dev": "nodemon server.js",
-    "client": "cd client && npm run dev",
-    "dev": "concurrently \"npm run server:dev\" \"npm run client\"",
-    "build": "cd client && npm run build",
-    "start": "npm run server"
+    "start": "node server.js",
+    "dev": "nodemon server.js"
   },
   "dependencies": {
     "bcryptjs": "^3.0.2",
     "express": "^5.1.0"
   },
   "devDependencies": {
-    "nodemon": "^3.1.10",
-    "concurrently": "^9.1.2"
+    "nodemon": "^3.1.10"
   }
 }
