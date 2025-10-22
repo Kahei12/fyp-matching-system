@@ -1,0 +1,18 @@
+# 依賴目錄 - 絕對不要上傳！
+node_modules/
+
+# 環境變量 - 可能包含密碼
+.env
+.env.local
+
+# 日誌文件
+*.log
+npm-debug.log*
+
+# 系統文件
+.DS_Store
+Thumbs.db
+
+# 運行時臨時文件
+temp/
+tmp/
