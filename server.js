@@ -184,6 +184,20 @@ try {
         }
     });
 
+    app.put('/api/student/:id/preferences/:projectId/move', (req, res) => {
+        console.log('Move preference:', { studentId: req.params.id, projectId: req.params.projectId, direction: req.body.direction });
+        try {
+            // Ensure projectId is a number
+            const projectId = parseInt(req.params.projectId);
+            const { direction } = req.body;
+            const result = studentService.movePreference(req.params.id, projectId, direction);
+            res.json(result);
+        } catch (error) {
+            console.error('Move preference error:', error);
+            res.json({ success: false, message: 'Failed to move preference' });
+        }
+    });
+
     app.post('/api/student/:id/preferences/submit', (req, res) => {
         console.log('📤 提交偏好:', req.params.id);
         try {

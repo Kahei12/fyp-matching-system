@@ -86,6 +86,38 @@ const studentService = {
         };
     },
     
+    // Move preference position
+    movePreference: (studentId, projectId, direction) => {
+        const student = mockData.students.find(s => s.id === studentId);
+        if (!student) {
+            return { success: false, message: "Student not found" };
+        }
+        
+        const currentIndex = student.preferences.indexOf(projectId);
+        if (currentIndex === -1) {
+            return { success: false, message: "Project not in preferences" };
+        }
+        
+        // Calculate target index
+        const targetIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
+        
+        // Check boundaries
+        if (targetIndex < 0 || targetIndex >= student.preferences.length) {
+            return { success: false, message: "Cannot move in that direction" };
+        }
+        
+        // Swap positions
+        const temp = student.preferences[currentIndex];
+        student.preferences[currentIndex] = student.preferences[targetIndex];
+        student.preferences[targetIndex] = temp;
+        
+        return { 
+            success: true, 
+            message: "Preference order updated",
+            newPosition: targetIndex + 1
+        };
+    },
+    
     // 提交最終偏好
     submitPreferences: (studentId) => {
         const student = mockData.students.find(s => s.id === studentId);
