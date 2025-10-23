@@ -24,13 +24,16 @@ const studentService = {
     
     // 添加項目到偏好
     addPreference: (studentId, projectId) => {
+        // 確保 projectId 是數字類型
+        const numericProjectId = typeof projectId === 'number' ? projectId : parseInt(projectId);
+        
         const student = mockData.students.find(s => s.id === studentId);
         if (!student) {
             return { success: false, message: "Student not found" };
         }
         
         // 檢查是否已存在
-        if (student.preferences.includes(projectId)) {
+        if (student.preferences.includes(numericProjectId)) {
             return { success: false, message: "Project already in preferences" };
         }
         
@@ -40,16 +43,19 @@ const studentService = {
         }
         
         // 檢查項目是否存在
-        const project = mockData.projects.find(p => p.id === projectId);
+        const project = mockData.projects.find(p => p.id === numericProjectId);
         if (!project) {
             return { success: false, message: "Project not found" };
         }
         
         // 添加到偏好
-        student.preferences.push(projectId);
+        student.preferences.push(numericProjectId);
         
         // 更新項目熱度
         project.popularity += 1;
+        
+        console.log(`✅ 已添加項目 ${numericProjectId} 到學生 ${studentId} 的偏好列表`);
+        console.log(`📊 當前偏好:`, student.preferences);
         
         return { 
             success: true, 
@@ -60,13 +66,19 @@ const studentService = {
     
     // 從偏好中移除項目
     removePreference: (studentId, projectId) => {
+        // 確保 projectId 是數字類型
+        const numericProjectId = typeof projectId === 'number' ? projectId : parseInt(projectId);
+        
         const student = mockData.students.find(s => s.id === studentId);
         if (!student) {
             return { success: false, message: "Student not found" };
         }
         
-        const index = student.preferences.indexOf(projectId);
+        console.log(`🔍 查找項目 ${numericProjectId} 在偏好列表中:`, student.preferences);
+        
+        const index = student.preferences.indexOf(numericProjectId);
         if (index === -1) {
+            console.log(`❌ 項目 ${numericProjectId} 不在偏好列表中`);
             return { success: false, message: "Project not in preferences" };
         }
         
@@ -74,10 +86,12 @@ const studentService = {
         student.preferences.splice(index, 1);
         
         // 更新項目熱度
-        const project = mockData.projects.find(p => p.id === projectId);
+        const project = mockData.projects.find(p => p.id === numericProjectId);
         if (project && project.popularity > 0) {
             project.popularity -= 1;
         }
+        
+        console.log(`✅ 已移除項目 ${numericProjectId}，剩餘偏好:`, student.preferences);
         
         return { 
             success: true, 
@@ -88,13 +102,19 @@ const studentService = {
     
     // Move preference position
     movePreference: (studentId, projectId, direction) => {
+        // 確保 projectId 是數字類型
+        const numericProjectId = typeof projectId === 'number' ? projectId : parseInt(projectId);
+        
         const student = mockData.students.find(s => s.id === studentId);
         if (!student) {
             return { success: false, message: "Student not found" };
         }
         
-        const currentIndex = student.preferences.indexOf(projectId);
+        console.log(`🔄 移動項目 ${numericProjectId}，方向: ${direction}，當前偏好:`, student.preferences);
+        
+        const currentIndex = student.preferences.indexOf(numericProjectId);
         if (currentIndex === -1) {
+            console.log(`❌ 項目 ${numericProjectId} 不在偏好列表中`);
             return { success: false, message: "Project not in preferences" };
         }
         
@@ -111,10 +131,52 @@ const studentService = {
         student.preferences[currentIndex] = student.preferences[targetIndex];
         student.preferences[targetIndex] = temp;
         
+        console.log(`✅ 移動成功，新偏好順序:`, student.preferences);
+        
         return { 
             success: true, 
             message: "Preference order updated",
             newPosition: targetIndex + 1
+        };
+    },
+    
+    // Reorder preferences (用於拖曳排序)
+    reorderPreferences: (studentId, newOrder) => {
+        const student = mockData.students.find(s => s.id === studentId);
+        if (!student) {
+            return { success: false, message: "Student not found" };
+        }
+        
+        console.log(`🔄 重新排序偏好，學生: ${studentId}`);
+        console.log(`📋 舊順序:`, student.preferences);
+        console.log(`📋 新順序:`, newOrder);
+        
+        // 驗證所有項目 ID 都存在且有效
+        const validIds = newOrder.every(id => {
+            const numericId = typeof id === 'number' ? id : parseInt(id);
+            return student.preferences.includes(numericId);
+        });
+        
+        if (!validIds) {
+            console.log(`❌ 新順序包含無效的項目 ID`);
+            return { success: false, message: "Invalid project IDs in new order" };
+        }
+        
+        // 驗證數量是否相同
+        if (newOrder.length !== student.preferences.length) {
+            console.log(`❌ 新順序的項目數量不匹配`);
+            return { success: false, message: "Order length mismatch" };
+        }
+        
+        // 更新偏好順序
+        student.preferences = newOrder.map(id => typeof id === 'number' ? id : parseInt(id));
+        
+        console.log(`✅ 重新排序成功:`, student.preferences);
+        
+        return { 
+            success: true, 
+            message: "Preferences reordered successfully",
+            newOrder: student.preferences
         };
     },
     

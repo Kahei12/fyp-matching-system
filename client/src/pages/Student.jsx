@@ -351,6 +351,44 @@ function Student() {
     }
   };
 
+  const handleReorderPreferences = async (newPreferences) => {
+    const currentStudentId = studentData.studentId || sessionStorage.getItem('studentId') || 'S001';
+    
+    console.log('🔄 Reordering preferences via drag-drop:', { currentStudentId });
+    
+    // 立即更新 UI 以獲得流暢的體驗
+    setPreferences(newPreferences);
+    
+    try {
+      // 提取項目 ID 的順序
+      const newOrder = newPreferences.map(p => p.id);
+      
+      const response = await fetch(`/api/student/${currentStudentId}/preferences/reorder`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ order: newOrder })
+      });
+
+      const result = await response.json();
+      console.log('Reorder response:', result);
+      
+      if (result.success) {
+        // 重新載入以確保與服務器同步
+        await loadPreferences(currentStudentId);
+        showNotification('Order updated successfully!', 'success');
+      } else {
+        // 如果 API 失敗，使用本地存儲
+        localStorage.setItem(`studentPreferences_${currentStudentId}`, JSON.stringify(newPreferences));
+        showNotification('Order updated (saved locally)!', 'success');
+      }
+    } catch (error) {
+      console.error('Reorder preference error:', error);
+      // API 失敗時使用本地後備
+      localStorage.setItem(`studentPreferences_${currentStudentId}`, JSON.stringify(newPreferences));
+      showNotification('Order updated (saved locally)!', 'success');
+    }
+  };
+
   const showNotification = (message, type) => {
     const existingNotification = document.querySelector('.notification');
     if (existingNotification) {
@@ -405,6 +443,7 @@ function Student() {
           onSubmitPreferences={handleSubmitPreferences}
           onClearPreferences={handleClearPreferences}
           onMovePreference={handleMovePreference}
+          onReorderPreferences={handleReorderPreferences}
           onSwitchSection={setCurrentSection}
         />;
       case 'results':

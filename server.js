@@ -165,7 +165,9 @@ try {
     app.post('/api/student/:id/preferences', (req, res) => {
         console.log('➕ 添加偏好:', { studentId: req.params.id, projectId: req.body.projectId });
         try {
-            const result = studentService.addPreference(req.params.id, req.body.projectId);
+            // 確保 projectId 是數字類型
+            const projectId = parseInt(req.body.projectId);
+            const result = studentService.addPreference(req.params.id, projectId);
             res.json(result);
         } catch (error) {
             console.error('❌ 添加偏好錯誤:', error);
@@ -176,7 +178,9 @@ try {
     app.delete('/api/student/:id/preferences/:projectId', (req, res) => {
         console.log('➖ 移除偏好:', { studentId: req.params.id, projectId: req.params.projectId });
         try {
-            const result = studentService.removePreference(req.params.id, req.params.projectId);
+            // 確保 projectId 是數字類型
+            const projectId = parseInt(req.params.projectId);
+            const result = studentService.removePreference(req.params.id, projectId);
             res.json(result);
         } catch (error) {
             console.error('❌ 移除偏好錯誤:', error);
@@ -185,16 +189,30 @@ try {
     });
 
     app.put('/api/student/:id/preferences/:projectId/move', (req, res) => {
-        console.log('Move preference:', { studentId: req.params.id, projectId: req.params.projectId, direction: req.body.direction });
+        console.log('🔄 移動偏好:', { studentId: req.params.id, projectId: req.params.projectId, direction: req.body.direction });
         try {
-            // Ensure projectId is a number
+            // 確保 projectId 是數字類型
             const projectId = parseInt(req.params.projectId);
             const { direction } = req.body;
             const result = studentService.movePreference(req.params.id, projectId, direction);
             res.json(result);
         } catch (error) {
-            console.error('Move preference error:', error);
+            console.error('❌ 移動偏好錯誤:', error);
             res.json({ success: false, message: 'Failed to move preference' });
+        }
+    });
+
+    app.put('/api/student/:id/preferences/reorder', (req, res) => {
+        console.log('🔄 重新排序偏好:', { studentId: req.params.id, order: req.body.order });
+        try {
+            const { order } = req.body;
+            // 確保所有 ID 都是數字類型
+            const numericOrder = order.map(id => typeof id === 'number' ? id : parseInt(id));
+            const result = studentService.reorderPreferences(req.params.id, numericOrder);
+            res.json(result);
+        } catch (error) {
+            console.error('❌ 重新排序偏好錯誤:', error);
+            res.json({ success: false, message: 'Failed to reorder preferences' });
         }
     });
 

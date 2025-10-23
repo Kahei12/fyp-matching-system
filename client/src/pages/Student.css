@@ -484,10 +484,48 @@ button:disabled {
   border-radius: 8px;
   border: 2px dashed #dee2e6;
   transition: all 0.3s ease;
+  cursor: grab;
+  user-select: none;
+}
+
+.preference-item:active {
+  cursor: grabbing;
 }
 
 .preference-item:hover {
   border-color: #3498db;
+  box-shadow: 0 2px 8px rgba(52, 152, 219, 0.2);
+  transform: translateY(-2px);
+}
+
+/* 拖曳狀態 */
+.preference-item.drag-over {
+  border-color: #27ae60;
+  border-style: solid;
+  background: #e8f8f5;
+  box-shadow: 0 4px 12px rgba(39, 174, 96, 0.3);
+  transform: scale(1.02);
+}
+
+/* 拖曳手柄 */
+.drag-handle {
+  color: #95a5a6;
+  font-size: 1.2rem;
+  font-weight: bold;
+  cursor: grab;
+  padding: 0.5rem;
+  user-select: none;
+  transition: color 0.2s ease;
+  line-height: 1;
+}
+
+.drag-handle:hover {
+  color: #3498db;
+}
+
+.drag-handle:active {
+  cursor: grabbing;
+  color: #2980b9;
 }
 
 .preference-rank {
