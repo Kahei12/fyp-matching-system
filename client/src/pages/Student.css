@@ -18,6 +18,13 @@
 /* 側邊欄樣式 */
 .sidebar {
   width: 280px;
+  flex: 0 0 280px; /* 固定寬度且不隨右側內容改變 */
+  max-width: 280px;
+  min-width: 280px;
+  position: sticky; /* 固定在視窗頂端 */
+  top: 0;
+  height: 100vh; /* 與視窗同高 */
+  overflow-y: auto; /* 側欄獨立滾動，確保能看到 footer 與 Logout */
   background: #2c3e50;
   color: white;
   display: flex;
@@ -109,6 +116,7 @@
   background: white;
   display: flex;
   flex-direction: column;
+  min-width: 0; /* 防止內容撐開導致側邊欄比例看起來不一致 */
 }
 
 /* 麵包屑導航 */
@@ -128,6 +136,7 @@
 .content-section {
   flex: 1;
   padding: 2rem;
+  min-width: 0; /* 防止此層在 Flex 內撐開主區域 */
 }
 
 .content-section.active {
@@ -333,7 +342,7 @@
 /* 項目網格 */
 .projects-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
   gap: 1.5rem;
 }
 
@@ -382,6 +391,8 @@
 .project-description {
   margin-bottom: 1rem;
   line-height: 1.5;
+  word-break: break-word; /* 長字串換行，避免撐寬 */
+  overflow-wrap: anywhere; /* 更積極的換行策略 */
 }
 
 .project-skills {
@@ -742,7 +753,10 @@ button:disabled {
   
   .sidebar {
     width: 100%;
+    flex: none; /* 手機版改為不固定寬度 */
     height: auto;
+    position: static; /* 取消貼齊效果，讓其隨內容流動 */
+    overflow: visible;
   }
   
   .status-cards {
