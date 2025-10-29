@@ -15,6 +15,7 @@ function Dashboard({ preferences, onSwitchSection }) {
       {/* 狀態卡片 */}
       <div className="status-cards">
         <div className="status-card">
+          <span className="stage-badge stage-1">Stage 1</span>
           <div className="status-icon">📝</div>
           <div className="status-content">
             <h3>Proposal Status</h3>
@@ -24,6 +25,7 @@ function Dashboard({ preferences, onSwitchSection }) {
         </div>
         
         <div className="status-card">
+          <span className="stage-badge stage-2">Stage 2</span>
           <div className="status-icon">⭐</div>
           <div className="status-content">
             <h3>Preferences</h3>
@@ -35,6 +37,7 @@ function Dashboard({ preferences, onSwitchSection }) {
         </div>
         
         <div className="status-card">
+          <span className="stage-badge stage-3">Stage 3</span>
           <div className="status-icon">📋</div>
           <div className="status-content">
             <h3>Assignment</h3>

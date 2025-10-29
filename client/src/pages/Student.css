@@ -184,6 +184,7 @@
   display: flex;
   align-items: center;
   gap: 1rem;
+  position: relative; /* 讓徽章可定位在卡片內 */
 }
 
 .status-icon {
@@ -218,6 +219,22 @@
 .action-btn:hover {
   background: #2980b9;
 }
+
+/* 階段徽章 */
+.stage-badge {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  padding: 0.2rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: white;
+}
+
+.stage-1 { background: #6f42c1; }
+.stage-2 { background: #0d6efd; }
+.stage-3 { background: #198754; }
 
 /* 截止日期提醒 */
 .deadline-reminder {
