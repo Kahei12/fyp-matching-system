@@ -8,14 +8,14 @@ function Dashboard({ preferences, onSwitchSection }) {
       <div className="section-header">
         <h1>Student Dashboard</h1>
         <div className="phase-indicator">
-          Current Phase: <strong>Proposal Phase</strong>
+          Current Phase: <strong>Phase 1 — Proposal (導師提案)</strong>
         </div>
       </div>
 
       {/* 狀態卡片 */}
       <div className="status-cards">
         <div className="status-card">
-          <span className="stage-badge stage-1">Stage 1</span>
+          <span className="stage-badge stage-1">Stage 1 (Proposal)</span>
           <div className="status-icon">📝</div>
           <div className="status-content">
             <h3>Proposal Status</h3>
@@ -25,7 +25,7 @@ function Dashboard({ preferences, onSwitchSection }) {
         </div>
         
         <div className="status-card">
-          <span className="stage-badge stage-2">Stage 2</span>
+          <span className="stage-badge stage-2">Stage 2 (Matching)</span>
           <div className="status-icon">⭐</div>
           <div className="status-content">
             <h3>Preferences</h3>
@@ -37,7 +37,7 @@ function Dashboard({ preferences, onSwitchSection }) {
         </div>
         
         <div className="status-card">
-          <span className="stage-badge stage-3">Stage 3</span>
+          <span className="stage-badge stage-3">Stage 3 (Clearing)</span>
           <div className="status-icon">📋</div>
           <div className="status-content">
             <h3>Assignment</h3>
