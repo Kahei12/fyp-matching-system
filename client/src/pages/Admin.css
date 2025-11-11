@@ -112,6 +112,18 @@
   color: #6c757d;
 }
 
+.breadcrumb-link {
+  color: #3498db;
+  cursor: pointer;
+  transition: color 0.3s ease;
+  text-decoration: none;
+}
+
+.breadcrumb-link:hover {
+  color: #2980b9;
+  text-decoration: underline;
+}
+
 .breadcrumb-separator {
   margin: 0 0.5rem;
 }

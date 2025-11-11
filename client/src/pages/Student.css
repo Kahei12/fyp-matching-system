@@ -128,6 +128,18 @@
   color: #6c757d;
 }
 
+.breadcrumb-link {
+  color: #3498db;
+  cursor: pointer;
+  transition: color 0.3s ease;
+  text-decoration: none;
+}
+
+.breadcrumb-link:hover {
+  color: #2980b9;
+  text-decoration: underline;
+}
+
 .breadcrumb-separator {
   margin: 0 0.5rem;
 }
@@ -185,6 +197,19 @@
   align-items: center;
   gap: 1rem;
   position: relative; /* 讓徽章可定位在卡片內 */
+}
+
+/* 根據 Stage 設置左邊框顏色 */
+.status-card-stage-1 {
+  border-left-color: #6f42c1; /* 紫色 - 與 stage-1 相同 */
+}
+
+.status-card-stage-2 {
+  border-left-color: #0d6efd; /* 藍色 - 與 stage-2 相同 */
+}
+
+.status-card-stage-3 {
+  border-left-color: #198754; /* 綠色 - 與 stage-3 相同 */
 }
 
 .status-icon {

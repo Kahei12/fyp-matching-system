@@ -8,13 +8,13 @@ function Dashboard({ preferences, onSwitchSection }) {
       <div className="section-header">
         <h1>Student Dashboard</h1>
         <div className="phase-indicator">
-          Current Phase: <strong>Phase 1 — Proposal (導師提案)</strong>
+          Current Phase: <strong>Phase 1 — Proposal</strong>
         </div>
       </div>
 
-      {/* 狀態卡片 */}
+      {/* Status Cards */}
       <div className="status-cards">
-        <div className="status-card">
+        <div className="status-card status-card-stage-1">
           <span className="stage-badge stage-1">Stage 1 (Proposal)</span>
           <div className="status-icon">📝</div>
           <div className="status-content">
@@ -24,7 +24,7 @@ function Dashboard({ preferences, onSwitchSection }) {
           </div>
         </div>
         
-        <div className="status-card">
+        <div className="status-card status-card-stage-2">
           <span className="stage-badge stage-2">Stage 2 (Matching)</span>
           <div className="status-icon">⭐</div>
           <div className="status-content">
@@ -36,7 +36,7 @@ function Dashboard({ preferences, onSwitchSection }) {
           </div>
         </div>
         
-        <div className="status-card">
+        <div className="status-card status-card-stage-3">
           <span className="stage-badge stage-3">Stage 3 (Clearing)</span>
           <div className="status-icon">📋</div>
           <div className="status-content">
@@ -49,7 +49,7 @@ function Dashboard({ preferences, onSwitchSection }) {
         </div>
       </div>
 
-      {/* 截止日期提醒 */}
+      {/* Deadline Reminder */}
       <div className="deadline-reminder">
         <h3>⏰ Upcoming Deadlines</h3>
         <div className="deadline-list">

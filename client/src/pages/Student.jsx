@@ -466,7 +466,13 @@ function Student() {
       
       <main className="main-content">
         <div className="breadcrumb">
-          <span>Home</span>
+          <span 
+            className="breadcrumb-link" 
+            onClick={() => setCurrentSection('dashboard')}
+            style={{ cursor: 'pointer' }}
+          >
+            Home
+          </span>
           <span className="breadcrumb-separator">→</span>
           <span>{getSectionTitle(currentSection)}</span>
         </div>

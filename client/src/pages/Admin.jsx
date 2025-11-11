@@ -125,7 +125,13 @@ function Admin() {
       <main className="main-content">
         {/* 麵包屑導航 */}
         <div className="breadcrumb">
-          <span>Home</span>
+          <span 
+            className="breadcrumb-link" 
+            onClick={() => setCurrentSection('project-review')}
+            style={{ cursor: 'pointer' }}
+          >
+            Home
+          </span>
           <span className="breadcrumb-separator">→</span>
           <span>{getSectionTitle(currentSection)}</span>
         </div>
@@ -527,7 +533,7 @@ function DeadlineManagement({ showNotification }) {
         </div>
 
         <div className="deadline-list-admin">
-          {/* 提案階段 */}
+          {/* Proposal Phase */}
           <div className="deadline-card">
             <div className="deadline-header">
               <h3>Proposal Phase</h3>
@@ -542,7 +548,7 @@ function DeadlineManagement({ showNotification }) {
             </div>
           </div>
 
-          {/* 匹配階段 */}
+          {/* Matching Phase */}
           <div className="deadline-card">
             <div className="deadline-header">
               <h3>Matching Phase</h3>
@@ -557,7 +563,7 @@ function DeadlineManagement({ showNotification }) {
             </div>
           </div>
 
-          {/* 項目管理階段 */}
+          {/* Project Management Phase */}
           <div className="deadline-card">
             <div className="deadline-header">
               <h3>Project Management</h3>

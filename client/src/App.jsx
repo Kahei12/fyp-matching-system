@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import Login from './pages/Login';
 import Student from './pages/Student';
 import Admin from './pages/Admin';
+import Teacher from './pages/Teacher';
 import PrivateRoute from './components/PrivateRoute';
 
 function App() {
@@ -23,6 +24,14 @@ function App() {
           element={
             <PrivateRoute role="admin">
               <Admin />
+            </PrivateRoute>
+          } 
+        />
+        <Route 
+          path="/teacher" 
+          element={
+            <PrivateRoute role="teacher">
+              <Teacher />
             </PrivateRoute>
           } 
         />
