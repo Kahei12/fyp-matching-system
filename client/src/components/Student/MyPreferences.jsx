@@ -61,7 +61,7 @@ function MyPreferences({
       <div className="section-header">
         <h1>My Preferences</h1>
         <div className="preferences-info">
-          <p>💡 Drag to reorder your project preferences, or use up/down buttons (1 = highest preference)</p>
+          <p>☼ Drag to reorder your project preferences, or use up/down buttons (1 = highest preference)</p>
         </div>
       </div>
 
@@ -93,7 +93,7 @@ function MyPreferences({
               <div className="preference-rank">{index + 1}</div>
               <div className="preference-content">
                 <h4>{preference.title}</h4>
-                <p>{preference.supervisor} · ♨ {preference.popularity} selections</p>
+                <p>{preference.supervisor} · ▲ {preference.popularity} selections</p>
               </div>
               <div className="preference-actions">
                 <button 

@@ -9,7 +9,9 @@ function Profile({ studentData }) {
 
       <div className="profile-card">
         <div className="profile-header">
-          <div className="profile-avatar">👨‍🎓</div>
+          <div className="profile-avatar">
+            {(studentData?.name && studentData.name.charAt(0)) || 'S'}
+          </div>
           <div className="profile-info">
             <h2>{studentData.name}</h2>
             <p className="profile-id">Student ID: {studentData.studentId}</p>

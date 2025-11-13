@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 
 function ProjectBrowse({ projects, preferences, onAddPreference }) {
   const [searchKeyword, setSearchKeyword] = useState('');
-  const [selectedSkills, setSelectedSkills] = useState([]);
+  const [selectedSkill, setSelectedSkill] = useState('');
   const [selectedSupervisor, setSelectedSupervisor] = useState('');
   const [statusFilter, setStatusFilter] = useState('active');
   const [sortBy, setSortBy] = useState('popularity');
@@ -39,10 +39,9 @@ function ProjectBrowse({ projects, preferences, onAddPreference }) {
       }
 
       // 技能過濾
-      if (selectedSkills.length > 0) {
-        const hasMatchingSkill = selectedSkills.some(skill => 
-          project.skills.includes(skill)
-        );
+      if (selectedSkill) {
+        const skills = Array.isArray(project.skills) ? project.skills : [project.skills];
+        const hasMatchingSkill = skills.includes(selectedSkill);
         if (!hasMatchingSkill) return false;
       }
 
@@ -75,19 +74,14 @@ function ProjectBrowse({ projects, preferences, onAddPreference }) {
     }
 
     return filtered;
-  }, [projects, searchKeyword, selectedSkills, selectedSupervisor, statusFilter, sortBy]);
+  }, [projects, searchKeyword, selectedSkill, selectedSupervisor, statusFilter, sortBy]);
 
   const clearFilters = () => {
     setSearchKeyword('');
-    setSelectedSkills([]);
+    setSelectedSkill('');
     setSelectedSupervisor('');
     setStatusFilter('active');
     setSortBy('popularity');
-  };
-
-  const handleSkillChange = (e) => {
-    const options = Array.from(e.target.selectedOptions);
-    setSelectedSkills(options.map(option => option.value));
   };
 
   return (
@@ -121,10 +115,10 @@ function ProjectBrowse({ projects, preferences, onAddPreference }) {
           <select 
             id="skillFilter" 
             className="filter-select" 
-            multiple
-            value={selectedSkills}
-            onChange={handleSkillChange}
+            value={selectedSkill}
+            onChange={(e) => setSelectedSkill(e.target.value)}
           >
+            <option value="">All Skills</option>
             {allSkills.map(skill => (
               <option key={skill} value={skill}>{skill}</option>
             ))}
@@ -173,7 +167,7 @@ function ProjectBrowse({ projects, preferences, onAddPreference }) {
       <div className="projects-grid">
         {filteredProjects.length === 0 ? (
           <div className="no-results">
-            <div className="no-results-icon">🔍</div>
+            <div className="no-results-icon">⌕</div>
             <h3>No projects found</h3>
             <p>Try adjusting your search criteria or filters</p>
             <button className="btn-primary" onClick={clearFilters}>Clear All Filters</button>
@@ -211,7 +205,7 @@ Status: ${project.status}
     <div className="project-card">
       <div className="project-header">
         <h3>{project.title}</h3>
-        <span className="popularity-badge">🔥 {project.popularity} selections</span>
+        <span className="popularity-badge">▲ {project.popularity} selections</span>
       </div>
       <div className="project-supervisor">
         <strong>Supervisor:</strong> {project.supervisor}
@@ -237,10 +231,10 @@ Status: ${project.status}
           onClick={() => onAddPreference(project.id)}
           disabled={isInPreferences}
         >
-          {isInPreferences ? '✅ Already Added' : '⭐ Add to Preferences'}
+          {isInPreferences ? '✔ Already Added' : '★ Add to Preferences'}
         </button>
         <button className="btn-secondary" onClick={handleViewDetails}>
-          📖 View Details
+          ℹ View Details
         </button>
       </div>
     </div>

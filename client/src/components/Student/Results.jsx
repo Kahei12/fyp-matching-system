@@ -12,7 +12,7 @@ function Results() {
 
       <div className="assignment-result">
         <div className="result-card">
-          <div className="result-icon">⏳</div>
+          <div className="result-icon">⌛</div>
           <div className="result-content">
             <h3>Assignment Pending</h3>
             <p>Your project assignment will be announced after the matching phase completes.</p>

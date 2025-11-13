@@ -9,7 +9,7 @@ function Login() {
   const navigate = useNavigate();
 
   const showMessage = (message, type) => {
-    console.log('💬 顯示訊息:', message);
+    console.log('[MSG] 顯示訊息:', message);
     
     // 移除現有的訊息
     const existingMessage = document.querySelector('.message-popup');
@@ -57,14 +57,14 @@ function Login() {
 
   const handleSubmit = async (event) => {
     event.preventDefault();
-    console.log('🎯 表單提交被觸發');
+    console.log('[TARGET] 表單提交被觸發');
     
     setIsLoading(true);
-    console.log('📧 輸入的 Email:', email);
-    console.log('🔑 輸入的 Password:', password);
+    console.log('[EMAIL] 輸入的 Email:', email);
+    console.log('[PASS] 輸入的 Password:', password);
 
     try {
-      console.log('🔄 發送請求到後端...');
+      console.log('[SYNC] 發送請求到後端...');
       const response = await fetch('/login', {
         method: 'POST',
         headers: {
@@ -73,14 +73,14 @@ function Login() {
         body: JSON.stringify({ email, password }),
       });
 
-      console.log('📨 後端回傳狀態:', response.status);
+      console.log('[STATUS] 後端回傳狀態:', response.status);
       const result = await response.json();
-      console.log('📦 後端回傳資料:', result);
+      console.log('[DATA] 後端回傳資料:', result);
 
       if (result.success) {
         // 顯示成功訊息
-        showMessage('✅ Login successful! Redirecting...', 'success');
-        console.log('👤 用戶角色:', result.user.role);
+        showMessage('✔ Login successful! Redirecting...', 'success');
+        console.log('[ROLE] 用戶角色:', result.user.role);
         
         // 儲存登入狀態
         sessionStorage.setItem('isLoggedIn', 'true');
@@ -99,30 +99,30 @@ function Login() {
         setTimeout(() => {
           switch(result.user.role) {
             case 'admin':
-              console.log('➡️ 導向 Admin 儀表板');
+              console.log('-> 導向 Admin 儀表板');
               navigate('/admin');
               break;
             case 'student':
-              console.log('➡️ 導向 Student 儀表板');
+              console.log('-> 導向 Student 儀表板');
               navigate('/student');
               break;
             case 'teacher':
-              console.log('➡️ 導向 Teacher 儀表板');
+              console.log('-> 導向 Teacher 儀表板');
               navigate('/teacher');
               break;
             default:
-              console.log('➡️ 導向首頁');
+              console.log('-> 導向首頁');
               navigate('/');
           }
         }, 1500); // 1.5秒後跳轉
         
       } else {
-        showMessage('❌ Login failed: ' + result.message, 'error');
+        showMessage('✖ Login failed: ' + result.message, 'error');
         setIsLoading(false);
       }
     } catch (error) {
-      console.error('💥 發生錯誤:', error);
-      showMessage('🚨 Network error, please try again later', 'error');
+      console.error('✸ 發生錯誤:', error);
+      showMessage('⚠ Network error, please try again later', 'error');
       setIsLoading(false);
     }
   };

@@ -41,7 +41,7 @@ function Student() {
     const studentId = sessionStorage.getItem('studentId') || 'S001';
     const userEmail = sessionStorage.getItem('userEmail') || '';
     
-    console.log('🔍 載入學生數據，studentId:', studentId);
+    console.log('[SEARCH] 載入學生數據，studentId:', studentId);
     
     // 更新本地狀態
     setStudentData(prev => ({
@@ -312,7 +312,7 @@ function Student() {
   const handleMovePreference = async (projectId, direction) => {
     const currentStudentId = studentData.studentId || sessionStorage.getItem('studentId') || 'S001';
     
-    console.log('🔄 Moving preference:', { projectId, direction, currentStudentId });
+    console.log('[MOVE] Moving preference:', { projectId, direction, currentStudentId });
     
     try {
       const response = await fetch(`/api/student/${currentStudentId}/preferences/${projectId}/move`, {
@@ -354,7 +354,7 @@ function Student() {
   const handleReorderPreferences = async (newPreferences) => {
     const currentStudentId = studentData.studentId || sessionStorage.getItem('studentId') || 'S001';
     
-    console.log('🔄 Reordering preferences via drag-drop:', { currentStudentId });
+    console.log('[REORDER] Reordering preferences via drag-drop:', { currentStudentId });
     
     // 立即更新 UI 以獲得流暢的體驗
     setPreferences(newPreferences);

@@ -460,7 +460,7 @@ function FinalAssignment({ showNotification }) {
                   <td>{student.gpa}</td>
                   <td>
                     <button className="btn-assign" onClick={() => assignStudent(index)}>
-                      💬 Assign Projects
+                      ✉ Assign Projects
                     </button>
                   </td>
                 </tr>
@@ -497,7 +497,7 @@ function FinalAssignment({ showNotification }) {
             </div>
           </div>
           
-          <button className="btn-export" onClick={exportReport}>📌 Export Report</button>
+          <button className="btn-export" onClick={exportReport}>⚑ Export Report</button>
         </div>
       </div>
     </section>

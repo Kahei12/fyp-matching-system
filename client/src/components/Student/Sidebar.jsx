@@ -2,11 +2,11 @@ import React from 'react';
 
 function Sidebar({ currentSection, onSwitchSection, studentData, onLogout }) {
   const menuItems = [
-    { id: 'dashboard', label: '📊 Dashboard' },
-    { id: 'project-browse', label: '🔍 Browse Projects' },
-    { id: 'my-preferences', label: '⭐ My Preferences' },
-    { id: 'results', label: '📋 Results' },
-    { id: 'profile', label: '👤 Profile' }
+    { id: 'dashboard', label: '◆ Dashboard' },
+    { id: 'project-browse', label: '⌕ Browse Projects' },
+    { id: 'my-preferences', label: '★ My Preferences' },
+    { id: 'results', label: '☰ Results' },
+    { id: 'profile', label: 'ⓘ Profile' }
   ];
 
   return (

@@ -250,14 +250,14 @@ function ProjectManagement({ showNotification }) {
                   onClick={() => handleEditProject(project.id)}
                   title="Edit"
                 >
-                  ✏️ Edit
+                  ✎ Edit
                 </button>
                 <button 
                   className="btn-delete" 
                   onClick={() => handleDeleteProject(project.id)}
                   title="Delete"
                 >
-                  🗑️ Delete
+                  ⊗ Delete
                 </button>
               </div>
             </div>
@@ -462,19 +462,19 @@ function StudentApplications({ showNotification }) {
                     className="btn-view-proposal" 
                     onClick={() => handleViewProposal(proposal.id)}
                   >
-                    👁️ View Details
+                    ◉ View Details
                   </button>
                   <button 
                     className="btn-approve-proposal" 
                     onClick={() => handleApproveProposal(proposal.id)}
                   >
-                    ✓ Approve
+                    ✔ Approve
                   </button>
                   <button 
                     className="btn-reject-proposal" 
                     onClick={() => handleRejectProposal(proposal.id)}
                   >
-                    ✗ Reject
+                    ✖ Reject
                   </button>
                 </div>
               </div>
@@ -650,10 +650,10 @@ function SupervisionList({ showNotification }) {
           </div>
           <div className="supervision-actions">
             <button className="btn-export-list" onClick={handleExportList}>
-              <span>📥</span> Export List
+              <span>↓</span> Export List
             </button>
             <button className="btn-schedule-meeting" onClick={handleScheduleMeeting}>
-              <span>📅</span> Schedule Meeting
+              <span>⏲</span> Schedule Meeting
             </button>
           </div>
         </div>
