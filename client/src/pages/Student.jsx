@@ -2,14 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import './Student.css';
 import Sidebar from '../components/Student/Sidebar';
-import Dashboard from '../components/Student/Dashboard';
+import Proposal from '../components/Student/Proposal';
 import ProjectBrowse from '../components/Student/ProjectBrowse';
 import MyPreferences from '../components/Student/MyPreferences';
 import Results from '../components/Student/Results';
 import Profile from '../components/Student/Profile';
 
 function Student() {
-  const [currentSection, setCurrentSection] = useState('dashboard');
+  const [currentSection, setCurrentSection] = useState('proposal');
   const [studentData, setStudentData] = useState({
     name: 'Chan Tai Man',
     studentId: 'S001',
@@ -428,8 +428,8 @@ function Student() {
 
   const renderSection = () => {
     switch (currentSection) {
-      case 'dashboard':
-        return <Dashboard 
+      case 'proposal':
+        return <Proposal 
           preferences={preferences} 
           onSwitchSection={setCurrentSection} 
         />;
@@ -454,7 +454,7 @@ function Student() {
       case 'profile':
         return <Profile studentData={studentData} />;
       default:
-        return <Dashboard preferences={preferences} onSwitchSection={setCurrentSection} />;
+        return <Proposal preferences={preferences} onSwitchSection={setCurrentSection} />;
     }
   };
 
@@ -471,7 +471,7 @@ function Student() {
         <div className="breadcrumb">
           <span 
             className="breadcrumb-link" 
-            onClick={() => setCurrentSection('dashboard')}
+            onClick={() => setCurrentSection('proposal')}
             style={{ cursor: 'pointer' }}
           >
             Home
@@ -575,13 +575,13 @@ function StageOverview({ currentSection, onStageChange, preferencesCount }) {
 
 function getSectionTitle(sectionId) {
   const titles = {
-    'dashboard': 'Dashboard',
+    'proposal': 'Proposal',
     'project-browse': 'Browse Projects',
     'my-preferences': 'My Preferences',
     'results': 'Results',
     'profile': 'Profile'
   };
-  return titles[sectionId] || 'Dashboard';
+  return titles[sectionId] || 'Proposal';
 }
 
 export default Student;
