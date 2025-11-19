@@ -134,10 +134,19 @@ function StudentApplications({ showNotification }) {
     }
   };
 
+  // 计算 Student Application deadline
+  const applicationDeadline = new Date('2025-04-15T23:59:00');
+  const now = new Date();
+  const daysLeft = Math.ceil((applicationDeadline - now) / (1000 * 60 * 60 * 24));
+  const formattedDate = applicationDeadline.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+
   return (
     <section className="content-section active">
       <div className="section-header">
-        <h1>My Projects & Applicants</h1>
+        <div className="section-title-with-deadline">
+          <h1>My Projects & Applicants</h1>
+          <span className="deadline-hint">⏰ Deadline: {formattedDate} ({daysLeft} days left)</span>
+        </div>
       </div>
 
       {/* Student Proposals Section */}

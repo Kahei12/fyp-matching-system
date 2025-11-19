@@ -84,10 +84,19 @@ function ProjectBrowse({ projects, preferences, onAddPreference }) {
     setSortBy('popularity');
   };
 
+  // 计算 Preference Selection deadline
+  const preferenceDeadline = new Date('2025-04-15T22:59:00');
+  const now = new Date();
+  const daysLeft = Math.ceil((preferenceDeadline - now) / (1000 * 60 * 60 * 24));
+  const formattedDate = preferenceDeadline.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+
   return (
     <section className="content-section active">
       <div className="section-header">
-        <h1>Browse Projects</h1>
+        <div className="section-title-with-deadline">
+          <h1>Browse Projects</h1>
+          <span className="deadline-hint">⏰ Deadline: {formattedDate} ({daysLeft} days left)</span>
+        </div>
         <div className="search-sort">
           <input 
             type="text" 

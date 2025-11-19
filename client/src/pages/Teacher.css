@@ -168,10 +168,28 @@
   border-bottom: 1px solid #e9ecef;
 }
 
+.section-title-with-deadline {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
 .section-header h1 {
   font-size: 1.8rem;
   color: #2c3e50;
   font-weight: 600;
+  margin: 0;
+}
+
+.deadline-hint {
+  font-size: 0.9rem;
+  color: #e74c3c;
+  font-weight: 500;
+  padding: 0.25rem 0.75rem;
+  background: #ffe5e5;
+  border-radius: 12px;
+  white-space: nowrap;
 }
 
 /* Deadline Notification */
@@ -222,6 +240,55 @@
 .deadline-description {
   color: #6c757d;
   font-size: 0.9rem;
+}
+
+/* Deadline Reminder */
+.deadline-reminder {
+  background: #ffe5e5;
+  border: 1px solid #ff9999;
+  border-radius: 8px;
+  padding: 1.5rem;
+  margin-top: 2rem;
+}
+
+.deadline-reminder h3 {
+  color: #856404;
+  margin-bottom: 1rem;
+}
+
+.deadline-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.deadline-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem;
+  background: white;
+  border-radius: 5px;
+  border: 1px solid #e9ecef;
+}
+
+.deadline-name {
+  font-weight: 500;
+  color: #2c3e50;
+}
+
+.deadline-date {
+  color: #6c757d;
+  font-size: 0.9rem;
+}
+
+.deadline-days {
+  background: #e74c3c;
+  color: white;
+  padding: 0.25rem 0.5rem;
+  border-radius: 12px;
+  font-size: 0.8rem;
+  font-weight: 500;
 }
 
 .stage-status-cards {
