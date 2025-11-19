@@ -1,12 +1,11 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
-const path = require('path');
 const app = express();
 const port = 3000;
 
 // 中介軟體
 app.use(express.json());
-app.use(express.static('public'));
+// 注意：React 版本通過 Vite 提供前端，不需要靜態檔案服務
 
 // 用戶資料（會自動初始化）
 let users = [];
@@ -79,47 +78,13 @@ app.post('/login', async (req, res) => {
             email: user.email, 
             role: user.role,
             name: user.name,
-            studentId: user.studentId, // 添加 studentId
-            redirectTo: getRedirectPage(user.role)
+            studentId: user.studentId // 添加 studentId
         }
     });
 });
 
-// 根據角色返回對應頁面
-function getRedirectPage(role) {
-    const pages = {
-        'admin': '/admin.html',
-        'student': '/student.html',
-        'teacher': '/teacher.html'
-    };
-    return pages[role] || '/';
-}
-
-// 📋 頁面路由
-app.get('/admin.html', (req, res) => {
-    console.log('📄 請求管理員頁面');
-    res.sendFile(path.join(__dirname, 'public', 'admin.html'));
-});
-
-app.get('/student.html', (req, res) => {
-    console.log('📄 請求學生頁面');
-    res.sendFile(path.join(__dirname, 'public', 'student.html'));
-});
-
-app.get('/teacher.html', (req, res) => {
-    console.log('📄 請求教師頁面');
-    res.sendFile(path.join(__dirname, 'public', 'teacher.html'));
-});
-
-app.get('/dashboard.html', (req, res) => {
-    console.log('📄 請求用戶儀表板 - 重定向到登入頁');
-    res.redirect('/');
-});
-
-// 根路由 - 登入頁面
-app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'login.html'));
-});
+// 注意：HTML 頁面路由已移除，React 版本通過 Vite 開發伺服器提供前端
+// 此伺服器僅提供 API 端點
 
 // 🔥 引入服務層 - 放在路由之前
 try {
@@ -262,13 +227,15 @@ try {
 // 🔥 啟動伺服器前先初始化用戶資料
 initializeUsers().then(() => {
     app.listen(port, () => {
-        console.log(`🚀 伺服器運行在 http://localhost:${port}`);
-        console.log(`🎯 系統界面:`);
-        console.log(`   📧 登入頁面: http://localhost:${port}/`);
-        console.log(`   👨‍💼 管理員界面: http://localhost:${port}/admin.html`);
-        console.log(`   👨‍🎓 學生界面: http://localhost:${port}/student.html`);
-        console.log(`   👨‍🏫 教師界面: http://localhost:${port}/teacher.html`);
-        console.log('\n🔑 測試帳號:');
+        console.log(`🚀 API 伺服器運行在 http://localhost:${port}`);
+        console.log(`📡 提供 API 端點:`);
+        console.log(`   POST /login - 登入驗證`);
+        console.log(`   GET  /api/student/projects - 獲取項目列表`);
+        console.log(`   GET  /api/student/:id - 獲取學生信息`);
+        console.log(`   GET  /api/student/:id/preferences - 獲取學生偏好`);
+        console.log(`   更多 API 端點請查看 server.js`);
+        console.log(`\n💡 React 前端運行在 http://localhost:5173 (通過 Vite)`);
+        console.log(`\n🔑 測試帳號:`);
         console.log('   Admin: admin@hkmu.edu.hk / admin123');
         console.log('   Student: student@hkmu.edu.hk / student123');
         console.log('   Teacher: teacher@hkmu.edu.hk / teacher123');
