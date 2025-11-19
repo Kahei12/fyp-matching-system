@@ -175,6 +175,13 @@
   flex-wrap: wrap;
 }
 
+.section-title-with-deadline h1 {
+  font-size: 1.8rem;
+  color: #2c3e50;
+  font-weight: 600;
+  margin: 0;
+}
+
 .section-header h1 {
   font-size: 1.8rem;
   color: #2c3e50;
@@ -190,6 +197,11 @@
   background: #ffe5e5;
   border-radius: 12px;
   white-space: nowrap;
+}
+
+.phase-indicator, .results-status {
+  font-size: 0.9rem;
+  color: #6c757d;
 }
 
 /* Deadline Notification */
@@ -248,7 +260,7 @@
   border: 1px solid #ff9999;
   border-radius: 8px;
   padding: 1.5rem;
-  margin-top: 2rem;
+  margin-top: 3rem;
 }
 
 .deadline-reminder h3 {
@@ -295,7 +307,7 @@
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
   gap: 1.5rem;
-  margin-bottom: 2rem;
+  margin-bottom: 0;
 }
 
 .stage-status-cards .status-card {

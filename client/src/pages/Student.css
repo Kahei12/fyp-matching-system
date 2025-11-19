@@ -175,6 +175,13 @@
   flex-wrap: wrap;
 }
 
+.section-title-with-deadline h1 {
+  font-size: 1.8rem;
+  color: #2c3e50;
+  font-weight: 600;
+  margin: 0;
+}
+
 .section-header h1 {
   font-size: 1.8rem;
   color: #2c3e50;

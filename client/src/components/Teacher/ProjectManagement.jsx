@@ -60,20 +60,10 @@ function ProjectManagement({ showNotification }) {
     }
   };
 
-  // 计算 Project Management deadline
-  const projectDeadline = new Date('2025-05-30T23:59:00');
-  const now = new Date();
-  const daysLeft = Math.ceil((projectDeadline - now) / (1000 * 60 * 60 * 24));
-  const formattedDate = projectDeadline.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-
   return (
     <section className="content-section active">
       {/* My Projects Section */}
       <div className="section-header">
-        <div className="section-title-with-deadline">
-          <h1>My Projects</h1>
-          <span className="deadline-hint">⏰ Deadline: {formattedDate} ({daysLeft} days left)</span>
-        </div>
         <button className="btn-create-project" onClick={handleCreateProject}>
           <span>+</span> Create New Project
         </button>
@@ -113,23 +103,6 @@ function ProjectManagement({ showNotification }) {
         </div>
         <div className="project-stats">
           Stats: Published {stats.published} | Under Review {stats.underReview}
-        </div>
-      </div>
-
-      {/* Deadline Reminder */}
-      <div className="deadline-reminder">
-        <h3>⏰ Upcoming Deadlines</h3>
-        <div className="deadline-list">
-          <div className="deadline-item">
-            <span className="deadline-name">Student Application Review</span>
-            <span className="deadline-date">2025-04-15 23:59</span>
-            <span className="deadline-days">{Math.ceil((new Date('2025-04-15T23:59:00') - now) / (1000 * 60 * 60 * 24))} days left</span>
-          </div>
-          <div className="deadline-item">
-            <span className="deadline-name">Project Updates & Reviews</span>
-            <span className="deadline-date">2025-05-30 23:59</span>
-            <span className="deadline-days">{daysLeft} days left</span>
-          </div>
         </div>
       </div>
     </section>

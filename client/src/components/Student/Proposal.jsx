@@ -131,18 +131,21 @@ function Proposal({ preferences, onSwitchSection }) {
     return statusMap[status] || 'status-pending';
   };
 
-  // 计算 Proposal Submission deadline
-  const proposalDeadline = new Date('2025-03-20T23:59:00');
+  // 计算 deadlines
   const now = new Date();
-  const daysLeft = Math.ceil((proposalDeadline - now) / (1000 * 60 * 60 * 24));
-  const formattedDate = proposalDeadline.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  const proposalDeadline = new Date('2025-03-20T23:59:00');
+  const preferenceDeadline = new Date('2025-04-15T22:59:00');
+  
+  const proposalDaysLeft = Math.ceil((proposalDeadline - now) / (1000 * 60 * 60 * 24));
+  const preferenceDaysLeft = Math.ceil((preferenceDeadline - now) / (1000 * 60 * 60 * 24));
+  const formattedProposalDate = proposalDeadline.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 
   return (
     <section className="content-section active">
       <div className="section-header">
         <div className="section-title-with-deadline">
           <h1>Proposal</h1>
-          <span className="deadline-hint">⏰ Deadline: {formattedDate} ({daysLeft} days left)</span>
+          <span className="deadline-hint">⏰ Deadline: {formattedProposalDate} ({proposalDaysLeft} days left)</span>
         </div>
         <div className="phase-indicator">
           Current Phase: <strong>Phase 1 — Proposal</strong>
@@ -192,17 +195,17 @@ function Proposal({ preferences, onSwitchSection }) {
 
       {/* Deadline Reminder */}
       <div className="deadline-reminder">
-        <h3>⏲ Upcoming Deadlines</h3>
+        <h3>⏰ Upcoming Deadlines</h3>
         <div className="deadline-list">
           <div className="deadline-item">
             <span className="deadline-name">Proposal Submission</span>
             <span className="deadline-date">2025-03-20 23:59</span>
-            <span className="deadline-days">15 days left</span>
+            <span className="deadline-days">{proposalDaysLeft} days left</span>
           </div>
           <div className="deadline-item">
             <span className="deadline-name">Preference Selection</span>
             <span className="deadline-date">2025-04-15 22:59</span>
-            <span className="deadline-days">41 days left</span>
+            <span className="deadline-days">{preferenceDaysLeft} days left</span>
           </div>
         </div>
       </div>

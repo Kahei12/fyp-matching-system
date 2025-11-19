@@ -56,19 +56,9 @@ function MyPreferences({
     setDragOverIndex(null);
   };
 
-  // 计算 Preference Selection deadline
-  const preferenceDeadline = new Date('2025-04-15T22:59:00');
-  const now = new Date();
-  const daysLeft = Math.ceil((preferenceDeadline - now) / (1000 * 60 * 60 * 24));
-  const formattedDate = preferenceDeadline.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-
   return (
     <section className="content-section active">
       <div className="section-header">
-        <div className="section-title-with-deadline">
-          <h1>My Preferences</h1>
-          <span className="deadline-hint">⏰ Deadline: {formattedDate} ({daysLeft} days left)</span>
-        </div>
         <div className="preferences-info">
           <p>☼ Drag to reorder your project preferences, or use up/down buttons (1 = highest preference)</p>
         </div>

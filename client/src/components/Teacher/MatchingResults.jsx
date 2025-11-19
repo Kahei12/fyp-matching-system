@@ -62,19 +62,9 @@ function MatchingResults({ showNotification }) {
     showNotification('Generating result report...', 'info');
   };
 
-  // 计算 Matching Result deadline
-  const resultDeadline = new Date('2025-06-15T23:59:00');
-  const now = new Date();
-  const daysLeft = Math.ceil((resultDeadline - now) / (1000 * 60 * 60 * 24));
-  const formattedDate = resultDeadline.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-
   return (
     <section className="content-section active">
       <div className="section-header">
-        <div className="section-title-with-deadline">
-          <h1>Matching Result</h1>
-          <span className="deadline-hint">⏰ Deadline: {formattedDate} ({daysLeft} days left)</span>
-        </div>
         <div className="results-status">
           Last updated: <strong>{lastUpdated}</strong>
         </div>

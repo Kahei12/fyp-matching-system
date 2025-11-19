@@ -4,7 +4,6 @@ function Results() {
   return (
     <section className="content-section active">
       <div className="section-header">
-        <h1>Assignment Results</h1>
         <div className="results-status">
           Status: <strong>Pending</strong>
         </div>

@@ -426,6 +426,52 @@ function Student() {
   const stageSections = ['project-browse', 'my-preferences', 'results'];
   const shouldShowStageOverview = stageSections.includes(currentSection);
 
+  // 获取phase信息
+  const getPhaseInfo = (section) => {
+    const phaseMap = {
+      'proposal': { phase: 1, name: 'Proposal' },
+      'project-browse': { phase: 2, name: 'Matching' },
+      'my-preferences': { phase: 2, name: 'Matching' },
+      'results': { phase: 3, name: 'Clearing' }
+    };
+    return phaseMap[section] || null;
+  };
+
+  // 渲染主标题和 deadline 提示
+  const renderPageTitleWithDeadline = (section) => {
+    const preferenceDeadline = new Date('2025-04-15T22:59:00');
+    const now = new Date();
+    const daysLeft = Math.ceil((preferenceDeadline - now) / (1000 * 60 * 60 * 24));
+    const formattedDate = preferenceDeadline.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+
+    const titles = {
+      'project-browse': 'Browse Projects',
+      'my-preferences': 'My Preferences',
+      'results': 'Assignment Results'
+    };
+
+    const title = titles[section];
+    if (!title) return null;
+
+    const phaseInfo = getPhaseInfo(section);
+
+    return (
+      <div className="section-header" style={{ marginBottom: '1.5rem' }}>
+        <div className="section-title-with-deadline">
+          <h1>{title}</h1>
+          {section !== 'results' && (
+            <span className="deadline-hint">⏰ Deadline: {formattedDate} ({daysLeft} days left)</span>
+          )}
+        </div>
+        {phaseInfo && (
+          <div className="phase-indicator">
+            Current Phase: <strong>Phase {phaseInfo.phase} — {phaseInfo.name}</strong>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   const renderSection = () => {
     switch (currentSection) {
       case 'proposal':
@@ -482,6 +528,8 @@ function Student() {
 
         {shouldShowStageOverview && (
           <div className="page-overview">
+            {/* 主标题和 deadline 提示 */}
+            {renderPageTitleWithDeadline(currentSection)}
             <StageOverview 
               currentSection={currentSection} 
               onStageChange={setCurrentSection}
