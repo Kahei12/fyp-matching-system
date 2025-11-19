@@ -423,6 +423,9 @@ function Student() {
     }, 3000);
   };
 
+  const stageSections = ['project-browse', 'my-preferences', 'results'];
+  const shouldShowStageOverview = stageSections.includes(currentSection);
+
   const renderSection = () => {
     switch (currentSection) {
       case 'dashboard':
@@ -476,9 +479,96 @@ function Student() {
           <span className="breadcrumb-separator">→</span>
           <span>{getSectionTitle(currentSection)}</span>
         </div>
+
+        {shouldShowStageOverview && (
+          <div className="page-overview">
+            <StageOverview 
+              currentSection={currentSection} 
+              onStageChange={setCurrentSection}
+              preferencesCount={preferences.length}
+            />
+          </div>
+        )}
         
         {renderSection()}
       </main>
+    </div>
+  );
+}
+
+function StageOverview({ currentSection, onStageChange, preferencesCount }) {
+  const stages = [
+    {
+      id: 'project-browse',
+      badgeLabel: 'Stage 1 (Proposal)',
+      title: 'Browse Projects',
+      description: 'Explore available FYP projects and add to preferences.',
+      icon: '✍',
+      stageClass: 'stage-1',
+      cardClass: 'status-card-stage-1'
+    },
+    {
+      id: 'my-preferences',
+      badgeLabel: 'Stage 2 (Matching)',
+      title: 'My Preferences',
+      description: `Manage your project preferences (${preferencesCount}/5 selected).`,
+      icon: '★',
+      stageClass: 'stage-2',
+      cardClass: 'status-card-stage-2'
+    },
+    {
+      id: 'results',
+      badgeLabel: 'Stage 3 (Clearing)',
+      title: 'Results',
+      description: 'View your project assignment and matching results.',
+      icon: '☰',
+      stageClass: 'stage-3',
+      cardClass: 'status-card-stage-3'
+    }
+  ];
+
+  return (
+    <div className="status-cards stage-status-cards">
+      {stages.map(stage => (
+        <div
+          key={stage.id}
+          className={`status-card ${stage.cardClass} ${currentSection === stage.id ? 'active' : ''}`}
+          onClick={() => onStageChange(stage.id)}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              onStageChange(stage.id);
+            }
+          }}
+        >
+          <span className={`stage-badge ${stage.stageClass}`}>
+            {stage.badgeLabel}
+          </span>
+          <div className="status-icon">{stage.icon}</div>
+          <div className="status-content">
+            <h3>{stage.title}</h3>
+            <p>{stage.description}</p>
+            <button 
+              className="action-btn"
+              onClick={(e) => {
+                e.stopPropagation();
+                // If on My Preferences page, the button should go to Browse Projects
+                if (currentSection === 'my-preferences' && stage.id === 'my-preferences') {
+                  onStageChange('project-browse');
+                } else {
+                  onStageChange(stage.id);
+                }
+              }}
+            >
+              {currentSection === 'my-preferences' && stage.id === 'my-preferences' 
+                ? 'Browse Projects' 
+                : `Go to ${stage.title}`}
+            </button>
+          </div>
+        </div>
+      ))}
     </div>
   );
 }

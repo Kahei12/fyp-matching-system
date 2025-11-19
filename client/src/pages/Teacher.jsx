@@ -159,10 +159,12 @@ function Teacher() {
             <DeadlineBanner deadline={activeDeadline} />
           )}
 
-          <StageOverview 
-            currentSection={currentSection} 
-            onStageChange={setCurrentSection} 
-          />
+          {currentSection !== 'supervision-list' && (
+            <StageOverview 
+              currentSection={currentSection} 
+              onStageChange={setCurrentSection} 
+            />
+          )}
         </div>
 
         {renderSection()}
@@ -175,29 +177,29 @@ function StageOverview({ currentSection, onStageChange }) {
   const stages = [
     {
       id: 'student-applications',
-      badgeLabel: 'Stage 1',
+      badgeLabel: 'Stage 1 (Proposal)',
       title: 'Student Application',
       description: 'Collect and review student submissions.',
       icon: '✍',
-      stageClass: 'stage-1 (Proposal) ',
+      stageClass: 'stage-1',
       cardClass: 'status-card-stage-1'
     },
     {
       id: 'project-management',
-      badgeLabel: 'Stage 2',
+      badgeLabel: 'Stage 2 (Matching)',
       title: 'Project Management',
       description: 'Approve, update and maintain project pool.',
       icon: '⚙',
-      stageClass: 'stage-2 (Matching)',
+      stageClass: 'stage-2',
       cardClass: 'status-card-stage-2'
     },
     {
       id: 'results',
-      badgeLabel: 'Stage 3',
+      badgeLabel: 'Stage 3 (Clearing)',
       title: 'Result',
       description: 'Confirm and release matching outcome.',
       icon: '☰',
-      stageClass: 'stage-3 (Clearing)',
+      stageClass: 'stage-3',
       cardClass: 'status-card-stage-3'
     }
   ];

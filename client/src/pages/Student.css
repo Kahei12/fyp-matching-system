@@ -128,6 +128,10 @@
   color: #6c757d;
 }
 
+.page-overview {
+  padding: 2rem;
+}
+
 .breadcrumb-link {
   color: #3498db;
   cursor: pointer;
@@ -199,6 +203,32 @@
   position: relative; /* 讓徽章可定位在卡片內 */
 }
 
+/* Stage Status Cards (always visible at top) */
+.stage-status-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 1.5rem;
+  margin-bottom: 2rem;
+}
+
+.stage-status-cards .status-card {
+  background: #f8f9fa;
+  padding: 1.5rem;
+  border-radius: 10px;
+  border-left: 4px solid #3498db;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  position: relative;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+  cursor: pointer;
+}
+
+.stage-status-cards .status-card.active {
+  box-shadow: 0 8px 20px rgba(44, 62, 80, 0.15);
+  transform: translateY(-4px);
+}
+
 /* 根據 Stage 設置左邊框顏色 */
 .status-card-stage-1 {
   border-left-color: #6f42c1; /* 紫色 - 與 stage-1 相同 */
@@ -218,9 +248,26 @@
   text-align: center;
 }
 
+.stage-status-cards .status-icon {
+  font-size: 2.5rem;
+  width: 60px;
+  text-align: center;
+}
+
 .status-content h3 {
   color: #2c3e50;
   margin-bottom: 0.5rem;
+}
+
+.stage-status-cards .status-content h3 {
+  color: #2c3e50;
+  margin-bottom: 0.35rem;
+}
+
+.stage-status-cards .status-content p {
+  color: #6c757d;
+  font-size: 0.95rem;
+  margin-bottom: 1rem;
 }
 
 .status-value {
@@ -242,6 +289,21 @@
 }
 
 .action-btn:hover {
+  background: #2980b9;
+}
+
+.stage-status-cards .action-btn {
+  background: #3498db;
+  color: white;
+  border: none;
+  padding: 0.5rem 1rem;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: background 0.3s ease;
+}
+
+.stage-status-cards .action-btn:hover {
   background: #2980b9;
 }
 
@@ -803,6 +865,14 @@ button:disabled {
   
   .status-cards {
     grid-template-columns: 1fr;
+  }
+
+  .stage-status-cards {
+    grid-template-columns: 1fr;
+  }
+
+  .page-overview {
+    padding: 1.5rem;
   }
   
   .projects-grid {
