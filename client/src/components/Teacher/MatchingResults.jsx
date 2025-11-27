@@ -4,8 +4,7 @@ function MatchingResults({ showNotification }) {
   const [lastUpdated, setLastUpdated] = useState('2025-04-28 11:20');
 
   const summary = {
-    totalMatched: 8,
-    awaitingConfirmation: 2,
+    matched: 10,
     unmatched: 1
   };
 
@@ -72,14 +71,9 @@ function MatchingResults({ showNotification }) {
 
       <div className="results-summary-grid">
         <div className="results-summary-card">
-          <span className="summary-label">Total Matched</span>
-          <span className="summary-value">{summary.totalMatched}</span>
+          <span className="summary-label">Matched</span>
+          <span className="summary-value">{summary.matched}</span>
           <span className="summary-helper">students assigned</span>
-        </div>
-        <div className="results-summary-card">
-          <span className="summary-label">Awaiting Confirmation</span>
-          <span className="summary-value">{summary.awaitingConfirmation}</span>
-          <span className="summary-helper">students pending reply</span>
         </div>
         <div className="results-summary-card">
           <span className="summary-label">Unmatched</span>
