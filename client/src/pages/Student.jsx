@@ -426,15 +426,15 @@ function Student() {
   const stageSections = ['project-browse', 'my-preferences', 'results'];
   const shouldShowStageOverview = stageSections.includes(currentSection);
 
-  // 获取phase信息
-  const getPhaseInfo = (section) => {
-    const phaseMap = {
-      'proposal': { phase: 1, name: 'Proposal' },
-      'project-browse': { phase: 2, name: 'Matching' },
-      'my-preferences': { phase: 2, name: 'Matching' },
-      'results': { phase: 3, name: 'Clearing' }
+  // 获取 stage 信息
+  const getStageInfo = (section) => {
+    const stageMap = {
+      'proposal': { stage: 1, label: 'Proposal', badgeClass: 'stage-1' },
+      'project-browse': { stage: 2, label: 'Matching', badgeClass: 'stage-2' },
+      'my-preferences': { stage: 2, label: 'Matching', badgeClass: 'stage-2' },
+      'results': { stage: 3, label: 'Clearing', badgeClass: 'stage-3' }
     };
-    return phaseMap[section] || null;
+    return stageMap[section] || null;
   };
 
   // 渲染主标题和 deadline 提示
@@ -453,7 +453,7 @@ function Student() {
     const title = titles[section];
     if (!title) return null;
 
-    const phaseInfo = getPhaseInfo(section);
+    const stageInfo = getStageInfo(section);
 
     return (
       <div className="section-header" style={{ marginBottom: '1.5rem' }}>
@@ -463,9 +463,12 @@ function Student() {
             <span className="deadline-hint">⏰ Deadline: {formattedDate} ({daysLeft} days left)</span>
           )}
         </div>
-        {phaseInfo && (
+        {stageInfo && (
           <div className="phase-indicator">
-            Current Phase: <strong>Phase {phaseInfo.phase} — {phaseInfo.name}</strong>
+            <span>Current stage:</span>
+            <span className={`stage-badge ${stageInfo.badgeClass}`}>
+              {`Stage ${stageInfo.stage} — ${stageInfo.label}`}
+            </span>
           </div>
         )}
       </div>
@@ -545,33 +548,54 @@ function Student() {
 }
 
 function StageOverview({ currentSection, onStageChange, preferencesCount }) {
+  // Get proposal status - for now default to "Not Submitted"
+  // This should ideally come from props or API
+  const proposalStatus = 'Not Submitted';
+  const assignmentStatus = 'Not Assigned';
+
+  // Determine which stage should be active based on currentSection
+  const getActiveStageId = () => {
+    if (currentSection === 'proposal') return 'proposal';
+    if (currentSection === 'project-browse' || currentSection === 'my-preferences') return 'project-browse';
+    if (currentSection === 'results') return 'results';
+    return null;
+  };
+
+  const activeStageId = getActiveStageId();
+
   const stages = [
     {
-      id: 'project-browse',
+      id: 'proposal',
       badgeLabel: 'Stage 1 (Proposal)',
-      title: 'Browse Projects',
-      description: 'Explore available FYP projects and add to preferences.',
+      title: 'Proposal Status',
+      statusValue: proposalStatus,
+      buttonText: 'Submit Proposal',
       icon: '✍',
       stageClass: 'stage-1',
-      cardClass: 'status-card-stage-1'
+      cardClass: 'status-card-stage-1',
+      onClick: () => onStageChange('proposal')
     },
     {
-      id: 'my-preferences',
+      id: 'project-browse',
       badgeLabel: 'Stage 2 (Matching)',
-      title: 'My Preferences',
-      description: `Manage your project preferences (${preferencesCount}/5 selected).`,
+      title: 'Preferences',
+      statusValue: `${preferencesCount}/5 Selected`,
+      buttonText: 'Browse Projects',
       icon: '★',
       stageClass: 'stage-2',
-      cardClass: 'status-card-stage-2'
+      cardClass: 'status-card-stage-2',
+      onClick: () => onStageChange('project-browse')
     },
     {
       id: 'results',
       badgeLabel: 'Stage 3 (Clearing)',
-      title: 'Results',
-      description: 'View your project assignment and matching results.',
+      title: 'Assignment',
+      statusValue: assignmentStatus,
+      buttonText: 'View Status',
       icon: '☰',
       stageClass: 'stage-3',
-      cardClass: 'status-card-stage-3'
+      cardClass: 'status-card-stage-3',
+      onClick: () => onStageChange('results')
     }
   ];
 
@@ -580,14 +604,14 @@ function StageOverview({ currentSection, onStageChange, preferencesCount }) {
       {stages.map(stage => (
         <div
           key={stage.id}
-          className={`status-card ${stage.cardClass} ${currentSection === stage.id ? 'active' : ''}`}
-          onClick={() => onStageChange(stage.id)}
+          className={`status-card ${stage.cardClass} ${activeStageId === stage.id ? 'active' : ''}`}
+          onClick={stage.onClick}
           role="button"
           tabIndex={0}
           onKeyDown={(e) => {
             if (e.key === 'Enter' || e.key === ' ') {
               e.preventDefault();
-              onStageChange(stage.id);
+              stage.onClick();
             }
           }}
         >
@@ -597,22 +621,15 @@ function StageOverview({ currentSection, onStageChange, preferencesCount }) {
           <div className="status-icon">{stage.icon}</div>
           <div className="status-content">
             <h3>{stage.title}</h3>
-            <p>{stage.description}</p>
+            <p className="status-value">{stage.statusValue}</p>
             <button 
               className="action-btn"
               onClick={(e) => {
                 e.stopPropagation();
-                // If on My Preferences page, the button should go to Browse Projects
-                if (currentSection === 'my-preferences' && stage.id === 'my-preferences') {
-                  onStageChange('project-browse');
-                } else {
-                  onStageChange(stage.id);
-                }
+                stage.onClick();
               }}
             >
-              {currentSection === 'my-preferences' && stage.id === 'my-preferences' 
-                ? 'Browse Projects' 
-                : `Go to ${stage.title}`}
+              {stage.buttonText}
             </button>
           </div>
         </div>
