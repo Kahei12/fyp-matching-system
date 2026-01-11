@@ -57,8 +57,43 @@ function MatchingResults({ showNotification }) {
     setLastUpdated(new Date().toLocaleString());
   };
 
-  const handleDownloadReport = () => {
-    showNotification('Generating result report...', 'info');
+  const handleDownloadReport = async () => {
+    try {
+      showNotification('Generating result report...', 'info');
+
+      // 下載配對結果
+      const resultsResponse = await fetch('/api/export/matching-results');
+      if (resultsResponse.ok) {
+        const blob = await resultsResponse.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'matching_results.csv';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
+      }
+
+      // 下載項目清單
+      const projectsResponse = await fetch('/api/export/project-list');
+      if (projectsResponse.ok) {
+        const blob = await projectsResponse.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'project_list.csv';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
+      }
+
+      showNotification('Reports downloaded successfully!', 'success');
+    } catch (error) {
+      console.error('Download error:', error);
+      showNotification('Failed to download reports', 'error');
+    }
   };
 
   return (

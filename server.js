@@ -1,7 +1,16 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
+const { Parser } = require('json2csv');
 const app = express();
 const port = 3000;
+
+// Load environment variables and connect to MongoDB (optional)
+require('dotenv').config();
+const mongoose = require('mongoose');
+const mongoUri = process.env.MONGO_URI || 'mongodb://localhost:27017/fyp-matching';
+mongoose.connect(mongoUri)
+  .then(() => console.log('✅ MongoDB connected'))
+  .catch(err => console.error('❌ MongoDB connection error:', err));
 
 // 中介軟體
 app.use(express.json());
@@ -38,8 +47,33 @@ async function initializeUsers() {
             email: 'teacher@hkmu.edu.hk',
             password: teacherPassword,
             role: 'teacher',
+            name: 'Dr. Alex Chen',
+            department: 'Computer Science',
+            teacherId: 'T001'
+        },
+        {
+            email: 'bell@hkmu.edu.hk',
+            password: teacherPassword,
+            role: 'teacher',
             name: 'Dr. Bell Liu',
-            department: 'Computer Science'
+            department: 'Computer Science',
+            teacherId: 'T002'
+        },
+        {
+            email: 'adam@hkmu.edu.hk',
+            password: teacherPassword,
+            role: 'teacher',
+            name: 'Dr. Adam Wong',
+            department: 'Electronic Engineering',
+            teacherId: 'T003'
+        },
+        {
+            email: 'yaru@hkmu.edu.hk',
+            password: teacherPassword,
+            role: 'teacher',
+            name: 'Dr. Yaru Zhang',
+            department: 'Computer Science',
+            teacherId: 'T004'
         }
     ];
     
@@ -47,7 +81,11 @@ async function initializeUsers() {
     console.log('📧 測試帳號:');
     console.log('   Admin: admin@hkmu.edu.hk / admin123');
     console.log('   Student: student@hkmu.edu.hk / student123');
-    console.log('   Teacher: teacher@hkmu.edu.hk / teacher123');
+    console.log('   Teachers:');
+    console.log('     Alex (Cybersecurity): teacher@hkmu.edu.hk / teacher123');
+    console.log('     Bell (CS Projects): bell@hkmu.edu.hk / teacher123');
+    console.log('     Adam (Industrial): adam@hkmu.edu.hk / teacher123');
+    console.log('     Yaru (AI/Control): yaru@hkmu.edu.hk / teacher123');
 }
 
 // 登入 API 路由
@@ -203,6 +241,88 @@ try {
         }
     });
 
+    // 🔥 數據匯出 API 端點
+    app.get('/api/export/matching-results', (req, res) => {
+        console.log('📊 導出配對結果');
+        try {
+            const matchingResults = studentService.getMatchingResults();
+            const csvData = matchingResults.map(result => ({
+                'Project ID': result.projectId,
+                'Project Title': result.title,
+                'Supervisor': result.supervisor,
+                'Student ID': result.studentId || 'Unassigned',
+                'Student Name': result.studentName || 'Unassigned',
+                'Student GPA': result.studentGpa || 'N/A',
+                'Match Rank': result.matchRank || 'N/A'
+            }));
+
+            const parser = new Parser();
+            const csv = parser.parse(csvData);
+
+            res.header('Content-Type', 'text/csv');
+            res.attachment('matching_results.csv');
+            res.send(csv);
+        } catch (error) {
+            console.error('❌ 導出配對結果錯誤:', error);
+            res.json({ success: false, message: 'Failed to export matching results' });
+        }
+    });
+
+    app.get('/api/export/student-list', (req, res) => {
+        console.log('👥 導出學生清單');
+        try {
+            const students = studentService.getAllStudents();
+            const csvData = students.map(student => ({
+                'Student ID': student.id,
+                'Name': student.name,
+                'Email': student.email,
+                'GPA': student.gpa,
+                'Major': student.major,
+                'Year': student.year,
+                'Preferences Submitted': student.preferences.length > 0 ? 'Yes' : 'No',
+                'Assigned Project': student.assignedProject || 'Unassigned'
+            }));
+
+            const parser = new Parser();
+            const csv = parser.parse(csvData);
+
+            res.header('Content-Type', 'text/csv');
+            res.attachment('student_list.csv');
+            res.send(csv);
+        } catch (error) {
+            console.error('❌ 導出學生清單錯誤:', error);
+            res.json({ success: false, message: 'Failed to export student list' });
+        }
+    });
+
+    app.get('/api/export/project-list', (req, res) => {
+        console.log('📋 導出項目清單');
+        try {
+            const projects = studentService.getAvailableProjects();
+            const csvData = projects.map(project => ({
+                'Project ID': project.id,
+                'Title': project.title,
+                'Supervisor': project.supervisor,
+                'Description': project.description,
+                'Skills Required': Array.isArray(project.skills) ? project.skills.join(', ') : project.skills,
+                'Capacity': project.capacity,
+                'Popularity': project.popularity,
+                'Status': project.status,
+                'Created Date': project.createdAt
+            }));
+
+            const parser = new Parser();
+            const csv = parser.parse(csvData);
+
+            res.header('Content-Type', 'text/csv');
+            res.attachment('project_list.csv');
+            res.send(csv);
+        } catch (error) {
+            console.error('❌ 導出項目清單錯誤:', error);
+            res.json({ success: false, message: 'Failed to export project list' });
+        }
+    });
+
 } catch (error) {
     console.log('⚠️ 服務層未找到，使用模擬API');
     
@@ -233,12 +353,19 @@ initializeUsers().then(() => {
         console.log(`   GET  /api/student/projects - 獲取項目列表`);
         console.log(`   GET  /api/student/:id - 獲取學生信息`);
         console.log(`   GET  /api/student/:id/preferences - 獲取學生偏好`);
+        console.log(`   GET  /api/export/matching-results - 導出配對結果 (CSV)`);
+        console.log(`   GET  /api/export/student-list - 導出學生清單 (CSV)`);
+        console.log(`   GET  /api/export/project-list - 導出項目清單 (CSV)`);
         console.log(`   更多 API 端點請查看 server.js`);
         console.log(`\n💡 React 前端運行在 http://localhost:5173 (通過 Vite)`);
         console.log(`\n🔑 測試帳號:`);
         console.log('   Admin: admin@hkmu.edu.hk / admin123');
         console.log('   Student: student@hkmu.edu.hk / student123');
-        console.log('   Teacher: teacher@hkmu.edu.hk / teacher123');
+        console.log('   Teachers:');
+        console.log('     Alex (Cybersecurity): teacher@hkmu.edu.hk / teacher123');
+        console.log('     Bell (CS Projects): bell@hkmu.edu.hk / teacher123');
+        console.log('     Adam (Industrial): adam@hkmu.edu.hk / teacher123');
+        console.log('     Yaru (AI/Control): yaru@hkmu.edu.hk / teacher123');
     });
 });
 

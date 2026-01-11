@@ -148,78 +148,49 @@ function Proposal({ preferences, onSwitchSection }) {
           <span className="deadline-hint">⏰ Deadline: {formattedProposalDate} ({proposalDaysLeft} days left)</span>
         </div>
         <div className="phase-indicator">
-          <span>Current stage:</span>
-          <span className="stage-badge stage-1">Stage 1 — Proposal</span>
+          Current Phase: <strong>Phase 1 — Proposal</strong>
         </div>
       </div>
 
       {/* Status Cards */}
-      <div className="status-cards stage-status-cards">
-        {[
-          {
-            id: 'proposal',
-            badge: 'Stage 1 (Proposal)',
-            title: 'Proposal Status',
-            icon: '✍',
-            statusValue: proposals.length > 0 ? proposals[0].status : 'Not Submitted',
-            actionText: 'Submit Proposal',
-            cardClass: 'status-card-stage-1',
-            badgeClass: 'stage-1',
-            action: handleSubmitProposal
-          },
-          {
-            id: 'project-browse',
-            badge: 'Stage 2 (Matching)',
-            title: 'Preferences',
-            icon: '★',
-            statusValue: `${preferencesCount}/5 Selected`,
-            actionText: 'Browse Projects',
-            cardClass: 'status-card-stage-2',
-            badgeClass: 'stage-2',
-            action: () => onSwitchSection('project-browse')
-          },
-          {
-            id: 'results',
-            badge: 'Stage 3 (Clearing)',
-            title: 'Assignment',
-            icon: '☰',
-            statusValue: 'Not Assigned',
-            actionText: 'View Status',
-            cardClass: 'status-card-stage-3',
-            badgeClass: 'stage-3',
-            action: () => onSwitchSection('results')
-          }
-        ].map(stage => (
-          <div
-            key={stage.id}
-            className={`status-card ${stage.cardClass} ${stage.id === 'proposal' ? 'active' : ''}`}
-            onClick={stage.action}
-            role="button"
-            tabIndex={0}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault();
-                stage.action();
-              }
-            }}
-          >
-            <span className={`stage-badge ${stage.badgeClass}`}>{stage.badge}</span>
-            <div className="status-icon">{stage.icon}</div>
-            <div className="status-content">
-              <h3>{stage.title}</h3>
-              <p className="status-value">{stage.statusValue}</p>
-              <button
-                className="action-btn"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  stage.action();
-                }}
-              >
-                {stage.actionText}
-              </button>
-            </div>
+      <div className="status-cards">
+        <div className="status-card status-card-stage-1">
+          <span className="stage-badge stage-1">Stage 1 (Proposal)</span>
+          <div className="status-icon">✍</div>
+          <div className="status-content">
+            <h3>Proposal Status</h3>
+            <p className="status-value">
+              {proposals.length > 0 ? proposals[0].status : 'Not Submitted'}
+            </p>
+            <button className="action-btn" onClick={handleSubmitProposal}>
+              Submit Proposal
+            </button>
           </div>
-        ))}
+        </div>
+        
+        <div className="status-card status-card-stage-2">
+          <span className="stage-badge stage-2">Stage 2 (Matching)</span>
+          <div className="status-icon">★</div>
+          <div className="status-content">
+            <h3>Preferences</h3>
+            <p className="status-value">{preferencesCount}/5 Selected</p>
+            <button className="action-btn" onClick={() => onSwitchSection('project-browse')}>
+              Browse Projects
+            </button>
+          </div>
+        </div>
+        
+        <div className="status-card status-card-stage-3">
+          <span className="stage-badge stage-3">Stage 3 (Clearing)</span>
+          <div className="status-icon">☰</div>
+          <div className="status-content">
+            <h3>Assignment</h3>
+            <p className="status-value">Not Assigned</p>
+            <button className="action-btn" onClick={() => onSwitchSection('results')}>
+              View Status
+            </button>
+          </div>
+        </div>
       </div>
 
       {/* Deadline Reminder */}

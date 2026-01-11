@@ -78,14 +78,14 @@ function Teacher() {
   const applicationDaysLeft = Math.ceil((applicationDeadline - now) / (1000 * 60 * 60 * 24));
   const projectUpdateDaysLeft = Math.ceil((projectUpdateDeadline - now) / (1000 * 60 * 60 * 24));
 
-  // 获取 stage 信息
-  const getStageInfo = (section) => {
-    const stageMap = {
-      'student-applications': { stage: 1, label: 'Proposal', badgeClass: 'stage-1' },
-      'project-management': { stage: 2, label: 'Matching', badgeClass: 'stage-2' },
-      'results': { stage: 3, label: 'Clearing', badgeClass: 'stage-3' }
+  // 获取phase信息
+  const getPhaseInfo = (section) => {
+    const phaseMap = {
+      'student-applications': { phase: 1, name: 'Proposal' },
+      'project-management': { phase: 2, name: 'Matching' },
+      'results': { phase: 3, name: 'Clearing' }
     };
-    return stageMap[section] || null;
+    return phaseMap[section] || null;
   };
 
   // 渲染主标题和 deadline 提示
@@ -120,19 +120,16 @@ function Teacher() {
     if (!title) return null;
 
     const deadline = deadlines[section];
-    const stageInfo = getStageInfo(section);
+    const phaseInfo = getPhaseInfo(section);
 
     if (!deadline) return (
       <div className="section-header" style={{ marginBottom: '1.5rem' }}>
         <div className="section-title-with-deadline">
           <h1>{title}</h1>
         </div>
-        {stageInfo && (
+        {phaseInfo && (
           <div className="phase-indicator">
-            <span>Current stage:</span>
-            <span className={`stage-badge ${stageInfo.badgeClass}`}>
-              {`Stage ${stageInfo.stage} — ${stageInfo.label}`}
-            </span>
+            Current Phase: <strong>Phase {phaseInfo.phase} — {phaseInfo.name}</strong>
           </div>
         )}
       </div>
@@ -147,12 +144,9 @@ function Teacher() {
           <h1>{title}</h1>
           <span className="deadline-hint">⏰ Deadline: {formattedDate} ({daysLeft} days left)</span>
         </div>
-        {stageInfo && (
+        {phaseInfo && (
           <div className="phase-indicator">
-            <span>Current stage:</span>
-            <span className={`stage-badge ${stageInfo.badgeClass}`}>
-              {`Stage ${stageInfo.stage} — ${stageInfo.label}`}
-            </span>
+            Current Phase: <strong>Phase {phaseInfo.phase} — {phaseInfo.name}</strong>
           </div>
         )}
       </div>

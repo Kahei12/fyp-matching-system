@@ -61,11 +61,43 @@ function FinalAssignment({ showNotification }) {
     }
   };
 
-  const exportReport = () => {
-    showNotification('Exporting assignment report...', 'info');
-    setTimeout(() => {
-      showNotification('Report exported successfully!', 'success');
-    }, 1000);
+  const exportReport = async () => {
+    try {
+      showNotification('Exporting assignment report...', 'info');
+
+      // 下載配對結果
+      const resultsResponse = await fetch('/api/export/matching-results');
+      if (resultsResponse.ok) {
+        const blob = await resultsResponse.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'matching_results.csv';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
+      }
+
+      // 下載學生清單
+      const studentsResponse = await fetch('/api/export/student-list');
+      if (studentsResponse.ok) {
+        const blob = await studentsResponse.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'student_list.csv';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
+      }
+
+      showNotification('Reports exported successfully!', 'success');
+    } catch (error) {
+      console.error('Export error:', error);
+      showNotification('Failed to export reports', 'error');
+    }
   };
 
   return (

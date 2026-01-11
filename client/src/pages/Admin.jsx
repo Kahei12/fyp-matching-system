@@ -5,6 +5,7 @@ import Sidebar from '../components/Admin/Sidebar';
 import ProjectReview from '../components/Admin/ProjectReview';
 import MatchingControl from '../components/Admin/MatchingControl';
 import FinalAssignment from '../components/Admin/FinalAssignment';
+import DataExport from '../components/Admin/DataExport';
 import DeadlineManagement from '../components/Admin/DeadlineManagement';
 
 function Admin() {
@@ -78,6 +79,8 @@ function Admin() {
         return <MatchingControl showNotification={showNotification} />;
       case 'final-assignment':
         return <FinalAssignment showNotification={showNotification} />;
+      case 'data-export':
+        return <DataExport showNotification={showNotification} />;
       case 'deadline-management':
         return <DeadlineManagement showNotification={showNotification} />;
       default:
@@ -123,6 +126,7 @@ function getSectionTitle(sectionId) {
     'project-review': 'Project Review',
     'matching-control': 'Matching Control',
     'final-assignment': 'Final Assignment',
+    'data-export': 'Data Export',
     'deadline-management': 'Deadline Management'
   };
   return titles[sectionId] || 'Project Review';

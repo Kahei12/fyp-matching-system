@@ -199,30 +199,7 @@
   white-space: nowrap;
 }
 
-.phase-indicator {
-  font-size: 0.9rem;
-  color: #6c757d;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  flex-wrap: wrap;
-}
-
-.phase-indicator .stage-badge {
-  position: relative;
-  top: auto;
-  right: auto;
-  padding: 0.25rem 0.75rem;
-  border-radius: 999px;
-  font-size: 0.85rem;
-}
-
-.phase-indicator span:first-child {
-  color: #2c3e50;
-  font-weight: 600;
-}
-
-.results-status {
+.phase-indicator, .results-status {
   font-size: 0.9rem;
   color: #6c757d;
 }
@@ -249,7 +226,6 @@
   align-items: center;
   gap: 1rem;
   position: relative; /* 讓徽章可定位在卡片內 */
-  transition: transform 0.3s ease, box-shadow 0.3s ease;
 }
 
 /* Stage Status Cards (always visible at top) */
@@ -269,15 +245,13 @@
   align-items: center;
   gap: 1rem;
   position: relative;
-  transition: transform 0.3s ease, box-shadow 0.3s ease, opacity 0.3s ease;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
   cursor: pointer;
-  opacity: 0.6;
 }
 
 .stage-status-cards .status-card.active {
-  box-shadow: 0 15px 35px rgba(44, 62, 80, 0.25);
-  transform: translateY(-8px) scale(1.01);
-  opacity: 1;
+  box-shadow: 0 8px 20px rgba(44, 62, 80, 0.15);
+  transform: translateY(-4px);
 }
 
 /* 根據 Stage 設置左邊框顏色 */

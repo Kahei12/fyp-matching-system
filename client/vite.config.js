@@ -6,6 +6,7 @@ export default defineConfig({
   plugins: [react()],
   server: {
     port: 5173,
+    open: true, // 這會在系統瀏覽器中打開應用
     proxy: {
       '/api': {
         target: 'http://localhost:3000',
