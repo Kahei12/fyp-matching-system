@@ -61,13 +61,9 @@ function MatchingResults({ showNotification }) {
   const handleDownloadReport = async () => {
     try {
       showNotification('Generating result report...', 'info');
-      console.log('MatchingResults: fetching /api/export/matching-results');
-
       const resultsResponse = await fetch('/api/export/matching-results');
-      console.log('MatchingResults: matching-results status', resultsResponse.status);
       if (resultsResponse.ok) {
         const blob = await resultsResponse.blob();
-        console.log('MatchingResults: matching-results blob size', blob.size);
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
@@ -78,12 +74,9 @@ function MatchingResults({ showNotification }) {
         window.URL.revokeObjectURL(url);
       }
 
-      console.log('MatchingResults: fetching /api/export/project-list');
       const projectsResponse = await fetch('/api/export/project-list');
-      console.log('MatchingResults: project-list status', projectsResponse.status);
       if (projectsResponse.ok) {
         const blob = await projectsResponse.blob();
-        console.log('MatchingResults: project-list blob size', blob.size);
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;

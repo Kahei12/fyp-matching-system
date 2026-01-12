@@ -10,3 +10,4 @@ const TeacherSchema = new mongoose.Schema({
 module.exports = mongoose.model('Teacher', TeacherSchema);
 
 
+

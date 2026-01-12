@@ -4,25 +4,18 @@ function DataExport({ showNotification }) {
   const handleExportMatchingResults = async () => {
     try {
       showNotification('Exporting matching results...', 'info');
-      console.log('DataExport: fetching /api/export/matching-results');
-
       const response = await fetch('/api/export/matching-results');
-      console.log('DataExport: response status', response.status);
-      if (response.ok) {
-        const blob = await response.blob();
-        console.log('DataExport: blob size', blob.size);
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = 'matching_results.csv';
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        window.URL.revokeObjectURL(url);
-        showNotification('Matching results exported successfully!', 'success');
-      } else {
-        throw new Error('Failed to fetch data');
-      }
+      if (!response.ok) throw new Error('Failed to fetch data');
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'matching_results.csv';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+      showNotification('Matching results exported successfully!', 'success');
     } catch (error) {
       console.error('Export error:', error);
       showNotification('Failed to export matching results', 'error');
@@ -32,24 +25,18 @@ function DataExport({ showNotification }) {
   const handleExportStudentList = async () => {
     try {
       showNotification('Exporting student list...', 'info');
-      console.log('DataExport: fetching /api/export/student-list');
       const response = await fetch('/api/export/student-list');
-      console.log('DataExport: response status', response.status);
-      if (response.ok) {
-        const blob = await response.blob();
-        console.log('DataExport: blob size', blob.size);
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = 'student_list.csv';
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        window.URL.revokeObjectURL(url);
-        showNotification('Student list exported successfully!', 'success');
-      } else {
-        throw new Error('Failed to fetch data');
-      }
+      if (!response.ok) throw new Error('Failed to fetch data');
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'student_list.csv';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+      showNotification('Student list exported successfully!', 'success');
     } catch (error) {
       console.error('Export error:', error);
       showNotification('Failed to export student list', 'error');
@@ -59,24 +46,18 @@ function DataExport({ showNotification }) {
   const handleExportProjectList = async () => {
     try {
       showNotification('Exporting project list...', 'info');
-      console.log('DataExport: fetching /api/export/project-list');
       const response = await fetch('/api/export/project-list');
-      console.log('DataExport: response status', response.status);
-      if (response.ok) {
-        const blob = await response.blob();
-        console.log('DataExport: blob size', blob.size);
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = 'project_list.csv';
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        window.URL.revokeObjectURL(url);
-        showNotification('Project list exported successfully!', 'success');
-      } else {
-        throw new Error('Failed to fetch data');
-      }
+      if (!response.ok) throw new Error('Failed to fetch data');
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'project_list.csv';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+      showNotification('Project list exported successfully!', 'success');
     } catch (error) {
       console.error('Export error:', error);
       showNotification('Failed to export project list', 'error');
@@ -86,21 +67,15 @@ function DataExport({ showNotification }) {
   const handleExportAll = async () => {
     try {
       showNotification('Exporting all data...', 'info');
-      console.log('DataExport: fetching all export endpoints');
-      const promises = [
+      const responses = await Promise.all([
         fetch('/api/export/matching-results'),
         fetch('/api/export/student-list'),
         fetch('/api/export/project-list')
-      ];
-
-      const responses = await Promise.all(promises);
+      ]);
       const fileNames = ['matching_results.csv', 'student_list.csv', 'project_list.csv'];
-
       for (let i = 0; i < responses.length; i++) {
-        console.log('DataExport: response', i, responses[i].status);
         if (responses[i].ok) {
           const blob = await responses[i].blob();
-          console.log('DataExport: blob', fileNames[i], blob.size);
           const url = window.URL.createObjectURL(blob);
           const a = document.createElement('a');
           a.href = url;
@@ -111,7 +86,6 @@ function DataExport({ showNotification }) {
           window.URL.revokeObjectURL(url);
         }
       }
-
       showNotification('All data exported successfully!', 'success');
     } catch (error) {
       console.error('Export error:', error);

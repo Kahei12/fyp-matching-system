@@ -64,13 +64,9 @@ function FinalAssignment({ showNotification }) {
   const exportReport = async () => {
     try {
       showNotification('Exporting assignment report...', 'info');
-      console.log('FinalAssignment: fetching /api/export/matching-results');
-
       const resultsResponse = await fetch('/api/export/matching-results');
-      console.log('FinalAssignment: matching-results status', resultsResponse.status);
       if (resultsResponse.ok) {
         const blob = await resultsResponse.blob();
-        console.log('FinalAssignment: matching-results blob size', blob.size);
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
@@ -81,12 +77,9 @@ function FinalAssignment({ showNotification }) {
         window.URL.revokeObjectURL(url);
       }
 
-      console.log('FinalAssignment: fetching /api/export/student-list');
       const studentsResponse = await fetch('/api/export/student-list');
-      console.log('FinalAssignment: student-list status', studentsResponse.status);
       if (studentsResponse.ok) {
         const blob = await studentsResponse.blob();
-        console.log('FinalAssignment: student-list blob size', blob.size);
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
