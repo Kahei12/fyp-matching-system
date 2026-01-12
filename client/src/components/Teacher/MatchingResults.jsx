@@ -4,7 +4,8 @@ function MatchingResults({ showNotification }) {
   const [lastUpdated, setLastUpdated] = useState('2025-04-28 11:20');
 
   const summary = {
-    matched: 10,
+    totalMatched: 8,
+    awaitingConfirmation: 2,
     unmatched: 1
   };
 
@@ -60,11 +61,13 @@ function MatchingResults({ showNotification }) {
   const handleDownloadReport = async () => {
     try {
       showNotification('Generating result report...', 'info');
+      console.log('MatchingResults: fetching /api/export/matching-results');
 
-      // 下載配對結果
       const resultsResponse = await fetch('/api/export/matching-results');
+      console.log('MatchingResults: matching-results status', resultsResponse.status);
       if (resultsResponse.ok) {
         const blob = await resultsResponse.blob();
+        console.log('MatchingResults: matching-results blob size', blob.size);
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
@@ -75,10 +78,12 @@ function MatchingResults({ showNotification }) {
         window.URL.revokeObjectURL(url);
       }
 
-      // 下載項目清單
+      console.log('MatchingResults: fetching /api/export/project-list');
       const projectsResponse = await fetch('/api/export/project-list');
+      console.log('MatchingResults: project-list status', projectsResponse.status);
       if (projectsResponse.ok) {
         const blob = await projectsResponse.blob();
+        console.log('MatchingResults: project-list blob size', blob.size);
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
@@ -106,9 +111,14 @@ function MatchingResults({ showNotification }) {
 
       <div className="results-summary-grid">
         <div className="results-summary-card">
-          <span className="summary-label">Matched</span>
-          <span className="summary-value">{summary.matched}</span>
+          <span className="summary-label">Total Matched</span>
+          <span className="summary-value">{summary.totalMatched}</span>
           <span className="summary-helper">students assigned</span>
+        </div>
+        <div className="results-summary-card">
+          <span className="summary-label">Awaiting Confirmation</span>
+          <span className="summary-value">{summary.awaitingConfirmation}</span>
+          <span className="summary-helper">students pending reply</span>
         </div>
         <div className="results-summary-card">
           <span className="summary-label">Unmatched</span>

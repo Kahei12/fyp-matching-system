@@ -1,6 +1,5 @@
 require('dotenv').config();
 const mongoose = require('mongoose');
-const path = require('path');
 
 const Project = require('../models/Project');
 const Student = require('../models/Student');
@@ -13,11 +12,9 @@ async function run() {
   await mongoose.connect(uri);
   console.log('Connected to DB for seeding');
 
-  // Warning: this clears existing collections in dev
   await Project.deleteMany({});
   await Student.deleteMany({});
 
-  // Insert projects from fypProjectsData
   const projectDocs = fypProjects.map(p => ({
     code: p.code,
     title: p.title,
@@ -35,7 +32,6 @@ async function run() {
   await Project.insertMany(projectDocs);
   console.log(`Inserted ${projectDocs.length} projects.`);
 
-  // Insert students from mockData (if present)
   const students = (mockData && mockData.students) ? mockData.students : [];
   const studentDocs = students.map(s => ({
     id: s.id,

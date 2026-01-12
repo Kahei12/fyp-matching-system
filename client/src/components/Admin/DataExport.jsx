@@ -4,10 +4,13 @@ function DataExport({ showNotification }) {
   const handleExportMatchingResults = async () => {
     try {
       showNotification('Exporting matching results...', 'info');
+      console.log('DataExport: fetching /api/export/matching-results');
 
       const response = await fetch('/api/export/matching-results');
+      console.log('DataExport: response status', response.status);
       if (response.ok) {
         const blob = await response.blob();
+        console.log('DataExport: blob size', blob.size);
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
@@ -29,10 +32,12 @@ function DataExport({ showNotification }) {
   const handleExportStudentList = async () => {
     try {
       showNotification('Exporting student list...', 'info');
-
+      console.log('DataExport: fetching /api/export/student-list');
       const response = await fetch('/api/export/student-list');
+      console.log('DataExport: response status', response.status);
       if (response.ok) {
         const blob = await response.blob();
+        console.log('DataExport: blob size', blob.size);
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
@@ -54,10 +59,12 @@ function DataExport({ showNotification }) {
   const handleExportProjectList = async () => {
     try {
       showNotification('Exporting project list...', 'info');
-
+      console.log('DataExport: fetching /api/export/project-list');
       const response = await fetch('/api/export/project-list');
+      console.log('DataExport: response status', response.status);
       if (response.ok) {
         const blob = await response.blob();
+        console.log('DataExport: blob size', blob.size);
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
@@ -79,8 +86,7 @@ function DataExport({ showNotification }) {
   const handleExportAll = async () => {
     try {
       showNotification('Exporting all data...', 'info');
-
-      // 並行下載所有文件
+      console.log('DataExport: fetching all export endpoints');
       const promises = [
         fetch('/api/export/matching-results'),
         fetch('/api/export/student-list'),
@@ -91,8 +97,10 @@ function DataExport({ showNotification }) {
       const fileNames = ['matching_results.csv', 'student_list.csv', 'project_list.csv'];
 
       for (let i = 0; i < responses.length; i++) {
+        console.log('DataExport: response', i, responses[i].status);
         if (responses[i].ok) {
           const blob = await responses[i].blob();
+          console.log('DataExport: blob', fileNames[i], blob.size);
           const url = window.URL.createObjectURL(blob);
           const a = document.createElement('a');
           a.href = url;
@@ -174,3 +182,5 @@ function DataExport({ showNotification }) {
 }
 
 export default DataExport;
+
+

@@ -207,26 +207,13 @@ const studentService = {
         return mockData.system;
     },
     
-    // 更新學生個人資料
-    updateStudentProfile: (studentId, updates) => {
-        const student = mockData.students.find(s => s.id === studentId);
-        if (!student) {
-            return { success: false, message: "Student not found" };
-        }
-
-        Object.assign(student, updates);
-        return { success: true, message: "Profile updated successfully" };
-    },
-
-    // 獲取配對結果
+    // 獲取配對結果（模擬）
     getMatchingResults: () => {
         const results = [];
 
         mockData.projects.forEach(project => {
-            // 模擬配對邏輯：按偏好順序分配學生
             const assignedStudents = [];
 
-            // 遍歷所有學生，檢查他們的偏好
             mockData.students.forEach(student => {
                 const projectIndex = student.preferences.indexOf(project.id);
                 if (projectIndex !== -1 && assignedStudents.length < project.capacity) {
@@ -239,14 +226,11 @@ const studentService = {
                 }
             });
 
-            // 如果沒有足夠的學生通過偏好分配，隨機分配剩餘學生
             if (assignedStudents.length < project.capacity) {
                 const remainingCapacity = project.capacity - assignedStudents.length;
                 const unassignedStudents = mockData.students.filter(student =>
-                    !assignedStudents.some(assigned => assigned.studentId === student.id) &&
-                    student.preferences.length > 0
+                    !assignedStudents.some(a => a.studentId === student.id) && student.preferences.length > 0
                 );
-
                 for (let i = 0; i < Math.min(remainingCapacity, unassignedStudents.length); i++) {
                     assignedStudents.push({
                         studentId: unassignedStudents[i].id,
@@ -257,7 +241,6 @@ const studentService = {
                 }
             }
 
-            // 為每個項目創建結果記錄
             assignedStudents.forEach(assigned => {
                 results.push({
                     projectId: project.id,
@@ -270,7 +253,6 @@ const studentService = {
                 });
             });
 
-            // 如果項目沒有滿員，添加未分配的記錄
             for (let i = assignedStudents.length; i < project.capacity; i++) {
                 results.push({
                     projectId: project.id,
@@ -287,12 +269,23 @@ const studentService = {
         return results;
     },
 
-    // 獲取所有學生
+    // 獲取所有學生列表
     getAllStudents: () => {
         return mockData.students.map(student => ({
             ...student,
             assignedProject: student.assignedProject || null
         }));
+    },
+    
+    // 更新學生個人資料
+    updateStudentProfile: (studentId, updates) => {
+        const student = mockData.students.find(s => s.id === studentId);
+        if (!student) {
+            return { success: false, message: "Student not found" };
+        }
+        
+        Object.assign(student, updates);
+        return { success: true, message: "Profile updated successfully" };
     }
 };
 
