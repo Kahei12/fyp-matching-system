@@ -207,6 +207,83 @@ const studentService = {
         return mockData.system;
     },
     
+    // Run matching: assign each project to the highest-GPA student who listed it (each student only one project, each project only one student)
+    runMatching: () => {
+        // reset previous assignments
+        mockData.assignments = [];
+
+        // clear previous assignedProject flags
+        mockData.students.forEach(s => { s.assignedProject = null; });
+
+        // For each project, find the highest-GPA unassigned student who listed it
+        mockData.projects.forEach(project => {
+            // students who included this project in preferences and are not assigned
+            const candidates = mockData.students
+                .filter(s => Array.isArray(s.preferences) && s.preferences.includes(project.id) && !s.assignedProject)
+                .map(s => ({ ...s, numericGpa: parseFloat(s.gpa) || 0 }));
+
+            if (candidates.length === 0) return;
+
+            // sort by gpa desc, tie-breaker by student id
+            candidates.sort((a, b) => {
+                if (b.numericGpa !== a.numericGpa) return b.numericGpa - a.numericGpa;
+                return a.id.localeCompare(b.id);
+            });
+
+            const winner = candidates[0];
+            // assign
+            const student = mockData.students.find(s => s.id === winner.id);
+            if (student) {
+                student.assignedProject = project.id;
+                mockData.assignments.push({
+                    studentId: student.id,
+                    projectId: project.id,
+                    assignedAt: new Date().toISOString()
+                });
+            }
+        });
+
+        return {
+            success: true,
+            assignments: mockData.assignments
+        };
+    },
+
+    // Return current matching results (based on assignments if available, otherwise simulate)
+    getMatchingResults: () => {
+        const results = [];
+
+        // if assignments present, use them
+        const assignments = Array.isArray(mockData.assignments) ? mockData.assignments : [];
+
+        mockData.projects.forEach(project => {
+            const assignment = assignments.find(a => a.projectId === project.id);
+            if (assignment) {
+                const student = mockData.students.find(s => s.id === assignment.studentId);
+                results.push({
+                    projectId: project.id,
+                    title: project.title,
+                    supervisor: project.supervisor,
+                    studentId: student ? student.id : assignment.studentId,
+                    studentName: student ? student.name : null,
+                    studentGpa: student ? student.gpa : null,
+                    matchRank: 1
+                });
+            } else {
+                results.push({
+                    projectId: project.id,
+                    title: project.title,
+                    supervisor: project.supervisor,
+                    studentId: null,
+                    studentName: null,
+                    studentGpa: null,
+                    matchRank: null
+                });
+            }
+        });
+
+        return results;
+    },
     // 獲取配對結果（模擬）
     getMatchingResults: () => {
         const results = [];

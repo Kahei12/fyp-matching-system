@@ -81,6 +81,10 @@ const mockData = {
         // 格式: { studentId, projectId, rank, submittedAt }
     ],
     
+    assignments: [
+        // 格式: { studentId, projectId, assignedAt }
+    ],
+    
     system: {
         currentPhase: "preference", // proposal, preference, matching, results
         deadlines: {

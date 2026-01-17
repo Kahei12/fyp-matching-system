@@ -286,6 +286,29 @@ try {
         }
     });
 
+    // Matching endpoints
+    app.post('/api/match/run', (req, res) => {
+        console.log('▶️ 執行配對 (runMatching)');
+        try {
+            const result = studentService.runMatching();
+            res.json(result);
+        } catch (error) {
+            console.error('❌ 執行配對錯誤:', error);
+            res.status(500).json({ success: false, message: 'Failed to run matching' });
+        }
+    });
+
+    app.get('/api/match/results', (req, res) => {
+        console.log('📄 取得配對結果 (getMatchingResults)');
+        try {
+            const results = studentService.getMatchingResults();
+            res.json({ success: true, results });
+        } catch (error) {
+            console.error('❌ 獲取配對結果錯誤:', error);
+            res.status(500).json({ success: false, message: 'Failed to get matching results' });
+        }
+    });
+
 } catch (error) {
     console.log('⚠️ 服務層未找到，使用模擬API');
     
