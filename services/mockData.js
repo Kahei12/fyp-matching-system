@@ -92,6 +92,8 @@ const mockData = {
             preference: "2025-04-15T22:59:00", 
             results: "2025-05-30T23:59:00"
         }
+    ,
+    matchingCompleted: false
     }
 };
 

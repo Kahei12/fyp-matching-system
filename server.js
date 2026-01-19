@@ -141,6 +141,41 @@ try {
         }
     });
 
+    // 設定整個 preferences（由學生 Submit 發起）
+    app.post('/api/student/:id/preferences/set', (req, res) => {
+        console.log('🔧 設定偏好 (set):', { studentId: req.params.id, body: req.body });
+        try {
+            // Accept either { preferences: [..] } or single { projectId: x } for convenience
+            let prefs = req.body && req.body.preferences;
+            if ((!Array.isArray(prefs) || prefs.length === 0) && req.body && req.body.projectId) {
+                prefs = [req.body.projectId];
+            }
+            const result = studentService.setPreferences(req.params.id, prefs || []);
+            res.json(result);
+        } catch (error) {
+            console.error('❌ 設定偏好錯誤:', error);
+            res.status(500).json({ success: false, message: 'Failed to set preferences' });
+        }
+    });
+    
+    // Clear student's preferences on server (used when submitted)
+    app.delete('/api/student/:id/preferences/clear', (req, res) => {
+        console.log('🧹 清除學生偏好 (server clear):', req.params.id);
+        try {
+            const student = studentService.getStudent(req.params.id);
+            if (!student) {
+                return res.status(404).json({ success: false, message: 'Student not found' });
+            }
+            // clear on mockData
+            student.preferences = [];
+            student.proposalSubmitted = false;
+            res.json({ success: true, message: 'Preferences cleared' });
+        } catch (error) {
+            console.error('❌ 清除偏好錯誤:', error);
+            res.status(500).json({ success: false, message: 'Failed to clear preferences' });
+        }
+    });
+
     app.delete('/api/student/:id/preferences/:projectId', (req, res) => {
         console.log('➖ 移除偏好:', { studentId: req.params.id, projectId: req.params.projectId });
         try {
@@ -302,10 +337,24 @@ try {
         console.log('📄 取得配對結果 (getMatchingResults)');
         try {
             const results = studentService.getMatchingResults();
-            res.json({ success: true, results });
+            // include whether matching has been completed
+            const matchingCompleted = (typeof studentService.getSystemStatus === 'function' && studentService.getSystemStatus().matchingCompleted) || false;
+            res.json({ success: true, matchingCompleted, results });
         } catch (error) {
             console.error('❌ 獲取配對結果錯誤:', error);
             res.status(500).json({ success: false, message: 'Failed to get matching results' });
+        }
+    });
+
+    // Admin: reset server mock state (clear preferences, assignments, matching flag)
+    app.post('/api/admin/reset', (req, res) => {
+        console.log('🔁 Admin reset requested');
+        try {
+            const result = studentService.resetState ? studentService.resetState() : null;
+            res.json(result || { success: true, message: 'Reset completed' });
+        } catch (error) {
+            console.error('❌ Reset failed:', error);
+            res.status(500).json({ success: false, message: 'Reset failed' });
         }
     });
 

@@ -201,55 +201,136 @@ const studentService = {
             submittedAt: new Date().toISOString()
         };
     },
+
+    // 直接設定學生的 preferences（由 Student UI 的 Submit 發起）
+    setPreferences: (studentId, preferencesArray) => {
+        const student = mockData.students.find(s => s.id === studentId);
+        if (!student) {
+            return { success: false, message: "Student not found" };
+        }
+
+        // 確保所有 ID 都是數字
+        const numericPrefs = (preferencesArray || []).map(id => typeof id === 'number' ? id : parseInt(id));
+        student.preferences = numericPrefs;
+        student.proposalSubmitted = true;
+
+        console.log(`✅ 已為學生 ${studentId} 設定 preferences:`, student.preferences);
+        return { success: true, message: "Preferences saved", preferencesCount: student.preferences.length };
+    },
     
     // 獲取系統狀態和截止日期
     getSystemStatus: () => {
         return mockData.system;
     },
     
-    // Run matching: assign each project to the highest-GPA student who listed it (each student only one project, each project only one student)
+    // Run matching using student-proposing Gale–Shapley with GPA tie-breaker and project capacities
     runMatching: () => {
-        // reset previous assignments
+        // reset previous assignments and tentative matches
         mockData.assignments = [];
-
-        // clear previous assignedProject flags
         mockData.students.forEach(s => { s.assignedProject = null; });
 
-        // For each project, find the highest-GPA unassigned student who listed it
-        mockData.projects.forEach(project => {
-            // students who included this project in preferences and are not assigned
-            const candidates = mockData.students
-                .filter(s => Array.isArray(s.preferences) && s.preferences.includes(project.id) && !s.assignedProject)
-                .map(s => ({ ...s, numericGpa: parseFloat(s.gpa) || 0 }));
+        // Prepare students who have submitted preferences
+        const studentsWithPrefs = mockData.students
+            .filter(s => Array.isArray(s.preferences) && s.preferences.length > 0 && s.proposalSubmitted)
+            .map(s => ({
+                id: s.id,
+                preferences: [...s.preferences], // copy
+                nextIndex: 0,
+                numericGpa: parseFloat(s.gpa) || 0
+            }));
 
-            if (candidates.length === 0) return;
+        const studentMap = {};
+        studentsWithPrefs.forEach(s => { studentMap[s.id] = s; });
 
-            // sort by gpa desc, tie-breaker by student id
-            candidates.sort((a, b) => {
-                if (b.numericGpa !== a.numericGpa) return b.numericGpa - a.numericGpa;
-                return a.id.localeCompare(b.id);
+        // Prepare project acceptance lists
+        const projectsMap = {};
+        mockData.projects.forEach(p => {
+            projectsMap[p.id] = {
+                capacity: p.capacity || 1,
+                accepted: [] // array of student ids
+            };
+        });
+
+        // Initialize free students queue
+        const freeQueue = studentsWithPrefs.map(s => s.id);
+
+        while (freeQueue.length > 0) {
+            const studentId = freeQueue.shift();
+            const student = studentMap[studentId];
+            if (!student) continue;
+
+            // find next project to propose to
+            if (student.nextIndex >= student.preferences.length) {
+                // no more proposals
+                continue;
+            }
+            const projectId = student.preferences[student.nextIndex];
+            student.nextIndex += 1;
+
+            const proj = projectsMap[projectId];
+            if (!proj) {
+                // invalid project id — try next
+                if (student.nextIndex < student.preferences.length) freeQueue.push(studentId);
+                continue;
+            }
+
+            // Tentatively add student to project's accepted list
+            proj.accepted.push(studentId);
+
+            // Sort accepted by GPA desc, tie-break by student id
+            proj.accepted.sort((aId, bId) => {
+                const a = studentMap[aId] || mockData.students.find(s => s.id === aId);
+                const b = studentMap[bId] || mockData.students.find(s => s.id === bId);
+                const aG = a ? (a.numericGpa || parseFloat(a.gpa) || 0) : 0;
+                const bG = b ? (b.numericGpa || parseFloat(b.gpa) || 0) : 0;
+                if (bG !== aG) return bG - aG;
+                return (aId || '').localeCompare(bId || '');
             });
 
-            const winner = candidates[0];
-            // assign
-            const student = mockData.students.find(s => s.id === winner.id);
-            if (student) {
-                student.assignedProject = project.id;
-                mockData.assignments.push({
-                    studentId: student.id,
-                    projectId: project.id,
-                    assignedAt: new Date().toISOString()
-                });
+            // If over capacity, remove lowest-ranked student
+            if (proj.accepted.length > proj.capacity) {
+                const removedId = proj.accepted.pop();
+                if (removedId && removedId !== studentId) {
+                    // removed someone else — they become free again if they have more preferences
+                    const removedStudent = studentMap[removedId];
+                    if (removedStudent && removedStudent.nextIndex < removedStudent.preferences.length) {
+                        freeQueue.push(removedId);
+                    }
+                } else if (removedId === studentId) {
+                    // current student was rejected, they remain free if they have more preferences
+                    if (student.nextIndex < student.preferences.length) {
+                        freeQueue.push(studentId);
+                    }
+                }
             }
+        }
+
+        // Finalize assignments from projects' accepted lists
+        Object.keys(projectsMap).forEach(pid => {
+            const proj = projectsMap[pid];
+            proj.accepted.forEach(sid => {
+                const student = mockData.students.find(s => s.id === sid);
+                if (student) {
+                    student.assignedProject = parseInt(pid);
+                    mockData.assignments.push({
+                        studentId: student.id,
+                        projectId: parseInt(pid),
+                        assignedAt: new Date().toISOString()
+                    });
+                }
+            });
         });
+
+        // mark matching completed
+        mockData.system.matchingCompleted = true;
 
         return {
             success: true,
             assignments: mockData.assignments
         };
     },
-
-    // Return current matching results (based on assignments if available, otherwise simulate)
+    
+    // Return current matching results (based on assignments if available)
     getMatchingResults: () => {
         const results = [];
 
@@ -267,7 +348,8 @@ const studentService = {
                     studentId: student ? student.id : assignment.studentId,
                     studentName: student ? student.name : null,
                     studentGpa: student ? student.gpa : null,
-                    matchRank: 1
+                    matchRank: 1,
+                    assignedAt: assignment.assignedAt
                 });
             } else {
                 results.push({
@@ -277,68 +359,8 @@ const studentService = {
                     studentId: null,
                     studentName: null,
                     studentGpa: null,
-                    matchRank: null
-                });
-            }
-        });
-
-        return results;
-    },
-    // 獲取配對結果（模擬）
-    getMatchingResults: () => {
-        const results = [];
-
-        mockData.projects.forEach(project => {
-            const assignedStudents = [];
-
-            mockData.students.forEach(student => {
-                const projectIndex = student.preferences.indexOf(project.id);
-                if (projectIndex !== -1 && assignedStudents.length < project.capacity) {
-                    assignedStudents.push({
-                        studentId: student.id,
-                        studentName: student.name,
-                        studentGpa: student.gpa,
-                        matchRank: projectIndex + 1
-                    });
-                }
-            });
-
-            if (assignedStudents.length < project.capacity) {
-                const remainingCapacity = project.capacity - assignedStudents.length;
-                const unassignedStudents = mockData.students.filter(student =>
-                    !assignedStudents.some(a => a.studentId === student.id) && student.preferences.length > 0
-                );
-                for (let i = 0; i < Math.min(remainingCapacity, unassignedStudents.length); i++) {
-                    assignedStudents.push({
-                        studentId: unassignedStudents[i].id,
-                        studentName: unassignedStudents[i].name,
-                        studentGpa: unassignedStudents[i].gpa,
-                        matchRank: 'Auto-assigned'
-                    });
-                }
-            }
-
-            assignedStudents.forEach(assigned => {
-                results.push({
-                    projectId: project.id,
-                    title: project.title,
-                    supervisor: project.supervisor,
-                    studentId: assigned.studentId,
-                    studentName: assigned.studentName,
-                    studentGpa: assigned.studentGpa,
-                    matchRank: assigned.matchRank
-                });
-            });
-
-            for (let i = assignedStudents.length; i < project.capacity; i++) {
-                results.push({
-                    projectId: project.id,
-                    title: project.title,
-                    supervisor: project.supervisor,
-                    studentId: null,
-                    studentName: null,
-                    studentGpa: null,
-                    matchRank: null
+                    matchRank: null,
+                    assignedAt: null
                 });
             }
         });
@@ -354,6 +376,20 @@ const studentService = {
         }));
     },
     
+    // Reset mockData state to initial test state (clear assignments and student submissions)
+    resetState: () => {
+        // clear assignments
+        mockData.assignments = [];
+        // reset students
+        mockData.students.forEach(s => {
+            s.preferences = [];
+            s.proposalSubmitted = false;
+            s.assignedProject = null;
+        });
+        // reset matching flag
+        mockData.system.matchingCompleted = false;
+        return { success: true, message: 'Server state reset' };
+    },
     // 更新學生個人資料
     updateStudentProfile: (studentId, updates) => {
         const student = mockData.students.find(s => s.id === studentId);

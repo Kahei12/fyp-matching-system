@@ -7,8 +7,11 @@ function MyPreferences({
   onClearPreferences,
   onMovePreference,
   onReorderPreferences,
-  onSwitchSection 
+  onSwitchSection,
+  submitted,
+  matchingCompleted
 }) {
+  const locked = !!submitted || !!matchingCompleted;
   const [draggedItem, setDraggedItem] = useState(null);
   const [dragOverIndex, setDragOverIndex] = useState(null);
 
@@ -79,12 +82,12 @@ function MyPreferences({
             <div 
               key={preference.id} 
               className={`preference-item ${dragOverIndex === index ? 'drag-over' : ''}`}
-              draggable="true"
-              onDragStart={(e) => handleDragStart(e, preference, index)}
+              draggable={!locked}
+              onDragStart={(e) => { if (!locked) handleDragStart(e, preference, index); }}
               onDragEnd={handleDragEnd}
-              onDragOver={(e) => handleDragOver(e, index)}
+              onDragOver={(e) => { if (!locked) handleDragOver(e, index); }}
               onDragLeave={handleDragLeave}
-              onDrop={(e) => handleDrop(e, index)}
+              onDrop={(e) => { if (!locked) handleDrop(e, index); }}
             >
               <div className="drag-handle" title="Drag to reorder">
                 ⋮⋮
@@ -98,7 +101,7 @@ function MyPreferences({
                 <button 
                   className="btn-move" 
                   onClick={() => onMovePreference(preference.id, 'up')}
-                  disabled={index === 0}
+                  disabled={index === 0 || locked}
                   title="Move Up"
                 >
                   ▲
@@ -106,7 +109,7 @@ function MyPreferences({
                 <button 
                   className="btn-move" 
                   onClick={() => onMovePreference(preference.id, 'down')}
-                  disabled={index === preferences.length - 1}
+                  disabled={index === preferences.length - 1 || locked}
                   title="Move Down"
                 >
                   ▼
@@ -114,6 +117,7 @@ function MyPreferences({
                 <button 
                   className="btn-remove" 
                   onClick={() => onRemovePreference(preference.id)}
+                  disabled={locked}
                 >
                   × Remove
                 </button>
@@ -125,10 +129,10 @@ function MyPreferences({
 
       {preferences.length > 0 && (
         <div className="preferences-actions">
-          <button className="btn-primary" onClick={onSubmitPreferences}>
-            Submit Preferences
+          <button className="btn-primary" onClick={onSubmitPreferences} disabled={locked}>
+            {locked ? 'Preferences Submitted / Locked' : 'Submit Preferences'}
           </button>
-          <button className="btn-secondary" onClick={onClearPreferences}>
+          <button className="btn-secondary" onClick={onClearPreferences} disabled={locked}>
             Clear All
           </button>
         </div>
