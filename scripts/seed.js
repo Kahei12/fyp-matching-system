@@ -4,8 +4,8 @@ const mongoose = require('mongoose');
 const Project = require('../models/Project');
 const Student = require('../models/Student');
 
-const fypProjects = require('../services/fypProjectsData');
 const mockData = require('../services/mockData');
+const fypProjects = mockData.projects || [];
 
 async function run() {
   const uri = process.env.MONGO_URI || 'mongodb://localhost:27017/fyp-matching';

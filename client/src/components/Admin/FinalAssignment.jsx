@@ -63,7 +63,7 @@ function FinalAssignment({ showNotification }) {
 
   const exportReport = async () => {
     try {
-      showNotification('Exporting assignment report...', 'info');
+    showNotification('Exporting assignment report...', 'info');
       const resultsResponse = await fetch('/api/export/matching-results');
       if (resultsResponse.ok) {
         const blob = await resultsResponse.blob();

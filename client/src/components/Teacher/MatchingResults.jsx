@@ -60,7 +60,7 @@ function MatchingResults({ showNotification }) {
 
   const handleDownloadReport = async () => {
     try {
-      showNotification('Generating result report...', 'info');
+    showNotification('Generating result report...', 'info');
       const resultsResponse = await fetch('/api/export/matching-results');
       if (resultsResponse.ok) {
         const blob = await resultsResponse.blob();
