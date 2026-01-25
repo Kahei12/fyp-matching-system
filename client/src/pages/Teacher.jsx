@@ -129,7 +129,7 @@ function Teacher() {
         </div>
         {phaseInfo && (
           <div className="phase-indicator">
-            Current Phase: <strong>Phase {phaseInfo.phase} — {phaseInfo.name}</strong>
+            Current Stage: <strong>Stage {phaseInfo.phase} — {phaseInfo.name}</strong>
           </div>
         )}
       </div>

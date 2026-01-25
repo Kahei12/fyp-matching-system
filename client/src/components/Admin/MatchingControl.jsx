@@ -82,7 +82,7 @@ function MatchingControl({ showNotification }) {
         
         <div className="phase-info">
           <div className="current-phase">
-            <strong>Current Phase:</strong> 
+            <strong>Current Stage:</strong> 
             <span className="phase-dates">
               2024-03-21 00:01 [Init: 2024-04-05 23:39]
             </span>

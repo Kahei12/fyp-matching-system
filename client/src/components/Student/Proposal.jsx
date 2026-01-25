@@ -148,7 +148,7 @@ function Proposal({ preferences, onSwitchSection }) {
           <span className="deadline-hint">⏰ Deadline: {formattedProposalDate} ({proposalDaysLeft} days left)</span>
         </div>
         <div className="phase-indicator">
-          Current Phase: <strong>Phase 1 — Proposal</strong>
+          Current Stage: <strong>Stage 1 — Proposal</strong>
         </div>
       </div>
 
