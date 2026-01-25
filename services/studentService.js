@@ -1,18 +1,63 @@
 const mockData = require('./mockData');
+let ProjectModel = null;
+let StudentModel = null;
+let dbEnabled = false;
+try {
+    ProjectModel = require('../models/Project');
+    StudentModel = require('../models/Student');
+    dbEnabled = true;
+    console.log('studentService: DB models loaded, DB-backed queries enabled');
+} catch (err) {
+    console.log('studentService: DB models not available, falling back to mockData');
+}
 
 const studentService = {
-    // 獲取所有可用項目
-    getAvailableProjects: () => {
+    // 獲取所有可用項目（DB-backed if available）
+    getAvailableProjects: async () => {
+        if (dbEnabled && ProjectModel) {
+            // return plain objects
+            return await ProjectModel.find({ status: 'active' }).lean().exec();
+        }
         return mockData.projects.filter(project => project.status === "active");
     },
     
     // 獲取學生信息
-    getStudent: (studentId) => {
+    getStudent: async (studentId) => {
+        if (dbEnabled && StudentModel) {
+            const doc = await StudentModel.findOne({ id: studentId }).lean().exec();
+            if (!doc) return null;
+            return {
+                id: doc.id,
+                name: doc.name,
+                email: doc.email,
+                gpa: (typeof doc.gpa === 'number') ? doc.gpa.toString() : (doc.gpa || null),
+                major: doc.major,
+                year: doc.year,
+                preferences: Array.isArray(doc.preferences) ? doc.preferences.map(p => (typeof p === 'number' ? p : parseInt(p))) : [],
+                proposalSubmitted: !!doc.proposalSubmitted,
+                assignedProject: doc.assignedProject || null
+            };
+        }
         return mockData.students.find(student => student.id === studentId);
     },
     
     // 獲取學生的偏好列表
-    getStudentPreferences: (studentId) => {
+    getStudentPreferences: async (studentId) => {
+        if (dbEnabled && StudentModel && ProjectModel) {
+            const student = await StudentModel.findOne({ id: studentId }).lean().exec();
+            if (!student) return [];
+            const prefs = Array.isArray(student.preferences) ? student.preferences : [];
+            // try to resolve projects matching by numeric `id` field or fallback to title/code
+            const projects = await ProjectModel.find({}).lean().exec();
+            return prefs.map((projectId, idx) => {
+                const proj = projects.find(p => {
+                    return (p.id && p.id === projectId) || (p.code && p.code === projectId) || (p._id && String(p._id) === String(projectId));
+                });
+            }).map((proj, idx) => {
+                if (!proj) return null;
+                return { ...proj, rank: idx + 1 };
+            }).filter(Boolean);
+        }
         const student = mockData.students.find(s => s.id === studentId);
         if (!student) return [];
         
@@ -23,198 +68,162 @@ const studentService = {
     },
     
     // 添加項目到偏好
-    addPreference: (studentId, projectId) => {
+    addPreference: async (studentId, projectId) => {
         // 確保 projectId 是數字類型
         const numericProjectId = typeof projectId === 'number' ? projectId : parseInt(projectId);
-        
+        if (dbEnabled && StudentModel && ProjectModel) {
+            const student = await StudentModel.findOne({ id: studentId }).exec();
+            if (!student) return { success: false, message: "Student not found" };
+            const existing = (student.preferences || []).map(p => (typeof p === 'number' ? p : parseInt(p)));
+            if (existing.includes(numericProjectId)) return { success: false, message: "Project already in preferences" };
+            if (existing.length >= 5) return { success: false, message: "Maximum 5 preferences allowed" };
+            // check project existence
+            const project = await ProjectModel.findOne({ $or: [{ id: numericProjectId }, { code: numericProjectId }] }).exec();
+            if (!project) return { success: false, message: "Project not found" };
+            student.preferences = existing.concat([numericProjectId]);
+            await student.save();
+            // update project popularity if field exists
+            try {
+                project.popularity = (project.popularity || 0) + 1;
+                await project.save();
+            } catch (e) {}
+            return { success: true, message: "Project added to preferences", currentPreferences: student.preferences.length };
+        }
+        // fallback mock
         const student = mockData.students.find(s => s.id === studentId);
-        if (!student) {
-            return { success: false, message: "Student not found" };
-        }
-        
-        // 檢查是否已存在
-        if (student.preferences.includes(numericProjectId)) {
-            return { success: false, message: "Project already in preferences" };
-        }
-        
-        // 檢查最大數量
-        if (student.preferences.length >= 5) {
-            return { success: false, message: "Maximum 5 preferences allowed" };
-        }
-        
-        // 檢查項目是否存在
+        if (!student) return { success: false, message: "Student not found" };
+        if (student.preferences.includes(numericProjectId)) return { success: false, message: "Project already in preferences" };
+        if (student.preferences.length >= 5) return { success: false, message: "Maximum 5 preferences allowed" };
         const project = mockData.projects.find(p => p.id === numericProjectId);
-        if (!project) {
-            return { success: false, message: "Project not found" };
-        }
-        
-        // 添加到偏好
+        if (!project) return { success: false, message: "Project not found" };
         student.preferences.push(numericProjectId);
-        
-        // 更新項目熱度
         project.popularity += 1;
-        
-        console.log(`✅ 已添加項目 ${numericProjectId} 到學生 ${studentId} 的偏好列表`);
-        console.log(`📊 當前偏好:`, student.preferences);
-        
-        return { 
-            success: true, 
-            message: "Project added to preferences",
-            currentPreferences: student.preferences.length
-        };
+        return { success: true, message: "Project added to preferences", currentPreferences: student.preferences.length };
     },
     
     // 從偏好中移除項目
-    removePreference: (studentId, projectId) => {
+    removePreference: async (studentId, projectId) => {
         // 確保 projectId 是數字類型
         const numericProjectId = typeof projectId === 'number' ? projectId : parseInt(projectId);
-        
+        if (dbEnabled && StudentModel && ProjectModel) {
+            const student = await StudentModel.findOne({ id: studentId }).exec();
+            if (!student) return { success: false, message: "Student not found" };
+            const prefs = Array.isArray(student.preferences) ? student.preferences.map(p => (typeof p === 'number' ? p : parseInt(p))) : [];
+            const index = prefs.indexOf(numericProjectId);
+            if (index === -1) return { success: false, message: "Project not in preferences" };
+            prefs.splice(index, 1);
+            student.preferences = prefs;
+            await student.save();
+            // decrement popularity if possible
+            const project = await ProjectModel.findOne({ $or: [{ id: numericProjectId }, { code: numericProjectId }] }).exec();
+            if (project && typeof project.popularity === 'number' && project.popularity > 0) {
+                project.popularity -= 1;
+                await project.save();
+            }
+            return { success: true, message: "Project removed from preferences", currentPreferences: student.preferences.length };
+        }
+        // fallback
         const student = mockData.students.find(s => s.id === studentId);
-        if (!student) {
-            return { success: false, message: "Student not found" };
-        }
-        
-        console.log(`🔍 查找項目 ${numericProjectId} 在偏好列表中:`, student.preferences);
-        
+        if (!student) return { success: false, message: "Student not found" };
         const index = student.preferences.indexOf(numericProjectId);
-        if (index === -1) {
-            console.log(`❌ 項目 ${numericProjectId} 不在偏好列表中`);
-            return { success: false, message: "Project not in preferences" };
-        }
-        
-        // 移除項目
+        if (index === -1) return { success: false, message: "Project not in preferences" };
         student.preferences.splice(index, 1);
-        
-        // 更新項目熱度
         const project = mockData.projects.find(p => p.id === numericProjectId);
-        if (project && project.popularity > 0) {
-            project.popularity -= 1;
-        }
-        
-        console.log(`✅ 已移除項目 ${numericProjectId}，剩餘偏好:`, student.preferences);
-        
-        return { 
-            success: true, 
-            message: "Project removed from preferences",
-            currentPreferences: student.preferences.length
-        };
+        if (project && project.popularity > 0) project.popularity -= 1;
+        return { success: true, message: "Project removed from preferences", currentPreferences: student.preferences.length };
     },
     
     // Move preference position
-    movePreference: (studentId, projectId, direction) => {
+    movePreference: async (studentId, projectId, direction) => {
         // 確保 projectId 是數字類型
         const numericProjectId = typeof projectId === 'number' ? projectId : parseInt(projectId);
-        
+        if (dbEnabled && StudentModel) {
+            const student = await StudentModel.findOne({ id: studentId }).exec();
+            if (!student) return { success: false, message: "Student not found" };
+            const prefs = Array.isArray(student.preferences) ? student.preferences.map(p => (typeof p === 'number' ? p : parseInt(p))) : [];
+            const currentIndex = prefs.indexOf(numericProjectId);
+            if (currentIndex === -1) return { success: false, message: "Project not in preferences" };
+            const targetIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
+            if (targetIndex < 0 || targetIndex >= prefs.length) return { success: false, message: "Cannot move in that direction" };
+            const temp = prefs[currentIndex];
+            prefs[currentIndex] = prefs[targetIndex];
+            prefs[targetIndex] = temp;
+            student.preferences = prefs;
+            await student.save();
+            return { success: true, message: "Preference order updated", newPosition: targetIndex + 1 };
+        }
+        // fallback
         const student = mockData.students.find(s => s.id === studentId);
-        if (!student) {
-            return { success: false, message: "Student not found" };
-        }
-        
-        console.log(`🔄 移動項目 ${numericProjectId}，方向: ${direction}，當前偏好:`, student.preferences);
-        
+        if (!student) return { success: false, message: "Student not found" };
         const currentIndex = student.preferences.indexOf(numericProjectId);
-        if (currentIndex === -1) {
-            console.log(`❌ 項目 ${numericProjectId} 不在偏好列表中`);
-            return { success: false, message: "Project not in preferences" };
-        }
-        
-        // Calculate target index
+        if (currentIndex === -1) return { success: false, message: "Project not in preferences" };
         const targetIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
-        
-        // Check boundaries
-        if (targetIndex < 0 || targetIndex >= student.preferences.length) {
-            return { success: false, message: "Cannot move in that direction" };
-        }
-        
-        // Swap positions
+        if (targetIndex < 0 || targetIndex >= student.preferences.length) return { success: false, message: "Cannot move in that direction" };
         const temp = student.preferences[currentIndex];
         student.preferences[currentIndex] = student.preferences[targetIndex];
         student.preferences[targetIndex] = temp;
-        
-        console.log(`✅ 移動成功，新偏好順序:`, student.preferences);
-        
-        return { 
-            success: true, 
-            message: "Preference order updated",
-            newPosition: targetIndex + 1
-        };
+        return { success: true, message: "Preference order updated", newPosition: targetIndex + 1 };
     },
     
     // Reorder preferences (用於拖曳排序)
-    reorderPreferences: (studentId, newOrder) => {
-        const student = mockData.students.find(s => s.id === studentId);
-        if (!student) {
-            return { success: false, message: "Student not found" };
+    reorderPreferences: async (studentId, newOrder) => {
+        if (dbEnabled && StudentModel) {
+            const student = await StudentModel.findOne({ id: studentId }).exec();
+            if (!student) return { success: false, message: "Student not found" };
+            const prefs = Array.isArray(student.preferences) ? student.preferences.map(p => (typeof p === 'number' ? p : parseInt(p))) : [];
+            const numericOrder = newOrder.map(id => typeof id === 'number' ? id : parseInt(id));
+            const validIds = numericOrder.every(id => prefs.includes(id));
+            if (!validIds) return { success: false, message: "Invalid project IDs in new order" };
+            if (numericOrder.length !== prefs.length) return { success: false, message: "Order length mismatch" };
+            student.preferences = numericOrder;
+            await student.save();
+            return { success: true, message: "Preferences reordered successfully", newOrder: student.preferences };
         }
-        
-        console.log(`🔄 重新排序偏好，學生: ${studentId}`);
-        console.log(`📋 舊順序:`, student.preferences);
-        console.log(`📋 新順序:`, newOrder);
-        
-        // 驗證所有項目 ID 都存在且有效
+        // fallback
+        const student = mockData.students.find(s => s.id === studentId);
+        if (!student) return { success: false, message: "Student not found" };
         const validIds = newOrder.every(id => {
             const numericId = typeof id === 'number' ? id : parseInt(id);
             return student.preferences.includes(numericId);
         });
-        
-        if (!validIds) {
-            console.log(`❌ 新順序包含無效的項目 ID`);
-            return { success: false, message: "Invalid project IDs in new order" };
-        }
-        
-        // 驗證數量是否相同
-        if (newOrder.length !== student.preferences.length) {
-            console.log(`❌ 新順序的項目數量不匹配`);
-            return { success: false, message: "Order length mismatch" };
-        }
-        
-        // 更新偏好順序
+        if (!validIds) return { success: false, message: "Invalid project IDs in new order" };
+        if (newOrder.length !== student.preferences.length) return { success: false, message: "Order length mismatch" };
         student.preferences = newOrder.map(id => typeof id === 'number' ? id : parseInt(id));
-        
-        console.log(`✅ 重新排序成功:`, student.preferences);
-        
-        return { 
-            success: true, 
-            message: "Preferences reordered successfully",
-            newOrder: student.preferences
-        };
+        return { success: true, message: "Preferences reordered successfully", newOrder: student.preferences };
     },
     
     // 提交最終偏好
-    submitPreferences: (studentId) => {
+    submitPreferences: async (studentId) => {
+        if (dbEnabled && StudentModel) {
+            const student = await StudentModel.findOne({ id: studentId }).exec();
+            if (!student) return { success: false, message: "Student not found" };
+            if (!Array.isArray(student.preferences) || student.preferences.length === 0) return { success: false, message: "No preferences to submit" };
+            student.proposalSubmitted = true;
+            await student.save();
+            return { success: true, message: "Preferences submitted successfully", preferencesCount: student.preferences.length, submittedAt: new Date().toISOString() };
+        }
         const student = mockData.students.find(s => s.id === studentId);
-        if (!student) {
-            return { success: false, message: "Student not found" };
-        }
-        
-        if (student.preferences.length === 0) {
-            return { success: false, message: "No preferences to submit" };
-        }
-        
-        // 在真實系統中，這裡會鎖定偏好不允許修改
-        // 現在只是模擬提交成功
-        
-        return { 
-            success: true, 
-            message: "Preferences submitted successfully",
-            preferencesCount: student.preferences.length,
-            submittedAt: new Date().toISOString()
-        };
+        if (!student) return { success: false, message: "Student not found" };
+        if (student.preferences.length === 0) return { success: false, message: "No preferences to submit" };
+        student.proposalSubmitted = true;
+        return { success: true, message: "Preferences submitted successfully", preferencesCount: student.preferences.length, submittedAt: new Date().toISOString() };
     },
     
     // 直接設定學生的 preferences（由 Student UI 的 Submit 發起）
-    setPreferences: (studentId, preferencesArray) => {
-        const student = mockData.students.find(s => s.id === studentId);
-        if (!student) {
-            return { success: false, message: "Student not found" };
-        }
-
-        // 確保所有 ID 都是數字
+    setPreferences: async (studentId, preferencesArray) => {
         const numericPrefs = (preferencesArray || []).map(id => typeof id === 'number' ? id : parseInt(id));
+        if (dbEnabled && StudentModel) {
+            const student = await StudentModel.findOne({ id: studentId }).exec();
+            if (!student) return { success: false, message: "Student not found" };
+            student.preferences = numericPrefs;
+            student.proposalSubmitted = true;
+            await student.save();
+            return { success: true, message: "Preferences saved", preferencesCount: student.preferences.length };
+        }
+        const student = mockData.students.find(s => s.id === studentId);
+        if (!student) return { success: false, message: "Student not found" };
         student.preferences = numericPrefs;
         student.proposalSubmitted = true;
-
-        console.log(`✅ 已為學生 ${studentId} 設定 preferences:`, student.preferences);
         return { success: true, message: "Preferences saved", preferencesCount: student.preferences.length };
     },
     
@@ -224,17 +233,113 @@ const studentService = {
     },
     
     // Run matching using student-proposing Gale–Shapley with GPA tie-breaker and project capacities
-    runMatching: () => {
-        // reset previous assignments and tentative matches
+    runMatching: async () => {
+        if (dbEnabled && StudentModel && ProjectModel) {
+            // clear previous assignments
+            await StudentModel.updateMany({}, { $set: { assignedProject: null, proposalSubmitted: false } }).exec();
+
+            // fetch students who submitted preferences
+            const studentDocs = await StudentModel.find({ proposalSubmitted: true, preferences: { $exists: true, $ne: [] } }).lean().exec();
+            const projectDocs = await ProjectModel.find({}).lean().exec();
+
+            // build quick lookup by possible identifiers
+            const projectLookup = {};
+            projectDocs.forEach(p => {
+                if (p.id !== undefined && p.id !== null) projectLookup[String(p.id)] = p;
+                if (p.code) projectLookup[String(p.code)] = p;
+                projectLookup[String(p._id)] = p;
+            });
+
+            // prepare projects map for algorithm keyed by project._id string
+            const projectsMap = {};
+            projectDocs.forEach(p => {
+                const key = String(p._id);
+                projectsMap[key] = { capacity: p.capacity || 1, accepted: [], doc: p };
+            });
+
+            // prepare students map
+            const studentMap = {};
+            studentDocs.forEach(s => {
+                const prefs = Array.isArray(s.preferences) ? s.preferences.map(x => String(x)) : [];
+                studentMap[s.id] = { id: s.id, preferences: prefs, nextIndex: 0, numericGpa: parseFloat(s.gpa) || 0 };
+            });
+
+            const freeQueue = Object.keys(studentMap);
+
+            function resolvePrefToProjectKey(pref) {
+                if (!pref && pref !== 0) return null;
+                const asString = String(pref);
+                if (projectLookup[asString]) return String(projectLookup[asString]._id);
+                if (projectsMap[asString]) return asString;
+                return null;
+            }
+
+            while (freeQueue.length > 0) {
+                const studentId = freeQueue.shift();
+                const student = studentMap[studentId];
+                if (!student) continue;
+                if (student.nextIndex >= student.preferences.length) continue;
+                const rawPref = student.preferences[student.nextIndex];
+                student.nextIndex += 1;
+                const projKey = resolvePrefToProjectKey(rawPref);
+                if (!projKey) {
+                    if (student.nextIndex < student.preferences.length) freeQueue.push(studentId);
+                    continue;
+                }
+                const proj = projectsMap[projKey];
+                proj.accepted.push(studentId);
+                proj.accepted.sort((aId, bId) => {
+                    const a = studentMap[aId];
+                    const b = studentMap[bId];
+                    if (!a || !b) return 0;
+                    if (b.numericGpa !== a.numericGpa) return b.numericGpa - a.numericGpa;
+                    return (aId || '').localeCompare(bId || '');
+                });
+                if (proj.accepted.length > proj.capacity) {
+                    const removedId = proj.accepted.pop();
+                    if (removedId && removedId !== studentId) {
+                        const removedStudent = studentMap[removedId];
+                        if (removedStudent && removedStudent.nextIndex < removedStudent.preferences.length) {
+                            freeQueue.push(removedId);
+                        }
+                    } else if (removedId === studentId) {
+                        if (student.nextIndex < student.preferences.length) {
+                            freeQueue.push(studentId);
+                        }
+                    }
+                }
+            }
+
+            // finalize assignments
+            const assignments = [];
+            for (const key of Object.keys(projectsMap)) {
+                const proj = projectsMap[key];
+                for (const sid of proj.accepted) {
+                    const studentDoc = await StudentModel.findOne({ id: sid }).exec();
+                    if (studentDoc) {
+                        studentDoc.assignedProject = proj.doc._id;
+                        await studentDoc.save();
+                        assignments.push({
+                            studentId: studentDoc.id,
+                            projectId: String(proj.doc._id),
+                            assignedAt: new Date().toISOString()
+                        });
+                    }
+                }
+            }
+
+            return { success: true, assignments };
+        }
+
+        // fallback to mockData behaviour
         mockData.assignments = [];
         mockData.students.forEach(s => { s.assignedProject = null; });
 
-        // Prepare students who have submitted preferences
         const studentsWithPrefs = mockData.students
             .filter(s => Array.isArray(s.preferences) && s.preferences.length > 0 && s.proposalSubmitted)
             .map(s => ({
                 id: s.id,
-                preferences: [...s.preferences], // copy
+                preferences: [...s.preferences],
                 nextIndex: 0,
                 numericGpa: parseFloat(s.gpa) || 0
             }));
@@ -242,42 +347,28 @@ const studentService = {
         const studentMap = {};
         studentsWithPrefs.forEach(s => { studentMap[s.id] = s; });
 
-        // Prepare project acceptance lists
         const projectsMap = {};
         mockData.projects.forEach(p => {
             projectsMap[p.id] = {
                 capacity: p.capacity || 1,
-                accepted: [] // array of student ids
+                accepted: []
             };
         });
 
-        // Initialize free students queue
         const freeQueue = studentsWithPrefs.map(s => s.id);
-
         while (freeQueue.length > 0) {
             const studentId = freeQueue.shift();
             const student = studentMap[studentId];
             if (!student) continue;
-
-            // find next project to propose to
-            if (student.nextIndex >= student.preferences.length) {
-                // no more proposals
-                continue;
-            }
+            if (student.nextIndex >= student.preferences.length) continue;
             const projectId = student.preferences[student.nextIndex];
             student.nextIndex += 1;
-
             const proj = projectsMap[projectId];
             if (!proj) {
-                // invalid project id — try next
                 if (student.nextIndex < student.preferences.length) freeQueue.push(studentId);
                 continue;
             }
-
-            // Tentatively add student to project's accepted list
             proj.accepted.push(studentId);
-
-            // Sort accepted by GPA desc, tie-break by student id
             proj.accepted.sort((aId, bId) => {
                 const a = studentMap[aId] || mockData.students.find(s => s.id === aId);
                 const b = studentMap[bId] || mockData.students.find(s => s.id === bId);
@@ -286,18 +377,14 @@ const studentService = {
                 if (bG !== aG) return bG - aG;
                 return (aId || '').localeCompare(bId || '');
             });
-
-            // If over capacity, remove lowest-ranked student
             if (proj.accepted.length > proj.capacity) {
                 const removedId = proj.accepted.pop();
                 if (removedId && removedId !== studentId) {
-                    // removed someone else — they become free again if they have more preferences
                     const removedStudent = studentMap[removedId];
                     if (removedStudent && removedStudent.nextIndex < removedStudent.preferences.length) {
                         freeQueue.push(removedId);
                     }
                 } else if (removedId === studentId) {
-                    // current student was rejected, they remain free if they have more preferences
                     if (student.nextIndex < student.preferences.length) {
                         freeQueue.push(studentId);
                     }
@@ -305,7 +392,6 @@ const studentService = {
             }
         }
 
-        // Finalize assignments from projects' accepted lists
         Object.keys(projectsMap).forEach(pid => {
             const proj = projectsMap[pid];
             proj.accepted.forEach(sid => {
@@ -321,9 +407,7 @@ const studentService = {
             });
         });
 
-        // mark matching completed
         mockData.system.matchingCompleted = true;
-
         return {
             success: true,
             assignments: mockData.assignments
@@ -331,10 +415,41 @@ const studentService = {
     },
     
     // Return current matching results (based on assignments if available)
-    getMatchingResults: () => {
-        const results = [];
+    getMatchingResults: async () => {
+        if (dbEnabled && StudentModel && ProjectModel) {
+            const projects = await ProjectModel.find({}).lean().exec();
+            const students = await StudentModel.find({ assignedProject: { $ne: null } }).lean().exec();
+            const results = [];
+            for (const project of projects) {
+                const assigned = students.find(s => String(s.assignedProject) === String(project._id));
+                if (assigned) {
+                    results.push({
+                        projectId: String(project._id),
+                        title: project.title,
+                        supervisor: project.supervisor,
+                        studentId: assigned.id || null,
+                        studentName: assigned.name || null,
+                        studentGpa: assigned.gpa || null,
+                        matchRank: 1,
+                        assignedAt: assigned.updatedAt || null
+                    });
+                } else {
+                    results.push({
+                        projectId: String(project._id),
+                        title: project.title,
+                        supervisor: project.supervisor,
+                        studentId: null,
+                        studentName: null,
+                        studentGpa: null,
+                        matchRank: null,
+                        assignedAt: null
+                    });
+                }
+            }
+            return results;
+        }
 
-        // if assignments present, use them
+        const results = [];
         const assignments = Array.isArray(mockData.assignments) ? mockData.assignments : [];
 
         mockData.projects.forEach(project => {
@@ -368,8 +483,22 @@ const studentService = {
         return results;
     },
 
-    // 獲取所有學生列表
-    getAllStudents: () => {
+    // 獲取所有學生列表（DB-backed if available）
+    getAllStudents: async () => {
+        if (dbEnabled && StudentModel) {
+            const docs = await StudentModel.find({}).lean().exec();
+            return docs.map(d => ({
+                id: d.id,
+                name: d.name,
+                email: d.email,
+                gpa: (typeof d.gpa === 'number') ? d.gpa.toString() : (d.gpa || null),
+                major: d.major,
+                year: d.year,
+                preferences: Array.isArray(d.preferences) ? d.preferences.map(p => (typeof p === 'number' ? p : parseInt(p))) : [],
+                proposalSubmitted: !!d.proposalSubmitted,
+                assignedProject: d.assignedProject || null
+            }));
+        }
         return mockData.students.map(student => ({
             ...student,
             assignedProject: student.assignedProject || null

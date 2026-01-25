@@ -8,6 +8,19 @@ const port = 3000;
 app.use(express.json());
 // 注意：React 版本通過 Vite 提供前端，不需要靜態檔案服務
 
+// load env and attempt DB connection (optional)
+require('dotenv').config();
+const mongoose = require('mongoose');
+if (process.env.MONGO_URI) {
+    // recent MongoDB drivers don't accept useNewUrlParser/useUnifiedTopology options;
+    // let mongoose manage defaults
+    mongoose.connect(process.env.MONGO_URI)
+        .then(() => console.log('Connected to MongoDB'))
+        .catch(err => console.error('MongoDB connection error:', err));
+} else {
+    console.log('MONGO_URI not set — running with mockData only');
+}
+
 // 用戶資料（會自動初始化）
 let users = [];
 
@@ -92,10 +105,10 @@ try {
     const studentService = require('./services/studentService');
     
     // 📊 Student API 路由
-    app.get('/api/student/projects', (req, res) => {
+    app.get('/api/student/projects', async (req, res) => {
         console.log('📋 請求項目列表');
         try {
-            const projects = studentService.getAvailableProjects();
+            const projects = await studentService.getAvailableProjects();
             res.json({ success: true, projects });
         } catch (error) {
             console.error('❌ 獲取項目錯誤:', error);
@@ -103,10 +116,10 @@ try {
         }
     });
 
-    app.get('/api/student/:id', (req, res) => {
+    app.get('/api/student/:id', async (req, res) => {
         console.log('👤 請求學生信息:', req.params.id);
         try {
-            const student = studentService.getStudent(req.params.id);
+            const student = await studentService.getStudent(req.params.id);
             if (!student) {
                 return res.json({ success: false, message: 'Student not found' });
             }
@@ -117,10 +130,10 @@ try {
         }
     });
 
-    app.get('/api/student/:id/preferences', (req, res) => {
+    app.get('/api/student/:id/preferences', async (req, res) => {
         console.log('⭐ 請求學生偏好:', req.params.id);
         try {
-            const preferences = studentService.getStudentPreferences(req.params.id);
+            const preferences = await studentService.getStudentPreferences(req.params.id);
             res.json({ success: true, preferences });
         } catch (error) {
             console.error('❌ 獲取偏好錯誤:', error);
@@ -128,12 +141,12 @@ try {
         }
     });
 
-    app.post('/api/student/:id/preferences', (req, res) => {
+    app.post('/api/student/:id/preferences', async (req, res) => {
         console.log('➕ 添加偏好:', { studentId: req.params.id, projectId: req.body.projectId });
         try {
             // 確保 projectId 是數字類型
             const projectId = parseInt(req.body.projectId);
-            const result = studentService.addPreference(req.params.id, projectId);
+            const result = await studentService.addPreference(req.params.id, projectId);
             res.json(result);
         } catch (error) {
             console.error('❌ 添加偏好錯誤:', error);
@@ -142,7 +155,7 @@ try {
     });
 
     // 設定整個 preferences（由學生 Submit 發起）
-    app.post('/api/student/:id/preferences/set', (req, res) => {
+    app.post('/api/student/:id/preferences/set', async (req, res) => {
         console.log('🔧 設定偏好 (set):', { studentId: req.params.id, body: req.body });
         try {
             // Accept either { preferences: [..] } or single { projectId: x } for convenience
@@ -150,7 +163,7 @@ try {
             if ((!Array.isArray(prefs) || prefs.length === 0) && req.body && req.body.projectId) {
                 prefs = [req.body.projectId];
             }
-            const result = studentService.setPreferences(req.params.id, prefs || []);
+            const result = await studentService.setPreferences(req.params.id, prefs || []);
             res.json(result);
         } catch (error) {
             console.error('❌ 設定偏好錯誤:', error);
@@ -159,29 +172,28 @@ try {
     });
     
     // Clear student's preferences on server (used when submitted)
-    app.delete('/api/student/:id/preferences/clear', (req, res) => {
+    app.delete('/api/student/:id/preferences/clear', async (req, res) => {
         console.log('🧹 清除學生偏好 (server clear):', req.params.id);
         try {
-            const student = studentService.getStudent(req.params.id);
+            const student = await studentService.getStudent(req.params.id);
             if (!student) {
                 return res.status(404).json({ success: false, message: 'Student not found' });
             }
-            // clear on mockData
-            student.preferences = [];
-            student.proposalSubmitted = false;
-            res.json({ success: true, message: 'Preferences cleared' });
+            // clear preferences using service
+            const result = await studentService.setPreferences(req.params.id, []);
+            res.json(result || { success: true, message: 'Preferences cleared' });
         } catch (error) {
             console.error('❌ 清除偏好錯誤:', error);
             res.status(500).json({ success: false, message: 'Failed to clear preferences' });
         }
     });
 
-    app.delete('/api/student/:id/preferences/:projectId', (req, res) => {
+    app.delete('/api/student/:id/preferences/:projectId', async (req, res) => {
         console.log('➖ 移除偏好:', { studentId: req.params.id, projectId: req.params.projectId });
         try {
             // 確保 projectId 是數字類型
             const projectId = parseInt(req.params.projectId);
-            const result = studentService.removePreference(req.params.id, projectId);
+            const result = await studentService.removePreference(req.params.id, projectId);
             res.json(result);
         } catch (error) {
             console.error('❌ 移除偏好錯誤:', error);
@@ -189,13 +201,13 @@ try {
         }
     });
 
-    app.put('/api/student/:id/preferences/:projectId/move', (req, res) => {
+    app.put('/api/student/:id/preferences/:projectId/move', async (req, res) => {
         console.log('🔄 移動偏好:', { studentId: req.params.id, projectId: req.params.projectId, direction: req.body.direction });
         try {
             // 確保 projectId 是數字類型
             const projectId = parseInt(req.params.projectId);
             const { direction } = req.body;
-            const result = studentService.movePreference(req.params.id, projectId, direction);
+            const result = await studentService.movePreference(req.params.id, projectId, direction);
             res.json(result);
         } catch (error) {
             console.error('❌ 移動偏好錯誤:', error);
@@ -203,13 +215,13 @@ try {
         }
     });
 
-    app.put('/api/student/:id/preferences/reorder', (req, res) => {
+    app.put('/api/student/:id/preferences/reorder', async (req, res) => {
         console.log('🔄 重新排序偏好:', { studentId: req.params.id, order: req.body.order });
         try {
             const { order } = req.body;
             // 確保所有 ID 都是數字類型
             const numericOrder = order.map(id => typeof id === 'number' ? id : parseInt(id));
-            const result = studentService.reorderPreferences(req.params.id, numericOrder);
+            const result = await studentService.reorderPreferences(req.params.id, numericOrder);
             res.json(result);
         } catch (error) {
             console.error('❌ 重新排序偏好錯誤:', error);
@@ -217,10 +229,10 @@ try {
         }
     });
 
-    app.post('/api/student/:id/preferences/submit', (req, res) => {
+    app.post('/api/student/:id/preferences/submit', async (req, res) => {
         console.log('📤 提交偏好:', req.params.id);
         try {
-            const result = studentService.submitPreferences(req.params.id);
+            const result = await studentService.submitPreferences(req.params.id);
             res.json(result);
         } catch (error) {
             console.error('❌ 提交偏好錯誤:', error);
@@ -240,10 +252,10 @@ try {
     });
 
     // 匯出 API
-    app.get('/api/export/matching-results', (req, res) => {
+    app.get('/api/export/matching-results', async (req, res) => {
         console.log('📊 導出配對結果');
         try {
-            const matchingResults = studentService.getMatchingResults();
+            const matchingResults = await studentService.getMatchingResults();
             const csvData = matchingResults.map(result => ({
                 'Project ID': result.projectId,
                 'Project Title': result.title,
@@ -266,10 +278,10 @@ try {
         }
     });
 
-    app.get('/api/export/student-list', (req, res) => {
+    app.get('/api/export/student-list', async (req, res) => {
         console.log('👥 導出學生清單');
         try {
-            const students = studentService.getAllStudents();
+            const students = await studentService.getAllStudents();
             const csvData = students.map(student => ({
                 'Student ID': student.id,
                 'Name': student.name,
@@ -293,10 +305,10 @@ try {
         }
     });
 
-    app.get('/api/export/project-list', (req, res) => {
+    app.get('/api/export/project-list', async (req, res) => {
         console.log('📋 導出項目清單');
         try {
-            const projects = studentService.getAvailableProjects();
+            const projects = await studentService.getAvailableProjects();
             const csvData = projects.map(project => ({
                 'Project ID': project.id,
                 'Title': project.title,
@@ -322,10 +334,10 @@ try {
     });
 
     // Matching endpoints
-    app.post('/api/match/run', (req, res) => {
+    app.post('/api/match/run', async (req, res) => {
         console.log('▶️ 執行配對 (runMatching)');
         try {
-            const result = studentService.runMatching();
+            const result = await studentService.runMatching();
             res.json(result);
         } catch (error) {
             console.error('❌ 執行配對錯誤:', error);
@@ -333,10 +345,10 @@ try {
         }
     });
 
-    app.get('/api/match/results', (req, res) => {
+    app.get('/api/match/results', async (req, res) => {
         console.log('📄 取得配對結果 (getMatchingResults)');
         try {
-            const results = studentService.getMatchingResults();
+            const results = await studentService.getMatchingResults();
             // include whether matching has been completed
             const matchingCompleted = (typeof studentService.getSystemStatus === 'function' && studentService.getSystemStatus().matchingCompleted) || false;
             res.json({ success: true, matchingCompleted, results });
