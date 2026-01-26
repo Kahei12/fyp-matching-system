@@ -15,8 +15,14 @@ const studentService = {
     // 獲取所有可用項目（DB-backed if available）
     getAvailableProjects: async () => {
         if (dbEnabled && ProjectModel) {
-            // return plain objects
-            return await ProjectModel.find({ status: 'active' }).lean().exec();
+            // return plain objects and normalize shape for frontend compatibility
+            const docs = await ProjectModel.find({ status: 'active' }).lean().exec();
+            return docs.map(p => ({
+                ...p,
+                id: (p.id !== undefined && p.id !== null) ? p.id : (p.code || String(p._id)),
+                skills: Array.isArray(p.skills) ? p.skills : (p.skills ? [p.skills] : []),
+                popularity: typeof p.popularity === 'number' ? p.popularity : (parseInt(p.popularity) || 0)
+            }));
         }
         return mockData.projects.filter(project => project.status === "active");
     },
@@ -47,16 +53,19 @@ const studentService = {
             const student = await StudentModel.findOne({ id: studentId }).lean().exec();
             if (!student) return [];
             const prefs = Array.isArray(student.preferences) ? student.preferences : [];
-            // try to resolve projects matching by numeric `id` field or fallback to title/code
             const projects = await ProjectModel.find({}).lean().exec();
-            return prefs.map((projectId, idx) => {
+            const resolved = prefs.map((projectId) => {
+                const pid = String(projectId);
                 const proj = projects.find(p => {
-                    return (p.id && p.id === projectId) || (p.code && p.code === projectId) || (p._id && String(p._id) === String(projectId));
+                    return (p.id !== undefined && String(p.id) === pid) || (p.code && String(p.code) === pid) || (p._id && String(p._id) === pid);
                 });
-            }).map((proj, idx) => {
                 if (!proj) return null;
-                return { ...proj, rank: idx + 1 };
+                return {
+                    ...proj,
+                    id: (proj.id !== undefined && proj.id !== null) ? proj.id : (proj.code || String(proj._id)),
+                };
             }).filter(Boolean);
+            return resolved.map((proj, idx) => ({ ...proj, rank: idx + 1 }));
         }
         const student = mockData.students.find(s => s.id === studentId);
         if (!student) return [];
@@ -69,20 +78,26 @@ const studentService = {
     
     // 添加項目到偏好
     addPreference: async (studentId, projectId) => {
-        // 確保 projectId 是數字類型
-        const numericProjectId = typeof projectId === 'number' ? projectId : parseInt(projectId);
+        // projectId may be a string (code or ObjectId) or numeric id
         if (dbEnabled && StudentModel && ProjectModel) {
             const student = await StudentModel.findOne({ id: studentId }).exec();
             if (!student) return { success: false, message: "Student not found" };
-            const existing = (student.preferences || []).map(p => (typeof p === 'number' ? p : parseInt(p)));
-            if (existing.includes(numericProjectId)) return { success: false, message: "Project already in preferences" };
+            const existing = (student.preferences || []).map(p => String(p));
+            const pidStr = String(projectId);
+            if (existing.includes(pidStr)) return { success: false, message: "Project already in preferences" };
             if (existing.length >= 5) return { success: false, message: "Maximum 5 preferences allowed" };
-            // check project existence
-            const project = await ProjectModel.findOne({ $or: [{ id: numericProjectId }, { code: numericProjectId }] }).exec();
+            // find project by _id, code, or id field
+            let project = null;
+            const mongoose = require('mongoose');
+            if (mongoose.Types.ObjectId.isValid(pidStr)) {
+                project = await ProjectModel.findById(pidStr).exec();
+            }
+            if (!project) {
+                project = await ProjectModel.findOne({ $or: [{ code: pidStr }, { id: pidStr }] }).exec();
+            }
             if (!project) return { success: false, message: "Project not found" };
-            student.preferences = existing.concat([numericProjectId]);
+            student.preferences = existing.concat([pidStr]);
             await student.save();
-            // update project popularity if field exists
             try {
                 project.popularity = (project.popularity || 0) + 1;
                 await project.save();
@@ -104,18 +119,25 @@ const studentService = {
     // 從偏好中移除項目
     removePreference: async (studentId, projectId) => {
         // 確保 projectId 是數字類型
-        const numericProjectId = typeof projectId === 'number' ? projectId : parseInt(projectId);
+        const pidStr = String(projectId);
         if (dbEnabled && StudentModel && ProjectModel) {
             const student = await StudentModel.findOne({ id: studentId }).exec();
             if (!student) return { success: false, message: "Student not found" };
-            const prefs = Array.isArray(student.preferences) ? student.preferences.map(p => (typeof p === 'number' ? p : parseInt(p))) : [];
-            const index = prefs.indexOf(numericProjectId);
+            const prefs = Array.isArray(student.preferences) ? student.preferences.map(p => String(p)) : [];
+            const index = prefs.indexOf(pidStr);
             if (index === -1) return { success: false, message: "Project not in preferences" };
             prefs.splice(index, 1);
             student.preferences = prefs;
             await student.save();
             // decrement popularity if possible
-            const project = await ProjectModel.findOne({ $or: [{ id: numericProjectId }, { code: numericProjectId }] }).exec();
+            let project = null;
+            const mongoose = require('mongoose');
+            if (mongoose.Types.ObjectId.isValid(pidStr)) {
+                project = await ProjectModel.findById(pidStr).exec();
+            }
+            if (!project) {
+                project = await ProjectModel.findOne({ $or: [{ code: pidStr }, { id: pidStr }] }).exec();
+            }
             if (project && typeof project.popularity === 'number' && project.popularity > 0) {
                 project.popularity -= 1;
                 await project.save();
@@ -136,12 +158,12 @@ const studentService = {
     // Move preference position
     movePreference: async (studentId, projectId, direction) => {
         // 確保 projectId 是數字類型
-        const numericProjectId = typeof projectId === 'number' ? projectId : parseInt(projectId);
+        const pidStr = String(projectId);
         if (dbEnabled && StudentModel) {
             const student = await StudentModel.findOne({ id: studentId }).exec();
             if (!student) return { success: false, message: "Student not found" };
-            const prefs = Array.isArray(student.preferences) ? student.preferences.map(p => (typeof p === 'number' ? p : parseInt(p))) : [];
-            const currentIndex = prefs.indexOf(numericProjectId);
+            const prefs = Array.isArray(student.preferences) ? student.preferences.map(p => String(p)) : [];
+            const currentIndex = prefs.indexOf(pidStr);
             if (currentIndex === -1) return { success: false, message: "Project not in preferences" };
             const targetIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
             if (targetIndex < 0 || targetIndex >= prefs.length) return { success: false, message: "Cannot move in that direction" };
@@ -170,12 +192,12 @@ const studentService = {
         if (dbEnabled && StudentModel) {
             const student = await StudentModel.findOne({ id: studentId }).exec();
             if (!student) return { success: false, message: "Student not found" };
-            const prefs = Array.isArray(student.preferences) ? student.preferences.map(p => (typeof p === 'number' ? p : parseInt(p))) : [];
-            const numericOrder = newOrder.map(id => typeof id === 'number' ? id : parseInt(id));
-            const validIds = numericOrder.every(id => prefs.includes(id));
+            const prefs = Array.isArray(student.preferences) ? student.preferences.map(p => String(p)) : [];
+            const stringOrder = newOrder.map(id => String(id));
+            const validIds = stringOrder.every(id => prefs.includes(id));
             if (!validIds) return { success: false, message: "Invalid project IDs in new order" };
-            if (numericOrder.length !== prefs.length) return { success: false, message: "Order length mismatch" };
-            student.preferences = numericOrder;
+            if (stringOrder.length !== prefs.length) return { success: false, message: "Order length mismatch" };
+            student.preferences = stringOrder;
             await student.save();
             return { success: true, message: "Preferences reordered successfully", newOrder: student.preferences };
         }
@@ -211,18 +233,18 @@ const studentService = {
     
     // 直接設定學生的 preferences（由 Student UI 的 Submit 發起）
     setPreferences: async (studentId, preferencesArray) => {
-        const numericPrefs = (preferencesArray || []).map(id => typeof id === 'number' ? id : parseInt(id));
+        const stringPrefs = (preferencesArray || []).map(id => String(id));
         if (dbEnabled && StudentModel) {
             const student = await StudentModel.findOne({ id: studentId }).exec();
             if (!student) return { success: false, message: "Student not found" };
-            student.preferences = numericPrefs;
+            student.preferences = stringPrefs;
             student.proposalSubmitted = true;
             await student.save();
             return { success: true, message: "Preferences saved", preferencesCount: student.preferences.length };
         }
         const student = mockData.students.find(s => s.id === studentId);
         if (!student) return { success: false, message: "Student not found" };
-        student.preferences = numericPrefs;
+        student.preferences = (preferencesArray || []).map(id => typeof id === 'number' ? id : parseInt(id));
         student.proposalSubmitted = true;
         return { success: true, message: "Preferences saved", preferencesCount: student.preferences.length };
     },
@@ -494,7 +516,7 @@ const studentService = {
                 gpa: (typeof d.gpa === 'number') ? d.gpa.toString() : (d.gpa || null),
                 major: d.major,
                 year: d.year,
-                preferences: Array.isArray(d.preferences) ? d.preferences.map(p => (typeof p === 'number' ? p : parseInt(p))) : [],
+                preferences: Array.isArray(d.preferences) ? d.preferences.map(p => String(p)) : [],
                 proposalSubmitted: !!d.proposalSubmitted,
                 assignedProject: d.assignedProject || null
             }));

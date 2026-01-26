@@ -20,6 +20,8 @@ if (process.env.MONGO_URI) {
 } else {
     console.log('MONGO_URI not set — running with mockData only');
 }
+const fs = require('fs');
+const Project = require('./models/Project');
 
 // 用戶資料（會自動初始化）
 let users = [];
@@ -144,8 +146,7 @@ try {
     app.post('/api/student/:id/preferences', async (req, res) => {
         console.log('➕ 添加偏好:', { studentId: req.params.id, projectId: req.body.projectId });
         try {
-            // 確保 projectId 是數字類型
-            const projectId = parseInt(req.body.projectId);
+            const projectId = req.body.projectId;
             const result = await studentService.addPreference(req.params.id, projectId);
             res.json(result);
         } catch (error) {
@@ -191,8 +192,7 @@ try {
     app.delete('/api/student/:id/preferences/:projectId', async (req, res) => {
         console.log('➖ 移除偏好:', { studentId: req.params.id, projectId: req.params.projectId });
         try {
-            // 確保 projectId 是數字類型
-            const projectId = parseInt(req.params.projectId);
+            const projectId = req.params.projectId;
             const result = await studentService.removePreference(req.params.id, projectId);
             res.json(result);
         } catch (error) {
@@ -204,8 +204,7 @@ try {
     app.put('/api/student/:id/preferences/:projectId/move', async (req, res) => {
         console.log('🔄 移動偏好:', { studentId: req.params.id, projectId: req.params.projectId, direction: req.body.direction });
         try {
-            // 確保 projectId 是數字類型
-            const projectId = parseInt(req.params.projectId);
+            const projectId = req.params.projectId;
             const { direction } = req.body;
             const result = await studentService.movePreference(req.params.id, projectId, direction);
             res.json(result);
@@ -219,9 +218,8 @@ try {
         console.log('🔄 重新排序偏好:', { studentId: req.params.id, order: req.body.order });
         try {
             const { order } = req.body;
-            // 確保所有 ID 都是數字類型
-            const numericOrder = order.map(id => typeof id === 'number' ? id : parseInt(id));
-            const result = await studentService.reorderPreferences(req.params.id, numericOrder);
+            // pass order through (studentService will normalize types)
+            const result = await studentService.reorderPreferences(req.params.id, order);
             res.json(result);
         } catch (error) {
             console.error('❌ 重新排序偏好錯誤:', error);
@@ -330,6 +328,24 @@ try {
         } catch (error) {
             console.error('❌ 導出項目清單錯誤:', error);
             res.status(500).json({ success: false, message: 'Failed to export project list' });
+        }
+    });
+
+    // Admin: backup and remove legacy projects where code is null
+    app.post('/api/admin/cleanup-null-projects', async (req, res) => {
+        try {
+            const docs = await Project.find({ code: null }).lean().exec();
+            if (!docs || docs.length === 0) {
+                return res.json({ success: true, message: 'No null-code projects found', count: 0 });
+            }
+            const backupPath = 'data/backup_null_code_projects.json';
+            fs.writeFileSync(backupPath, JSON.stringify(docs, null, 2), 'utf8');
+            const ids = docs.map(d => d._id);
+            const delRes = await Project.deleteMany({ _id: { $in: ids } }).exec();
+            return res.json({ success: true, message: 'Backed up and deleted null-code projects', backupPath, deletedCount: delRes.deletedCount });
+        } catch (err) {
+            console.error('Cleanup error:', err);
+            return res.status(500).json({ success: false, message: 'Cleanup failed', error: String(err) });
         }
     });
 

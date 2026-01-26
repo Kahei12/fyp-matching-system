@@ -1,0 +1,102 @@
+[
+  {
+    "_id": "69767eb4d9e5117478cbc47d",
+    "title": "AI-based Learning System",
+    "supervisor": "Dr. Bell Liu",
+    "supervisorId": "T001",
+    "description": "Develop an intelligent learning platform that adapts to student learning patterns using machine learning algorithms.",
+    "skills": [
+      "Python",
+      "Machine Learning",
+      "Web Development"
+    ],
+    "capacity": 3,
+    "popularity": 15,
+    "status": "active",
+    "createdAt": "2025-01-15T00:00:00.000Z",
+    "__v": 0,
+    "category": null,
+    "code": null,
+    "department": null
+  },
+  {
+    "_id": "69767eb4d9e5117478cbc47e",
+    "title": "IoT Smart Campus",
+    "supervisor": "Prof. Zhang Wei",
+    "supervisorId": "T002",
+    "description": "Build an IoT system to monitor and optimize campus resource usage including energy, water, and space utilization.",
+    "skills": [
+      "IoT",
+      "Embedded Systems",
+      "Python"
+    ],
+    "capacity": 2,
+    "popularity": 8,
+    "status": "active",
+    "createdAt": "2025-01-10T00:00:00.000Z",
+    "__v": 0,
+    "category": null,
+    "code": null,
+    "department": null
+  },
+  {
+    "_id": "69767eb4d9e5117478cbc47f",
+    "title": "Blockchain Security Analysis",
+    "supervisor": "Dr. Sarah Chen",
+    "supervisorId": "T003",
+    "description": "Analyze security vulnerabilities in blockchain systems and develop improved security protocols.",
+    "skills": [
+      "Blockchain",
+      "Cryptography",
+      "Security"
+    ],
+    "capacity": 2,
+    "popularity": 12,
+    "status": "active",
+    "createdAt": "2025-01-12T00:00:00.000Z",
+    "__v": 0,
+    "category": null,
+    "code": null,
+    "department": null
+  },
+  {
+    "_id": "69767eb4d9e5117478cbc480",
+    "title": "Mobile Health App",
+    "supervisor": "Prof. David Wong",
+    "supervisorId": "T004",
+    "description": "Create a mobile application for health monitoring and personalized fitness recommendations.",
+    "skills": [
+      "Mobile Development",
+      "Healthcare",
+      "Data Analysis"
+    ],
+    "capacity": 3,
+    "popularity": 6,
+    "status": "active",
+    "createdAt": "2025-01-08T00:00:00.000Z",
+    "__v": 0,
+    "category": null,
+    "code": null,
+    "department": null
+  },
+  {
+    "_id": "69767eb4d9e5117478cbc481",
+    "title": "Data Visualization Platform",
+    "supervisor": "Dr. Emily Zhao",
+    "supervisorId": "T005",
+    "description": "Develop an interactive platform for visualizing complex datasets with real-time analytics.",
+    "skills": [
+      "Data Visualization",
+      "JavaScript",
+      "D3.js"
+    ],
+    "capacity": 2,
+    "popularity": 9,
+    "status": "active",
+    "createdAt": "2025-01-05T00:00:00.000Z",
+    "__v": 0,
+    "category": null,
+    "code": null,
+    "department": null
+  }
+]
