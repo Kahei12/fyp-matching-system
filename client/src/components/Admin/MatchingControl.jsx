@@ -9,7 +9,7 @@ function MatchingControl({ showNotification }) {
     if (!window.confirm('Start matching algorithm? This will assign students to projects based on preferences and GPA.')) return;
 
     try {
-      showNotification('Matching algorithm started...', 'info');
+      showNotification('Start Matching...', 'info');
       setStatus('Running');
 
       const runResp = await fetch('/api/match/run', { method: 'POST' });
@@ -33,7 +33,7 @@ function MatchingControl({ showNotification }) {
       setMatchedProjects(matched);
       setStatus('Completed');
 
-      showNotification(`Matching completed! ${matched}/${total} projects matched`, 'success');
+      showNotification(`Matching completed ${matched}/${total} projects matched`, 'success');
     } catch (err) {
       console.error('Matching error:', err);
       setStatus('Error');

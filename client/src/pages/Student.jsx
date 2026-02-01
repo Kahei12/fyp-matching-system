@@ -246,7 +246,7 @@ function Student() {
     const newPreferences = [...preferences, newPref];
     setPreferences(newPreferences);
     localStorage.setItem(`studentPreferences_${currentStudentId}`, JSON.stringify(newPreferences));
-    showNotification(`Project added to preferences (${newPreferences.length}/10). Continue adding or go to My Preferences to sort.`, 'success');
+    showNotification(`Project added to preferences (${newPreferences.length}/10). Please go to My Preferences to check.`, 'success');
     // 不再自動跳轉，讓用戶繼續添加項目
   };
 
