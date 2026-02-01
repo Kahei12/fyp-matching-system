@@ -7,7 +7,7 @@ const StudentSchema = new mongoose.Schema({
   gpa: Number,
   major: String,
   year: String,
-  preferences: [Number], // array of project ids
+  preferences: [String], // array of project ids (can be code or ObjectId string)
   proposalSubmitted: { type: Boolean, default: false },
   assignedProject: { type: mongoose.Schema.Types.ObjectId, ref: 'Project', default: null }
 });

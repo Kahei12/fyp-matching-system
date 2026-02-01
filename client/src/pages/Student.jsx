@@ -212,9 +212,12 @@ function Student() {
     // Buffer preference locally; only submit to server on Submit Preferences
     const currentStudentId = studentData.studentId || sessionStorage.getItem('studentId') || 'S001';
 
-    const locked = studentData.proposalSubmitted || matchingCompleted;
+    // 檢查是否已提交或匹配已完成
+    const submittedFlag = studentData.proposalSubmitted || sessionStorage.getItem('proposalSubmitted') === 'true';
+    const locked = submittedFlag || matchingCompleted;
+    
     if (locked) {
-      showNotification('Preferences locked (submitted or matching completed); cannot add more.', 'error');
+      showNotification('Preferences are locked. You cannot add more projects after submission.', 'error');
       return;
     }
 
@@ -223,8 +226,8 @@ function Student() {
       return;
     }
 
-    if (preferences.length >= 5) {
-      showNotification('Maximum 5 preferences allowed!', 'error');
+    if (preferences.length >= 10) {
+      showNotification('Maximum 10 preferences allowed!', 'error');
       return;
     }
 
@@ -243,8 +246,8 @@ function Student() {
     const newPreferences = [...preferences, newPref];
     setPreferences(newPreferences);
     localStorage.setItem(`studentPreferences_${currentStudentId}`, JSON.stringify(newPreferences));
-    showNotification('Project added to preferences (local). Please Submit to save.', 'info');
-    setCurrentSection('my-preferences');
+    showNotification(`Project added to preferences (${newPreferences.length}/10). Continue adding or go to My Preferences to sort.`, 'success');
+    // 不再自動跳轉，讓用戶繼續添加項目
   };
 
   const handleRemovePreference = async (projectId) => {
@@ -310,23 +313,38 @@ function Student() {
         console.log('Set preferences response:', result);
 
         if (response.ok && result.success) {
-          // refresh preferences from server and mark submitted
-          await loadPreferences(currentStudentId);
+          // 先更新狀態
           setStudentData(prev => ({ ...prev, proposalSubmitted: true }));
           sessionStorage.setItem('proposalSubmitted', 'true');
-          showNotification('Preferences submitted successfully!', 'success');
+          
+          // 然後重新載入 preferences 從服務器
+          await loadPreferences(currentStudentId);
+          
+          // 清除本地存儲的 preferences（因為已經提交到服務器）
+          localStorage.removeItem(`studentPreferences_${currentStudentId}`);
+          
+          showNotification(result.message || 'Preferences submitted successfully!', 'success');
         } else {
           showNotification(result.message || 'Failed to submit preferences', 'error');
         }
       } catch (error) {
         console.error('Submit preferences error:', error);
-        showNotification('Preferences saved locally!', 'success');
+        showNotification('Failed to submit preferences. Please try again.', 'error');
       }
     }
   };
 
   const handleClearPreferences = () => {
     const currentStudentId = studentData.studentId || sessionStorage.getItem('studentId') || 'S001';
+    
+    // 檢查是否已提交
+    const submittedFlag = studentData.proposalSubmitted || sessionStorage.getItem('proposalSubmitted') === 'true';
+    const matchingCompleted = false; // 可以從 API 獲取
+    
+    if (submittedFlag || matchingCompleted) {
+      showNotification('Cannot clear preferences after submission or matching completion.', 'error');
+      return;
+    }
     
     if (preferences.length === 0) {
       showNotification('No preferences to clear!', 'info');
@@ -335,40 +353,9 @@ function Student() {
 
     if (window.confirm('Clear all project preferences? This action cannot be undone.')) {
       console.log('Clear preferences:', currentStudentId);
-      
-      // If not submitted, just clear local buffer
-      const submittedFlag = studentData.proposalSubmitted || sessionStorage.getItem('proposalSubmitted') === 'true';
-      if (!submittedFlag) {
-        setPreferences([]);
-        localStorage.removeItem(`studentPreferences_${currentStudentId}`);
-        showNotification('All preferences cleared (local)!', 'success');
-        return;
-      }
-
-      // If submitted, call server clear endpoint
       setPreferences([]);
       localStorage.removeItem(`studentPreferences_${currentStudentId}`);
-      showNotification('Clearing preferences on server...', 'info');
-      fetch(`/api/student/${currentStudentId}/preferences/clear`, {
-        method: 'DELETE'
-      }).then(async res => {
-        try {
-          const json = await res.json();
-          if (res.ok && json.success) {
-            showNotification('All preferences cleared on server!', 'success');
-            // refresh student data
-            await loadStudentData();
-          } else {
-            showNotification(json.message || 'Server clear failed', 'error');
-          }
-        } catch (e) {
-          console.error('Clear parse error', e);
-          showNotification('Server clear failed', 'error');
-        }
-      }).catch(err => {
-        console.log('API clear failed', err);
-        showNotification('Server clear failed', 'error');
-      });
+      showNotification('All preferences cleared!', 'success');
     }
   };
 
@@ -563,6 +550,7 @@ function Student() {
           onReorderPreferences={handleReorderPreferences}
           onSwitchSection={setCurrentSection}
           submitted={studentData.proposalSubmitted}
+          matchingCompleted={matchingCompleted}
         />;
       case 'results':
         return <Results />;
@@ -628,7 +616,7 @@ function StageOverview({ currentSection, onStageChange, preferencesCount }) {
       id: 'my-preferences',
       badgeLabel: 'Stage 2 (Matching)',
       title: 'My Preferences',
-      description: `Manage your project preferences (${preferencesCount}/5 selected).`,
+      description: `Manage your project preferences (${preferencesCount}/10 selected).`,
       icon: '★',
       stageClass: 'stage-2',
       cardClass: 'status-card-stage-2'

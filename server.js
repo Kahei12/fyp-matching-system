@@ -364,25 +364,35 @@ try {
     app.get('/api/match/results', async (req, res) => {
         console.log('📄 取得配對結果 (getMatchingResults)');
         try {
-            const results = await studentService.getMatchingResults();
-            // include whether matching has been completed
-            const matchingCompleted = (typeof studentService.getSystemStatus === 'function' && studentService.getSystemStatus().matchingCompleted) || false;
-            res.json({ success: true, matchingCompleted, results });
+            const result = await studentService.getMatchingResults();
+            // result 可能是 { results, matchingCompleted } 或只是 results 數組
+            if (result && typeof result === 'object' && 'results' in result) {
+                res.json({ 
+                    success: true, 
+                    matchingCompleted: result.matchingCompleted || false, 
+                    results: result.results || [] 
+                });
+            } else {
+                // 兼容舊格式
+                const results = Array.isArray(result) ? result : [];
+                const matchingCompleted = results.some(r => r.studentId !== null);
+                res.json({ success: true, matchingCompleted, results });
+            }
         } catch (error) {
             console.error('❌ 獲取配對結果錯誤:', error);
             res.status(500).json({ success: false, message: 'Failed to get matching results' });
         }
     });
 
-    // Admin: reset server mock state (clear preferences, assignments, matching flag)
-    app.post('/api/admin/reset', (req, res) => {
+    // Admin: reset server state (clear preferences, assignments, matching flag)
+    app.post('/api/admin/reset', async (req, res) => {
         console.log('🔁 Admin reset requested');
         try {
-            const result = studentService.resetState ? studentService.resetState() : null;
+            const result = studentService.resetState ? await studentService.resetState() : null;
             res.json(result || { success: true, message: 'Reset completed' });
         } catch (error) {
             console.error('❌ Reset failed:', error);
-            res.status(500).json({ success: false, message: 'Reset failed' });
+            res.status(500).json({ success: false, message: 'Reset failed: ' + error.message });
         }
     });
 

@@ -8,21 +8,42 @@ function Results() {
     const fetchAssignment = async () => {
       try {
         const studentId = sessionStorage.getItem('studentId') || 'S001';
-    // get match results
+        // get match results
         const resp = await fetch('/api/match/results');
         const data = await resp.json();
-        if (resp.ok && data.success && data.matchingCompleted) {
+        
+        console.log('[Results] Match results data:', data);
+        
+        if (resp.ok && data.success) {
           const results = data.results || [];
+          const matchingCompleted = data.matchingCompleted || false;
+          
+          // 查找當前學生的分配結果
           const my = results.find(r => r.studentId === studentId);
-          if (my && my.studentId) {
-            setAssignment(my);
+          
+          if (my && my.studentId && my.title) {
+            setAssignment({
+              title: my.title,
+              supervisor: my.supervisor || 'TBD',
+              studentId: my.studentId,
+              studentGpa: my.studentGpa || 'N/A',
+              assignedAt: my.assignedAt || new Date().toISOString()
+            });
             setStatusText('Assigned');
             return;
           }
+          
+          // 如果匹配已完成但沒有分配
+          if (matchingCompleted) {
+            setAssignment(null);
+            setStatusText('Unassigned');
+            return;
+          }
         }
-        // if matching not completed or no assignment, remain pending
+        
+        // 如果匹配未完成，顯示 pending
         setAssignment(null);
-        setStatusText(data && data.matchingCompleted ? 'Unassigned' : 'Pending');
+        setStatusText('Pending');
       } catch (err) {
         console.error('Fetch match results error:', err);
         setAssignment(null);
@@ -31,6 +52,10 @@ function Results() {
     };
 
     fetchAssignment();
+    
+    // 每 5 秒刷新一次結果（可選）
+    const interval = setInterval(fetchAssignment, 5000);
+    return () => clearInterval(interval);
   }, []);
 
   return (
