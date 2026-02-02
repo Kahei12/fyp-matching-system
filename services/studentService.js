@@ -2,14 +2,35 @@ const mockData = require('./mockData');
 let ProjectModel = null;
 let StudentModel = null;
 let dbEnabled = false;
-try {
-    ProjectModel = require('../models/Project');
-    StudentModel = require('../models/Student');
-    dbEnabled = true;
-    console.log('studentService: DB models loaded, DB-backed queries enabled');
-} catch (err) {
-    console.log('studentService: DB models not available, falling back to mockData');
+let connectionChecked = false;
+
+// 檢查並初始化數據庫連接
+async function checkDBConnection() {
+    if (connectionChecked) return dbEnabled;
+
+    try {
+        // 檢查 mongoose 是否已連接
+        const mongoose = require('mongoose');
+        if (mongoose.connection.readyState === 1) { // 1 = connected
+            ProjectModel = require('../models/Project');
+            StudentModel = require('../models/Student');
+            dbEnabled = true;
+            console.log('studentService: ✅ MongoDB 已連接，DB-backed queries 已啟用');
+        } else {
+            console.log('studentService: ⚠️ MongoDB 未連接，使用 mockData');
+            dbEnabled = false;
+        }
+    } catch (err) {
+        console.log('studentService: ❌ DB 模型載入失敗，使用 mockData:', err.message);
+        dbEnabled = false;
+    }
+
+    connectionChecked = true;
+    return dbEnabled;
 }
+
+// 嘗試初始化
+setTimeout(() => checkDBConnection(), 1000); // 延遲1秒初始化，讓 mongoose 有時間連接
 
 const studentService = {
     // 獲取所有可用項目（DB-backed if available）

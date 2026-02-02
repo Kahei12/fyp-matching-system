@@ -11,14 +11,53 @@ app.use(express.json());
 // load env and attempt DB connection (optional)
 require('dotenv').config();
 const mongoose = require('mongoose');
+
 if (process.env.MONGO_URI) {
-    // recent MongoDB drivers don't accept useNewUrlParser/useUnifiedTopology options;
-    // let mongoose manage defaults
-    mongoose.connect(process.env.MONGO_URI)
-        .then(() => console.log('Connected to MongoDB'))
-        .catch(err => console.error('MongoDB connection error:', err));
+    // MongoDB Atlas TLS連接配置 - 解決 Windows SSL 握手問題
+    const mongooseOptions = {
+        // 伺服器選擇超時
+        serverSelectionTimeoutMS: 30000,
+        // Socket 超時
+        socketTimeoutMS: 45000,
+        // 連接池大小
+        maxPoolSize: 5,
+        minPoolSize: 1,
+        // 重試寫操作
+        retryWrites: true,
+        // TLS/SSL 選項
+        tls: true,
+        tlsAllowInvalidCertificates: true,
+        // 禁用證書主機名驗證（解決某些 Atlas 配置問題）
+        tlsAllowInvalidHostnames: true,
+    };
+
+    console.log('🔄 正在連接 MongoDB Atlas...');
+
+    // 監聽連接事件
+    mongoose.connection.on('connected', () => {
+        console.log('✅ MongoDB 連接成功');
+    });
+
+    mongoose.connection.on('error', (err) => {
+        console.error('❌ MongoDB 連接錯誤:', err.message);
+    });
+
+    mongoose.connection.on('disconnected', () => {
+        console.log('⚠️ MongoDB 連接已斷開');
+    });
+
+    mongoose.connection.on('reconnected', () => {
+        console.log('🔄 MongoDB 已重新連接');
+    });
+
+    mongoose.connect(process.env.MONGO_URI, mongooseOptions)
+        .then(() => console.log('✅ Connected to MongoDB'))
+        .catch(err => {
+            console.error('❌ MongoDB connection error:', err.message);
+            console.log('⚠️ 將嘗試使用模擬數據運行...');
+        });
 } else {
-    console.log('MONGO_URI not set — running with mockData only');
+    console.log('⚠️ MONGO_URI not set — running with mockData only');
 }
 const fs = require('fs');
 const Project = require('./models/Project');
