@@ -1001,26 +1001,56 @@ try {
 
     // Delete project
     app.delete('/api/teacher/projects/:projectId', async (req, res) => {
-        console.log('🗑️ 導師刪除項目');
+        console.log('🗑️ 導師刪除項目', req.params.projectId);
         try {
             const { projectId } = req.params;
             const teacherEmail = req.headers['x-teacher-email'];
+            
+            console.log('🗑️ Delete request - projectId:', projectId, 'teacherEmail:', teacherEmail);
             
             if (!teacherEmail) {
                 return res.status(400).json({ success: false, message: 'Teacher email required' });
             }
             
-            if (dbEnabled && ProjectModel) {
-                const project = await ProjectModel.findOne({ 
-                    _id: projectId,
-                    supervisorEmail: teacherEmail 
-                }).exec();
+            const mongoose = require('mongoose');
+            const isDbConnected = mongoose.connection.readyState === 1;
+            
+            if (isDbConnected && ProjectModel) {
+                // Try different ways to find the project (same as PUT API)
+                let project = null;
                 
-                if (!project) {
-                    return res.status(404).json({ success: false, message: 'Project not found' });
+                // First try: Find by MongoDB _id
+                if (mongoose.Types.ObjectId.isValid(projectId)) {
+                    try {
+                        project = await ProjectModel.findOne({ 
+                            _id: projectId,
+                            supervisorEmail: teacherEmail 
+                        }).exec();
+                    } catch (e) {
+                        console.log('Delete - Try findById failed:', e.message);
+                    }
                 }
                 
-                await ProjectModel.deleteOne({ _id: projectId });
+                // Second try: Find by code/id field
+                if (!project) {
+                    try {
+                        project = await ProjectModel.findOne({ 
+                            $or: [{ id: projectId }, { code: projectId }],
+                            supervisorEmail: teacherEmail 
+                        }).exec();
+                    } catch (e) {
+                        console.log('Delete - Try findOne failed:', e.message);
+                    }
+                }
+                
+                if (!project) {
+                    console.log('❌ Delete - Project not found:', projectId);
+                    return res.status(404).json({ success: false, message: 'Project not found: ' + projectId });
+                }
+                
+                console.log('✅ Delete - Found project:', project.title);
+                
+                await ProjectModel.deleteOne({ _id: project._id });
                 return res.json({ 
                     success: true, 
                     message: 'Project deleted successfully'
@@ -1030,7 +1060,7 @@ try {
             res.status(500).json({ success: false, message: 'Database not available' });
         } catch (error) {
             console.error('❌ 刪除項目錯誤:', error);
-            res.status(500).json({ success: false, message: 'Failed to delete project' });
+            res.status(500).json({ success: false, message: 'Failed to delete project: ' + error.message });
         }
     });
 

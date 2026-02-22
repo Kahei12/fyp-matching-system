@@ -230,10 +230,7 @@ function ProjectManagement({ showNotification }) {
         <div className="project-list">
           {projects.length === 0 ? (
             <div className="empty-state">
-              <p>You haven't created any projects yet.</p>
-              <button className="btn-create-project" onClick={() => setShowCreateModal(true)}>
-                <span>+</span> Create Your First Project
-              </button>
+              <p style={{ color: '#95a5a6', fontSize: '1rem' }}>*You haven't created any projects yet.</p>
             </div>
           ) : (
             projects.map(project => (
@@ -413,7 +410,6 @@ function ProjectManagement({ showNotification }) {
                   <option value="Under Review">Under Review</option>
                   <option value="Approved">Approved</option>
                   <option value="Rejected">Rejected</option>
-                  <option value="Archived">Archived</option>
                 </select>
               </div>
             </div>
