@@ -118,7 +118,7 @@ function Proposal({ preferences, onSwitchSection, studentId, isAssigned = false,
           studentId: currentStudentId,
           title: formData.title,
           description: formData.description,
-          skills: formData.requiredSkills.split(',').map(s => s.trim()).filter(s => s)
+          skills: formData.requiredSkills
         })
       });
       
@@ -282,12 +282,6 @@ function Proposal({ preferences, onSwitchSection, studentId, isAssigned = false,
                   <td className="detail-label">Project Title</td>
                   <td className="detail-value">{proposal?.title}</td>
                 </tr>
-                {proposal?.code && (
-                  <tr>
-                    <td className="detail-label">Project Code</td>
-                    <td className="detail-value">{proposal?.code}</td>
-                  </tr>
-                )}
                 {proposal?.description && (
                   <tr>
                     <td className="detail-label">Description</td>

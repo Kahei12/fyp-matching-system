@@ -35,17 +35,25 @@ setTimeout(() => checkDBConnection(), 1000); // 延遲1秒初始化，讓 mongoo
 const studentService = {
     // 獲取所有可用項目（DB-backed if available）
     getAvailableProjects: async () => {
-        if (dbEnabled && ProjectModel) {
-            // return plain objects and normalize shape for frontend compatibility
-            const docs = await ProjectModel.find({ status: 'active' }).lean().exec();
-            return docs.map(p => ({
-                ...p,
-                id: (p.id !== undefined && p.id !== null) ? p.id : (p.code || String(p._id)),
-                skills: Array.isArray(p.skills) ? p.skills : (p.skills ? [p.skills] : []),
-                popularity: typeof p.popularity === 'number' ? p.popularity : (parseInt(p.popularity) || 0)
-            }));
+        try {
+            if (dbEnabled && ProjectModel) {
+                // return plain objects and normalize shape for frontend compatibility
+                // 查询所有项目，不过滤状态，确保学生能看到项目
+                const docs = await ProjectModel.find({}).lean().exec();
+                console.log('📋 getAvailableProjects: DB模式，返回', docs.length, '个项目');
+                return docs.map(p => ({
+                    ...p,
+                    id: (p.id !== undefined && p.id !== null) ? p.id : (p.code || String(p._id)),
+                    skills: Array.isArray(p.skills) ? p.skills : (p.skills ? [p.skills] : []),
+                    popularity: typeof p.popularity === 'number' ? p.popularity : (parseInt(p.popularity) || 0)
+                }));
+            }
+            console.log('📋 getAvailableProjects: Mock模式，返回', mockData.projects.filter(project => project.status === "active").length, '个项目');
+            return mockData.projects.filter(project => project.status === "active");
+        } catch (err) {
+            console.error('❌ getAvailableProjects 错误:', err.message);
+            return mockData.projects.filter(project => project.status === "active");
         }
-        return mockData.projects.filter(project => project.status === "active");
     },
     
     // 獲取學生信息

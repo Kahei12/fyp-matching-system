@@ -4,7 +4,7 @@ function ProjectBrowse({ projects, preferences, onAddPreference, isAssigned = fa
   const [searchKeyword, setSearchKeyword] = useState('');
   const [selectedSkill, setSelectedSkill] = useState('');
   const [selectedSupervisor, setSelectedSupervisor] = useState('');
-  const [statusFilter, setStatusFilter] = useState('active');
+  const [statusFilter, setStatusFilter] = useState('all');
   const [sortBy, setSortBy] = useState('popularity');
 
   // 獲取所有技能選項
@@ -50,7 +50,7 @@ function ProjectBrowse({ projects, preferences, onAddPreference, isAssigned = fa
         return false;
       }
 
-      // 狀態過濾
+      // 狀態過濾 - 默認顯示所有項目（包括 Under Review）
       if (statusFilter === 'active' && project.status !== 'active') {
         return false;
       }
@@ -80,7 +80,7 @@ function ProjectBrowse({ projects, preferences, onAddPreference, isAssigned = fa
     setSearchKeyword('');
     setSelectedSkill('');
     setSelectedSupervisor('');
-    setStatusFilter('active');
+    setStatusFilter('all');
     setSortBy('popularity');
   };
 
@@ -147,7 +147,7 @@ function ProjectBrowse({ projects, preferences, onAddPreference, isAssigned = fa
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
           >
-            <option value="active">Active Projects</option>
+            <option value="active">Active Only</option>
             <option value="all">All Projects</option>
           </select>
         </div>
