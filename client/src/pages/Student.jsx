@@ -21,6 +21,8 @@ function Student() {
   const [preferences, setPreferences] = useState([]);
   const [projects, setProjects] = useState([]);
   const [matchingCompleted, setMatchingCompleted] = useState(false);
+  const [isAssigned, setIsAssigned] = useState(false);
+  const [assignmentType, setAssignmentType] = useState(null);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -37,6 +39,7 @@ function Student() {
     loadStudentData();
     loadProjects();
     loadMatchingStatus();
+    loadAssignmentStatus();
   }, [navigate]);
 
   const loadMatchingStatus = async () => {
@@ -51,6 +54,26 @@ function Student() {
     } catch (err) {
       console.error('loadMatchingStatus error', err);
       setMatchingCompleted(false);
+    }
+  };
+
+  const loadAssignmentStatus = async () => {
+    try {
+      const studentId = sessionStorage.getItem('studentId') || 'S001';
+      const resp = await fetch(`/api/student/${studentId}/assignment-status`);
+      const data = await resp.json();
+      
+      if (data.success) {
+        setIsAssigned(data.isAssigned);
+        setAssignmentType(data.assignmentType);
+        
+        // If assigned via proposal, also update matchingCompleted to lock preferences
+        if (data.isAssigned) {
+          setMatchingCompleted(true);
+        }
+      }
+    } catch (err) {
+      console.error('loadAssignmentStatus error', err);
     }
   };
 
@@ -533,12 +556,15 @@ function Student() {
         return <Proposal 
           preferences={preferences} 
           onSwitchSection={setCurrentSection} 
+          isAssigned={isAssigned}
+          assignmentType={assignmentType}
         />;
       case 'project-browse':
         return <ProjectBrowse 
           projects={projects}
           preferences={preferences}
           onAddPreference={handleAddPreference}
+          isAssigned={isAssigned}
         />;
       case 'my-preferences':
         return <MyPreferences 
@@ -557,7 +583,7 @@ function Student() {
       case 'profile':
         return <Profile studentData={studentData} />;
       default:
-        return <Proposal preferences={preferences} onSwitchSection={setCurrentSection} />;
+        return <Proposal preferences={preferences} onSwitchSection={setCurrentSection} studentId={studentData.studentId} isAssigned={isAssigned} assignmentType={assignmentType} />;
     }
   };
 
@@ -568,6 +594,7 @@ function Student() {
         onSwitchSection={setCurrentSection}
         studentData={studentData}
         onLogout={handleLogout}
+        isAssigned={isAssigned}
       />
       
       <main className="main-content">

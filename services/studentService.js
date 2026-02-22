@@ -663,21 +663,33 @@ const studentService = {
                         $set: {
                             preferences: [],
                             proposalSubmitted: false,
-                            assignedProject: null
+                            assignedProject: null,
+                            proposalStatus: 'none',
+                            proposedProject: null,
+                            proposalApproved: false
                         }
                     }
                 ).exec();
                 
-                // 重置所有項目的 popularity
+                // 重置所有項目的 popularity 和 proposal 相關狀態
                 if (ProjectModel) {
                     await ProjectModel.updateMany(
                         {},
-                        { $set: { popularity: 0 } }
+                        { 
+                            $set: { 
+                                popularity: 0,
+                                proposalStatus: 'pending',
+                                isProposed: false,
+                                proposedBy: null,
+                                proposedByEmail: null,
+                                status: 'Under Review'
+                            }
+                        }
                     ).exec();
                 }
                 
                 console.log('[resetState] Database reset completed');
-                return { success: true, message: 'Database reset completed. All students can now submit preferences again.' };
+                return { success: true, message: 'Database reset completed. All students can now submit preferences and proposals again.' };
             } catch (err) {
                 console.error('[resetState] Error:', err);
                 return { success: false, message: 'Reset failed: ' + err.message };
@@ -690,9 +702,12 @@ const studentService = {
             s.preferences = [];
             s.proposalSubmitted = false;
             s.assignedProject = null;
+            s.proposalStatus = 'none';
+            s.proposedProject = null;
+            s.proposalApproved = false;
         });
         mockData.system.matchingCompleted = false;
-        return { success: true, message: 'Mock data reset completed' };
+        return { success: true, message: 'Mock data reset completed. All students can now submit preferences and proposals again.' };
     },
     // 更新學生個人資料
     updateStudentProfile: (studentId, updates) => {

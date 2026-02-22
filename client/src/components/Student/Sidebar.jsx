@@ -1,10 +1,10 @@
 import React from 'react';
 
-function Sidebar({ currentSection, onSwitchSection, studentData, onLogout }) {
+function Sidebar({ currentSection, onSwitchSection, studentData, onLogout, isAssigned = false }) {
   const menuItems = [
     { id: 'proposal', label: '◆ Proposal' },
     { id: 'project-browse', label: '⌕ Browse Projects' },
-    { id: 'my-preferences', label: '★ My Preferences' },
+    { id: 'my-preferences', label: '★ My Preferences', disabled: isAssigned },
     { id: 'results', label: '☰ Results' },
     { id: 'profile', label: 'ⓘ Profile' }
   ];
@@ -18,16 +18,21 @@ function Sidebar({ currentSection, onSwitchSection, studentData, onLogout }) {
       
       <ul className="sidebar-menu">
         {menuItems.map(item => (
-          <li key={item.id} className="menu-item">
+          <li key={item.id} className={`menu-item ${item.disabled ? 'disabled' : ''}`}>
             <a 
               href={`#${item.id}`}
-              className={`menu-link ${currentSection === item.id ? 'active' : ''}`}
+              className={`menu-link ${currentSection === item.id ? 'active' : ''} ${item.disabled ? 'disabled' : ''}`}
               onClick={(e) => {
+                if (item.disabled) {
+                  e.preventDefault();
+                  return;
+                }
                 e.preventDefault();
                 onSwitchSection(item.id);
               }}
             >
               {item.label}
+              {item.disabled && <span className="disabled-hint">(Assigned)</span>}
             </a>
           </li>
         ))}

@@ -145,6 +145,25 @@ app.post('/login', async (req, res) => {
 try {
     const studentService = require('./services/studentService');
     
+    // 從 studentService 獲取 dbEnabled 狀態
+    let dbEnabled = false;
+    let ProjectModel = null;
+    let StudentModel = null;
+    
+    // 嘗試獲取模型
+    try {
+        ProjectModel = require('./models/Project');
+        StudentModel = require('./models/Student');
+        // 檢查數據庫連接狀態
+        const mongoose = require('mongoose');
+        if (mongoose.connection.readyState === 1) {
+            dbEnabled = true;
+            console.log('✅ Teacher API: MongoDB 已連接，啟用數據庫模式');
+        }
+    } catch (e) {
+        console.log('⚠️ Teacher API: 模型加載失敗');
+    }
+    
     // 📊 Student API 路由
     app.get('/api/student/projects', async (req, res) => {
         console.log('📋 請求項目列表');
@@ -432,6 +451,678 @@ try {
         } catch (error) {
             console.error('❌ Reset failed:', error);
             res.status(500).json({ success: false, message: 'Reset failed: ' + error.message });
+        }
+    });
+
+    // ============================================
+    // Student Proposal API Endpoints
+    // ============================================
+
+    // Helper function to check database connection
+    const checkDbConnection = () => {
+        try {
+            const mongoose = require('mongoose');
+            return mongoose.connection.readyState === 1;
+        } catch (e) {
+            return false;
+        }
+    };
+
+    // Student submits a proposal
+    app.post('/api/student/proposal', async (req, res) => {
+        console.log('📝 學生提交提議', req.body);
+        try {
+            const { studentId, title, description, skills } = req.body;
+            
+            console.log('📝 Received - title:', title, 'description:', description, 'skills:', skills);
+            
+            if (!studentId || !title || !description) {
+                return res.status(400).json({ success: false, message: 'Missing required fields' });
+            }
+            
+            // Check DB connection on each request
+            const isDbConnected = checkDbConnection();
+            const Project = require('./models/Project');
+            const Student = require('./models/Student');
+            
+            if (isDbConnected && Project && Student) {
+                // Create new project from proposal
+                const projectCode = `P${Date.now().toString().slice(-6)}`;
+                
+                const newProject = new Project({
+                    code: projectCode,
+                    title,
+                    description,
+                    skills: skills || [],
+                    capacity: 1,
+                    supervisor: 'TBD', // To be assigned
+                    supervisorEmail: '',
+                    department: 'Computer Science',
+                    category: 'Student Proposed',
+                    status: 'Pending Review', // Needs teacher/admin approval
+                    popularity: 0,
+                    isProposed: true, // Mark as student-proposed
+                    proposedBy: studentId,
+                    createdAt: new Date()
+                });
+                
+                await newProject.save();
+                console.log('✅ Project saved:', newProject);
+                
+                // Update student's proposal status
+                const student = await Student.findOne({ id: studentId }).exec();
+                if (student) {
+                    student.proposalSubmitted = true;
+                    student.proposedProject = newProject._id;
+                    student.proposalStatus = 'pending';
+                    await student.save();
+                }
+                
+                return res.json({ 
+                    success: true, 
+                    message: 'Proposal submitted successfully!',
+                    proposal: {
+                        id: newProject._id,
+                        code: projectCode,
+                        title,
+                        description,
+                        skills: skills || [],
+                        status: 'Pending Review',
+                        proposalStatus: 'pending'
+                    }
+                });
+            }
+            
+            res.status(500).json({ success: false, message: 'Database not available' });
+        } catch (error) {
+            console.error('❌ 提交提議錯誤:', error);
+            res.status(500).json({ success: false, message: 'Failed to submit proposal' });
+        }
+    });
+
+    // Get student's proposal status
+    app.get('/api/student/:studentId/proposal', async (req, res) => {
+        console.log('📋 獲取學生提議狀態');
+        try {
+            const { studentId } = req.params;
+            
+            const isDbConnected = checkDbConnection();
+            const Project = require('./models/Project');
+            const Student = require('./models/Student');
+            
+            if (isDbConnected && Student) {
+                const student = await Student.findOne({ id: studentId }).exec();
+                if (!student) {
+                    return res.json({ success: true, proposal: null });
+                }
+                
+                if (student.proposedProject) {
+                    const project = await Project.findById(student.proposedProject).exec();
+                    return res.json({ 
+                        success: true, 
+                        proposal: project ? {
+                            id: project._id,
+                            code: project.code,
+                            title: project.title,
+                            description: project.description,
+                            skills: project.skills,
+                            status: project.status,
+                            proposalStatus: student.proposalStatus
+                        } : null
+                    });
+                }
+                
+                return res.json({ success: true, proposal: null });
+            }
+            
+            res.json({ success: true, proposal: null });
+        } catch (error) {
+            console.error('❌ 獲取提議錯誤:', error);
+            res.status(500).json({ success: false, message: 'Failed to get proposal' });
+        }
+    });
+
+    // Get all proposals (for Teacher/Admin)
+    app.get('/api/proposals/all', async (req, res) => {
+        console.log('📋 獲取所有提議');
+        try {
+            const isDbConnected = checkDbConnection();
+            const Project = require('./models/Project');
+            const Student = require('./models/Student');
+            
+            if (isDbConnected && Project && Student) {
+                const proposals = await Project.find({ isProposed: true }).lean().exec();
+                
+                // Enrich with student info
+                const enrichedProposals = await Promise.all(proposals.map(async (proposal) => {
+                    const student = await Student.findOne({ proposedProject: proposal._id }).exec();
+                    return {
+                        ...proposal,
+                        studentId: student?.id || proposal.proposedBy,
+                        studentName: student?.name || 'Unknown',
+                        studentEmail: student?.email || '',
+                        studentGpa: student?.gpa || 0,
+                        proposalStatus: student?.proposalStatus || 'pending'
+                    };
+                }));
+                
+                return res.json({ success: true, proposals: enrichedProposals });
+            }
+            
+            res.json({ success: true, proposals: [] });
+        } catch (error) {
+            console.error('❌ 獲取所有提議錯誤:', error);
+            res.status(500).json({ success: false, message: 'Failed to get proposals' });
+        }
+    });
+
+    // Approve/Reject proposal
+    app.put('/api/proposals/:proposalId/status', async (req, res) => {
+        console.log('✏️ 更新提議狀態');
+        try {
+            const { proposalId } = req.params;
+            const { status, supervisorEmail, supervisorName } = req.body; // status: approved, rejected
+            
+            if (!status) {
+                return res.status(400).json({ success: false, message: 'Status required' });
+            }
+            
+            const isDbConnected = checkDbConnection();
+            const Project = require('./models/Project');
+            const Student = require('./models/Student');
+            
+            if (isDbConnected && Project && Student) {
+                const project = await Project.findById(proposalId).exec();
+                if (!project) {
+                    return res.status(404).json({ success: false, message: 'Proposal not found' });
+                }
+                
+                // Update project
+                if (status === 'approved') {
+                    project.status = 'Approved';
+                    project.supervisorEmail = supervisorEmail || '';
+                    project.supervisor = supervisorName || supervisorEmail?.split('@')[0] || 'Assigned';
+                    project.isApproved = true;
+                } else {
+                    project.status = 'Rejected';
+                }
+                
+                await project.save();
+                
+                // Update student's proposal status
+                const student = await Student.findOne({ proposedProject: proposalId }).exec();
+                if (student) {
+                    student.proposalStatus = status;
+                    if (status === 'approved') {
+                        student.proposalApproved = true;
+                        student.assignedProject = project._id; // Auto-assign!
+                    } else {
+                        student.proposalApproved = false;
+                    }
+                    await student.save();
+                }
+                
+                return res.json({ 
+                    success: true, 
+                    message: status === 'approved' ? 'Proposal approved!' : 'Proposal rejected',
+                    project
+                });
+            }
+            
+            res.status(500).json({ success: false, message: 'Database not available' });
+        } catch (error) {
+            console.error('❌ 更新提議狀態錯誤:', error);
+            res.status(500).json({ success: false, message: 'Failed to update proposal status' });
+        }
+    });
+
+    // Check if student is already assigned (either through proposal approval or matching)
+    app.get('/api/student/:studentId/assignment-status', async (req, res) => {
+        console.log('📋 檢查學生分配狀態');
+        try {
+            const { studentId } = req.params;
+            
+            const isDbConnected = checkDbConnection();
+            const Student = require('./models/Student');
+            
+            if (isDbConnected && Student) {
+                // Check from database
+                const student = await Student.findOne({ id: studentId }).exec();
+                
+                if (student) {
+                    const isAssigned = !!student.assignedProject || student.proposalApproved === true;
+                    const assignmentType = student.proposalApproved ? 'proposal' : (student.assignedProject ? 'matching' : null);
+                    
+                    return res.json({
+                        success: true,
+                        isAssigned,
+                        assignmentType,
+                        assignedProject: student.assignedProject,
+                        proposalApproved: student.proposalApproved,
+                        proposalStatus: student.proposalStatus
+                    });
+                }
+            }
+            
+            // Fallback: check from matching results
+            try {
+                const result = await studentService.getMatchingResults();
+                const results = result?.results || result || [];
+                const matchingResult = results.find(r => r.studentId === studentId);
+                
+                if (matchingResult && matchingResult.title) {
+                    return res.json({
+                        success: true,
+                        isAssigned: true,
+                        assignmentType: 'matching',
+                        assignedProject: matchingResult
+                    });
+                }
+            } catch (e) {
+                console.log('Could not check matching results:', e);
+            }
+            
+            res.json({ success: true, isAssigned: false, assignmentType: null });
+        } catch (error) {
+            console.error('❌ 檢查分配狀態錯誤:', error);
+            res.json({ success: true, isAssigned: false, assignmentType: null });
+        }
+    });
+
+    // ============================================
+    // Teacher API Endpoints
+    // ============================================
+
+    // Teacher helper function to check database connection
+    const teacherCheckDbConnection = () => {
+        try {
+            const mongoose = require('mongoose');
+            return mongoose.connection.readyState === 1;
+        } catch (e) {
+            return false;
+        }
+    };
+
+    // Get teacher's projects
+    app.get('/api/teacher/projects', async (req, res) => {
+        console.log('📋 請求導師項目列表');
+        try {
+            const teacherEmail = req.query.email || req.headers['x-teacher-email'];
+            if (!teacherEmail) {
+                return res.status(400).json({ success: false, message: 'Teacher email required' });
+            }
+            
+            const isDbConnected = teacherCheckDbConnection();
+            const Project = require('./models/Project');
+            
+            if (isDbConnected && Project) {
+                const projects = await Project.find({ supervisorEmail: teacherEmail }).lean().exec();
+                return res.json({ 
+                    success: true, 
+                    projects: projects.map(p => ({
+                        ...p,
+                        id: p.code || String(p._id)
+                    })) 
+                });
+            }
+            
+            // Fallback to mock data - filter by supervisor name
+            const teacherName = teacherEmail.split('@')[0];
+            const mockProjects = mockData.projects.filter(p => 
+                p.supervisor && p.supervisor.toLowerCase().includes(teacherName.toLowerCase())
+            );
+            res.json({ success: true, projects: mockProjects });
+        } catch (error) {
+            console.error('❌ 獲取導師項目錯誤:', error);
+            res.status(500).json({ success: false, message: 'Failed to load teacher projects' });
+        }
+    });
+
+    // Get students who applied to teacher's projects
+    app.get('/api/teacher/students', async (req, res) => {
+        console.log('👥 請求導師項目的學生列表');
+        try {
+            const teacherEmail = req.query.email || req.headers['x-teacher-email'];
+            if (!teacherEmail) {
+                return res.status(400).json({ success: false, message: 'Teacher email required' });
+            }
+            
+            if (dbEnabled && ProjectModel && StudentModel) {
+                // Get teacher's projects
+                const teacherProjects = await ProjectModel.find({ supervisorEmail: teacherEmail }).lean().exec();
+                const projectIds = teacherProjects.map(p => String(p._id));
+                
+                // Find students who have these projects in their preferences
+                const students = await StudentModel.find({ 
+                    preferences: { $in: projectIds }
+                }).lean().exec();
+                
+                // Build response with student-preference mapping
+                const result = teacherProjects.map(project => {
+                    const projectIdStr = String(project._id);
+                    const projectStudents = students
+                        .filter(s => s.preferences && s.preferences.includes(projectIdStr))
+                        .map(s => {
+                            const prefIndex = s.preferences.indexOf(projectIdStr);
+                            return {
+                                id: s.id,
+                                name: s.name,
+                                email: s.email,
+                                gpa: s.gpa,
+                                major: s.major,
+                                preferenceRank: prefIndex + 1,
+                                proposalSubmitted: s.proposalSubmitted,
+                                assignedProject: s.assignedProject ? String(s.assignedProject) : null
+                            };
+                        })
+                        .sort((a, b) => a.preferenceRank - b.preferenceRank);
+                    
+                    return {
+                        projectId: projectIdStr,
+                        projectCode: project.code,
+                        projectTitle: project.title,
+                        capacity: project.capacity || 1,
+                        applicants: projectStudents
+                    };
+                });
+                
+                return res.json({ success: true, projectsWithApplicants: result });
+            }
+            
+            // Fallback to mock data
+            res.json({ success: true, projectsWithApplicants: [] });
+        } catch (error) {
+            console.error('❌ 獲取學生列表錯誤:', error);
+            res.status(500).json({ success: false, message: 'Failed to load student applications' });
+        }
+    });
+
+    // Get teacher's supervision list (assigned students after matching)
+    app.get('/api/teacher/supervision', async (req, res) => {
+        console.log('📝 請求導師監督列表');
+        try {
+            const teacherEmail = req.query.email || req.headers['x-teacher-email'];
+            if (!teacherEmail) {
+                return res.status(400).json({ success: false, message: 'Teacher email required' });
+            }
+            
+            if (dbEnabled && ProjectModel && StudentModel) {
+                // Get teacher's projects
+                const teacherProjects = await ProjectModel.find({ supervisorEmail: teacherEmail }).lean().exec();
+                const projectIds = teacherProjects.map(p => String(p._id));
+                
+                // Get assigned students
+                const assignedStudents = await StudentModel.find({ 
+                    assignedProject: { $in: projectIds }
+                }).lean().exec();
+                
+                const supervisionList = assignedStudents.map(s => {
+                    const project = teacherProjects.find(p => String(p._id) === String(s.assignedProject));
+                    return {
+                        studentId: s.id,
+                        studentName: s.name,
+                        studentEmail: s.email,
+                        studentGpa: s.gpa,
+                        studentMajor: s.major,
+                        projectId: project ? String(project._id) : null,
+                        projectCode: project ? project.code : null,
+                        projectTitle: project ? project.title : null,
+                        assignedAt: s.updatedAt
+                    };
+                });
+                
+                return res.json({ success: true, supervisionList });
+            }
+            
+            res.json({ success: true, supervisionList: [] });
+        } catch (error) {
+            console.error('❌ 獲取監督列表錯誤:', error);
+            res.status(500).json({ success: false, message: 'Failed to load supervision list' });
+        }
+    });
+
+    // Create new project
+    app.post('/api/teacher/projects', async (req, res) => {
+        console.log('➕ 導師創建項目');
+        try {
+            const teacherEmail = req.body.teacherEmail || req.headers['x-teacher-email'];
+            if (!teacherEmail) {
+                return res.status(400).json({ success: false, message: 'Teacher email required' });
+            }
+            
+            const { title, description, skills, capacity, department, category } = req.body;
+            
+            const isDbConnected = teacherCheckDbConnection();
+            const Project = require('./models/Project');
+            
+            if (isDbConnected && Project) {
+                // Generate project code
+                const count = await Project.countDocuments({ supervisorEmail: teacherEmail });
+                const projectCode = `T${Date.now().toString().slice(-6)}`;
+                
+                const newProject = new Project({
+                    code: projectCode,
+                    title,
+                    description,
+                    skills: skills || [],
+                    capacity: capacity || 2,
+                    supervisor: teacherEmail.split('@')[0],
+                    supervisorEmail: teacherEmail,
+                    department: department || 'Computer Science',
+                    category: category || 'General',
+                    status: 'Under Review',
+                    popularity: 0,
+                    createdAt: new Date()
+                });
+                
+                await newProject.save();
+                return res.json({ 
+                    success: true, 
+                    message: 'Project created successfully',
+                    project: newProject
+                });
+            }
+            
+            res.status(500).json({ success: false, message: 'Database not available' });
+        } catch (error) {
+            console.error('❌ 創建項目錯誤:', error);
+            res.status(500).json({ success: false, message: 'Failed to create project' });
+        }
+    });
+
+    // Update project
+    app.put('/api/teacher/projects/:projectId', async (req, res) => {
+        console.log('✏️ 導師更新項目', req.params.projectId);
+        try {
+            const { projectId } = req.params;
+            const teacherEmail = req.body.teacherEmail || req.headers['x-teacher-email'];
+            const { title, description, skills, capacity, status } = req.body;
+            
+            console.log('📝 Update request - projectId:', projectId, 'teacherEmail:', teacherEmail);
+            
+            const mongoose = require('mongoose');
+            const isDbConnected = mongoose.connection.readyState === 1;
+            
+            if (isDbConnected && ProjectModel) {
+                // Try different ways to find the project
+                let project = null;
+                
+                // First try: Find by MongoDB _id
+                if (mongoose.Types.ObjectId.isValid(projectId)) {
+                    try {
+                        project = await ProjectModel.findById(projectId).exec();
+                    } catch (e) {
+                        console.log('Try findById failed:', e.message);
+                    }
+                }
+                
+                // Second try: Find by code/id field
+                if (!project) {
+                    try {
+                        project = await ProjectModel.findOne({ 
+                            $or: [{ id: projectId }, { code: projectId }]
+                        }).exec();
+                    } catch (e) {
+                        console.log('Try findOne failed:', e.message);
+                    }
+                }
+                
+                if (!project) {
+                    console.log('❌ Project not found:', projectId);
+                    return res.status(404).json({ success: false, message: 'Project not found: ' + projectId });
+                }
+                
+                console.log('✅ Found project:', project.title, 'supervisorEmail:', project.supervisorEmail);
+                
+                // Update the project
+                if (title) project.title = title;
+                if (description) project.description = description;
+                if (skills) project.skills = skills;
+                if (capacity) project.capacity = capacity;
+                if (status) project.status = status;
+                
+                await project.save();
+                console.log('✅ Project updated successfully');
+                return res.json({ 
+                    success: true, 
+                    message: 'Project updated successfully',
+                    project
+                });
+            } else {
+                console.log('⚠️ Database not connected, isDbConnected:', isDbConnected);
+            }
+            
+            res.status(500).json({ success: false, message: 'Database not available' });
+        } catch (error) {
+            console.error('❌ 更新項目錯誤:', error);
+            res.status(500).json({ success: false, message: 'Failed to update project: ' + error.message });
+        }
+    });
+
+    // Delete project
+    app.delete('/api/teacher/projects/:projectId', async (req, res) => {
+        console.log('🗑️ 導師刪除項目');
+        try {
+            const { projectId } = req.params;
+            const teacherEmail = req.headers['x-teacher-email'];
+            
+            if (!teacherEmail) {
+                return res.status(400).json({ success: false, message: 'Teacher email required' });
+            }
+            
+            if (dbEnabled && ProjectModel) {
+                const project = await ProjectModel.findOne({ 
+                    _id: projectId,
+                    supervisorEmail: teacherEmail 
+                }).exec();
+                
+                if (!project) {
+                    return res.status(404).json({ success: false, message: 'Project not found' });
+                }
+                
+                await ProjectModel.deleteOne({ _id: projectId });
+                return res.json({ 
+                    success: true, 
+                    message: 'Project deleted successfully'
+                });
+            }
+            
+            res.status(500).json({ success: false, message: 'Database not available' });
+        } catch (error) {
+            console.error('❌ 刪除項目錯誤:', error);
+            res.status(500).json({ success: false, message: 'Failed to delete project' });
+        }
+    });
+
+    // Add note to student
+    app.post('/api/teacher/students/:studentId/note', async (req, res) => {
+        console.log('📝 導師添加學生備註');
+        try {
+            const { studentId } = req.params;
+            const teacherEmail = req.headers['x-teacher-email'];
+            const { note } = req.body;
+            
+            if (!teacherEmail) {
+                return res.status(400).json({ success: false, message: 'Teacher email required' });
+            }
+            
+            if (dbEnabled && StudentModel) {
+                const student = await StudentModel.findOne({ id: studentId }).exec();
+                
+                if (!student) {
+                    return res.status(404).json({ success: false, message: 'Student not found' });
+                }
+                
+                // Initialize notes array if not exists
+                if (!student.teacherNotes) {
+                    student.teacherNotes = [];
+                }
+                
+                // Add new note
+                student.teacherNotes.push({
+                    note,
+                    teacherEmail,
+                    createdAt: new Date()
+                });
+                
+                await student.save();
+                return res.json({ 
+                    success: true, 
+                    message: 'Note added successfully'
+                });
+            }
+            
+            res.status(500).json({ success: false, message: 'Database not available' });
+        } catch (error) {
+            console.error('❌ 添加備註錯誤:', error);
+            res.status(500).json({ success: false, message: 'Failed to add note' });
+        }
+    });
+
+    // Get matching results for teacher
+    app.get('/api/teacher/matching-results', async (req, res) => {
+        console.log('📊 請求導師配對結果');
+        try {
+            const teacherEmail = req.query.email || req.headers['x-teacher-email'];
+            if (!teacherEmail) {
+                return res.status(400).json({ success: false, message: 'Teacher email required' });
+            }
+            
+            if (dbEnabled && ProjectModel && StudentModel) {
+                // Get teacher's projects
+                const teacherProjects = await ProjectModel.find({ supervisorEmail: teacherEmail }).lean().exec();
+                const projectIds = teacherProjects.map(p => String(p._id));
+                
+                // Get assigned students
+                const assignedStudents = await StudentModel.find({ 
+                    assignedProject: { $in: projectIds }
+                }).lean().exec();
+                
+                const results = teacherProjects.map(project => {
+                    const assigned = assignedStudents.find(s => String(s.assignedProject) === String(project._id));
+                    return {
+                        projectId: String(project._id),
+                        projectCode: project.code,
+                        projectTitle: project.title,
+                        capacity: project.capacity || 1,
+                        assignedStudent: assigned ? {
+                            id: assigned.id,
+                            name: assigned.name,
+                            email: assigned.email,
+                            gpa: assigned.gpa,
+                            major: assigned.major
+                        } : null,
+                        status: assigned ? 'Matched' : 'Available'
+                    };
+                });
+                
+                return res.json({ success: true, results });
+            }
+            
+            res.json({ success: true, results: [] });
+        } catch (error) {
+            console.error('❌ 獲取配對結果錯誤:', error);
+            res.status(500).json({ success: false, message: 'Failed to load matching results' });
         }
     });
 

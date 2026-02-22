@@ -1,0 +1,15 @@
+$filePath = "c:\Users\user\Desktop\FYP Matching System\client\src\pages\Teacher.css"
+$content = Get-Content $filePath -Raw
+$content = $content -replace "\.btn-cancel,\r?\n\.btn-submit \{\r?\n  padding: 0\.75rem 1\.5rem;", ".btn-submit {`n  padding: 0.6rem 1.25rem;"
+$content = $content -replace "border-radius: 6px;", "border-radius: 8px;"
+$content = $content -replace "font-size: 0\.95rem;", "font-size: 0.875rem;"
+$content = $content -replace "font-weight: 600;", "font-weight: 500;"
+$content = $content -replace "transition: all 0\.3s ease;", "transition: all 0.2s ease;"
+$content = $content -replace "\.btn-cancel \{\r?\n  background: #f8f9fa;", ".btn-cancel {`n  background: #ffffff;"
+$content = $content -replace "color: #495057;", "color: #6b7280;"
+$content = $content -replace "border: 1px solid #ced4da;", "border: 1px solid #d1d5db;"
+$content = $content -replace "\.btn-cancel:hover \{\r?\n  background: #e9ecef;", ".btn-cancel:hover {`n  background: #f3f4f6;`n  border-color: #9ca3af;`n  color: #374151;"
+$content = $content -replace "\.btn-submit \{\r?\n  background: #3498db;", ".btn-submit {`n  background: #3b82f6;"
+$content = $content -replace "\.btn-submit:hover \{\r?\n  background: #2980b9;", ".btn-submit:hover {`n  background: #2563eb;"
+Set-Content $filePath -Value $content -NoNewline
+Write-Host "Done"

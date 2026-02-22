@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 
-function ProjectBrowse({ projects, preferences, onAddPreference }) {
+function ProjectBrowse({ projects, preferences, onAddPreference, isAssigned = false }) {
   const [searchKeyword, setSearchKeyword] = useState('');
   const [selectedSkill, setSelectedSkill] = useState('');
   const [selectedSupervisor, setSelectedSupervisor] = useState('');
@@ -176,8 +176,9 @@ function ProjectBrowse({ projects, preferences, onAddPreference }) {
             <ProjectCard 
               key={project.id}
               project={project}
-              isInPreferences={preferences.some(p => p.id === project.id)}
+              isInPreferences={Array.isArray(preferences) && preferences.some(p => p.id === project.id)}
               onAddPreference={onAddPreference}
+              isAssigned={isAssigned}
             />
           ))
         )}
@@ -186,7 +187,7 @@ function ProjectBrowse({ projects, preferences, onAddPreference }) {
   );
 }
 
-function ProjectCard({ project, isInPreferences, onAddPreference }) {
+function ProjectCard({ project, isInPreferences, onAddPreference, isAssigned = false }) {
   const handleViewDetails = () => {
     const details = `
 Project: ${project.title}
@@ -228,9 +229,9 @@ Status: ${project.status}
         <button 
           className="btn-primary" 
           onClick={() => onAddPreference(project.id)}
-          disabled={isInPreferences}
+          disabled={isInPreferences || isAssigned}
         >
-          {isInPreferences ? '✔ Already Added' : '★ Add to Preferences'}
+          {isAssigned ? '✘ Already Assigned' : isInPreferences ? '✔ Already Added' : '★ Add to Preferences'}
         </button>
         <button className="btn-secondary" onClick={handleViewDetails}>
           ℹ View Details

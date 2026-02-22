@@ -3,8 +3,8 @@ const fs = require('fs');
 const path = require('path');
 const pdf = require('pdf-parse');
 
-const PDF_PATH = path.resolve(__dirname, '..', 'ELEC S411F Supervisor Project List (CCS).pdf');
-const OUT_PATH = path.resolve(__dirname, '..', 'data', 'pdf_raw.txt');
+const PDF_PATH = path.resolve(__dirname, '..', 'S411F-13700797-Interim_report.pdf');
+const OUT_PATH = path.resolve(__dirname, '..', 'data', 'interim_report.txt');
 
 async function run() {
   const buffer = fs.readFileSync(PDF_PATH);
