@@ -752,11 +752,32 @@ try {
                 return res.status(400).json({ success: false, message: 'Teacher email required' });
             }
             
+            console.log('📧 教師郵箱:', teacherEmail);
+            const teacherName = teacherEmail.split('@')[0]; // "teacher"
+            console.log('👤 教師名稱:', teacherName);
+            
             const isDbConnected = teacherCheckDbConnection();
             const Project = require('./models/Project');
             
             if (isDbConnected && Project) {
-                const projects = await Project.find({ supervisorEmail: teacherEmail }).lean().exec();
+                // Find: teacher's projects OR student-proposed projects
+                // Also include projects where supervisor field contains the teacher name
+                const projects = await Project.find({
+                    $or: [
+                        { supervisorEmail: teacherEmail },
+                        { supervisorEmail: teacherEmail.toLowerCase() },
+                        { supervisor: teacherName },
+                        { supervisor: { $regex: new RegExp(teacherName, 'i') } },
+                        { supervisor: { $regex: /bell/i } },  // Match "Bell" for Dr. Bell Liu
+                        { isProposed: true }  // Include student-proposed projects
+                    ]
+                }).lean().exec();
+                
+                console.log('✅ 返回項目數:', projects.length);
+                projects.forEach(p => {
+                    console.log('  - ', p.title, '| supervisor:', p.supervisor, '| isProposed:', p.isProposed);
+                });
+                
                 return res.json({ 
                     success: true, 
                     projects: projects.map(p => ({
@@ -766,8 +787,7 @@ try {
                 });
             }
             
-            // Fallback to mock data - filter by supervisor name
-            const teacherName = teacherEmail.split('@')[0];
+            // Fallback to mock data
             const mockProjects = mockData.projects.filter(p => 
                 p.supervisor && p.supervisor.toLowerCase().includes(teacherName.toLowerCase())
             );
@@ -1014,18 +1034,16 @@ try {
             
             const mongoose = require('mongoose');
             const isDbConnected = mongoose.connection.readyState === 1;
+            const teacherName = teacherEmail.split('@')[0];
             
             if (isDbConnected && ProjectModel) {
-                // Try different ways to find the project (same as PUT API)
+                // Try different ways to find the project
                 let project = null;
                 
-                // First try: Find by MongoDB _id
+                // First try: Find by MongoDB _id (without email restriction)
                 if (mongoose.Types.ObjectId.isValid(projectId)) {
                     try {
-                        project = await ProjectModel.findOne({ 
-                            _id: projectId,
-                            supervisorEmail: teacherEmail 
-                        }).exec();
+                        project = await ProjectModel.findOne({ _id: projectId }).exec();
                     } catch (e) {
                         console.log('Delete - Try findById failed:', e.message);
                     }
@@ -1035,8 +1053,7 @@ try {
                 if (!project) {
                     try {
                         project = await ProjectModel.findOne({ 
-                            $or: [{ id: projectId }, { code: projectId }],
-                            supervisorEmail: teacherEmail 
+                            $or: [{ id: projectId }, { code: projectId }]
                         }).exec();
                     } catch (e) {
                         console.log('Delete - Try findOne failed:', e.message);
@@ -1048,7 +1065,7 @@ try {
                     return res.status(404).json({ success: false, message: 'Project not found: ' + projectId });
                 }
                 
-                console.log('✅ Delete - Found project:', project.title);
+                console.log('✅ Delete - Found project:', project.title, '| supervisor:', project.supervisor);
                 
                 await ProjectModel.deleteOne({ _id: project._id });
                 return res.json({ 

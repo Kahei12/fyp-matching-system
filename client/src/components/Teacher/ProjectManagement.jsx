@@ -23,14 +23,19 @@ function ProjectManagement({ showNotification }) {
   const fetchProjects = async () => {
     try {
       setLoading(true);
+      console.log('🔍 Fetching projects for email:', userEmail);
       const response = await fetch(`/api/teacher/projects?email=${encodeURIComponent(userEmail)}`, {
         headers: {
           'x-teacher-email': userEmail
         }
       });
       const data = await response.json();
+      console.log('📥 Projects API response:', data);
       if (data.success && data.projects) {
+        console.log('✅ Found projects:', data.projects.length);
         setProjects(data.projects);
+      } else {
+        console.log('⚠️ No projects found or API error:', data.message);
       }
     } catch (error) {
       console.error('Error fetching projects:', error);

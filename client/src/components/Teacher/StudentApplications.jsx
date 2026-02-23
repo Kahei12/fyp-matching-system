@@ -228,20 +228,32 @@ function StudentApplications({ showNotification }) {
             <div className="proposals-list">
               {proposals.map(proposal => (
                 <div key={proposal._id} className="proposal-review-card">
-                  <div className="proposal-header">
-                    <div className="proposal-title-row">
-                      <h3>{proposal.title}</h3>
-                      <span className={`proposal-status-badge ${proposal.proposalStatus || 'pending'}`}>
-                        {proposal.proposalStatus === 'pending' ? 'Pending Review' : 
-                         proposal.proposalStatus === 'approved' ? 'Approved' :
-                         proposal.proposalStatus === 'rejected' ? 'Rejected' : 'Pending'}
-                      </span>
-                    </div>
-                    <div className="proposal-student-info">
-                      <span className="student-name">{proposal.studentName}</span>
-                      <span className="student-id">({proposal.studentId})</span>
-                      <span className="student-gpa">GPA: {proposal.studentGpa}</span>
-                    </div>
+                  {/* 统一信息框 - 表格形式 */}
+                  <div className="proposal-info-box">
+                    <table className="proposal-info-table">
+                      <tbody>
+                        <tr>
+                          <td className="info-label">Title</td>
+                          <td className="info-value-title">{proposal.title}</td>
+                          <td className="info-label">Status</td>
+                          <td>
+                            <span className={`proposal-status-badge ${proposal.proposalStatus || 'pending'}`}>
+                              {proposal.proposalStatus === 'pending' ? 'Pending Review' : 
+                               proposal.proposalStatus === 'approved' ? 'Approved' :
+                               proposal.proposalStatus === 'rejected' ? 'Rejected' : 'Pending'}
+                            </span>
+                          </td>
+                        </tr>
+                        <tr>
+                          <td className="info-label">Name</td>
+                          <td className="info-value">{proposal.studentName}</td>
+                          <td className="info-label">Student ID</td>
+                          <td className="info-value">{proposal.studentId}</td>
+                          <td className="info-label">GPA</td>
+                          <td className="info-value gpa-value">{proposal.studentGpa}</td>
+                        </tr>
+                      </tbody>
+                    </table>
                   </div>
                   
                   <div className="proposal-description">
@@ -266,13 +278,13 @@ function StudentApplications({ showNotification }) {
                         className="btn-approve-proposal"
                         onClick={() => handleApproveProposal(proposal._id)}
                       >
-                        ✔ Approve & Auto-Match
+                        Approve & Auto-Match
                       </button>
                       <button 
                         className="btn-reject-proposal"
                         onClick={() => handleRejectProposal(proposal._id)}
                       >
-                        ✖ Reject
+                        Reject
                       </button>
                     </div>
                   )}
