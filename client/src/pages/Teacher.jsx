@@ -97,7 +97,7 @@ function Teacher() {
 
     const titles = {
       'student-applications': 'My Projects & Applicants',
-      'project-management': 'My Projects',
+      'project-management': 'Project Management',
       'results': 'Matching Result'
     };
 
