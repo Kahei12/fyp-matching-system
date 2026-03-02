@@ -2,8 +2,8 @@ import React from 'react';
 
 function Sidebar({ currentSection, onSwitchSection, userName, onLogout }) {
   const menuItems = [
-    { id: 'student-applications', label: 'Student Application' },
-    { id: 'project-management', label: 'Project Management' },
+    { id: 'student-applications', label: 'Student Proposal' },
+    { id: 'project-management', label: 'Teacher Proposal' },
     { id: 'results', label: 'Result' },
     { id: 'supervision-list', label: 'Supervision List' }
   ];

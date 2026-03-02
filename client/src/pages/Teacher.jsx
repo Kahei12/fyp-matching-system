@@ -96,19 +96,19 @@ function Teacher() {
     const now = new Date();
 
     const titles = {
-      'student-applications': 'My Projects & Applicants',
-      'project-management': 'Project Management',
+      'student-applications': 'Student Proposals',
+      'project-management': 'Teacher Proposals',
       'results': 'Matching Result'
     };
 
     const deadlines = {
       'student-applications': {
         date: applicationDeadlineDate,
-        label: 'Student Application Review'
+        label: 'Student Proposal Review'
       },
       'project-management': {
         date: projectDeadlineDate,
-        label: 'Project Updates & Reviews'
+        label: 'Teacher Proposal Updates & Reviews'
       },
       'results': {
         date: resultDeadlineDate,
@@ -212,12 +212,12 @@ function Teacher() {
               <h3>⏰ Upcoming Deadlines</h3>
               <div className="deadline-list">
                 <div className="deadline-item">
-                  <span className="deadline-name">Student Application Review</span>
+                  <span className="deadline-name">Student Proposal Review</span>
                   <span className="deadline-date">2025-04-15 23:59</span>
                   <span className="deadline-days">{applicationDaysLeft} days left</span>
                 </div>
                 <div className="deadline-item">
-                  <span className="deadline-name">Project Updates & Reviews</span>
+                  <span className="deadline-name">Teacher Proposal Updates & Reviews</span>
                   <span className="deadline-date">2025-05-30 23:59</span>
                   <span className="deadline-days">{projectUpdateDaysLeft} days left</span>
                 </div>
@@ -235,12 +235,12 @@ function Teacher() {
 
 function getSectionTitle(sectionId) {
   const titles = {
-    'student-applications': 'Student Applications',
-    'project-management': 'Project Management',
+    'student-applications': 'Student Proposals',
+    'project-management': 'Teacher Proposals',
     'results': 'Matching Result',
     'supervision-list': 'Supervision List'
   };
-  return titles[sectionId] || 'Student Applications';
+  return titles[sectionId] || 'Student Proposals';
 }
 
 export default Teacher;

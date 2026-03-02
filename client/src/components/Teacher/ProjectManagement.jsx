@@ -2,9 +2,11 @@ import React, { useState, useEffect } from 'react';
 
 function ProjectManagement({ showNotification }) {
   const [projects, setProjects] = useState([]);
+  const [proposals, setProposals] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingProject, setEditingProject] = useState(null);
+  const [activeTab, setActiveTab] = useState('my-projects'); // 'my-projects' or 'student-proposals'
   const [newProject, setNewProject] = useState({
     title: '',
     description: '',
@@ -18,6 +20,7 @@ function ProjectManagement({ showNotification }) {
 
   useEffect(() => {
     fetchProjects();
+    fetchProposals();
   }, []);
 
   const fetchProjects = async () => {
@@ -65,6 +68,22 @@ function ProjectManagement({ showNotification }) {
       ]);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchProposals = async () => {
+    try {
+      const response = await fetch('/api/proposals/all');
+      const data = await response.json();
+      if (data.success && data.proposals) {
+        // Filter proposals that are approved and matched to this teacher
+        const teacherProposals = data.proposals.filter(p => 
+          p.supervisorEmail === userEmail || p.supervisorEmail === userEmail
+        );
+        setProposals(teacherProposals);
+      }
+    } catch (error) {
+      console.error('Error fetching proposals:', error);
     }
   };
 
@@ -206,43 +225,64 @@ function ProjectManagement({ showNotification }) {
 
   return (
     <section className="content-section active">
-      {/* My Projects Section */}
-      <div className="section-header">
-        <button className="btn-create-project" onClick={() => setShowCreateModal(true)}>
-          <span>+</span> Create New Project
+      {/* Tab Navigation */}
+      <div className="tab-navigation">
+        <button 
+          className={`tab-button ${activeTab === 'my-projects' ? 'active' : ''}`}
+          onClick={() => setActiveTab('my-projects')}
+        >
+          📋 My Projects
+        </button>
+        <button 
+          className={`tab-button ${activeTab === 'student-proposals' ? 'active' : ''}`}
+          onClick={() => setActiveTab('student-proposals')}
+        >
+          📝 Student Proposals
+          {proposals.filter(p => p.proposalStatus === 'pending').length > 0 && (
+            <span className="tab-badge">{proposals.filter(p => p.proposalStatus === 'pending').length}</span>
+          )}
         </button>
       </div>
 
-      <div className="projects-section">
-        <h2>My Projects</h2>
-        
-        {/* Stats Cards */}
-        <div className="project-stats-cards">
-          <div className="stat-card">
-            <div className="stat-number">{stats.total}</div>
-            <div className="stat-label">Total Projects</div>
+      {/* My Projects Section */}
+      {activeTab === 'my-projects' && (
+        <>
+          <div className="section-header">
+            <button className="btn-create-project" onClick={() => setShowCreateModal(true)}>
+              <span>+</span> Create New Project
+            </button>
           </div>
-          <div className="stat-card published">
-            <div className="stat-number">{stats.published}</div>
-            <div className="stat-label">Published</div>
-          </div>
-          <div className="stat-card review">
-            <div className="stat-number">{stats.underReview}</div>
-            <div className="stat-label">Under Review</div>
-          </div>
-        </div>
 
-        <div className="project-list">
-          {projects.length === 0 ? (
-            <div className="empty-state">
-              <p style={{ color: '#95a5a6', fontSize: '1rem' }}>*You haven't created any projects yet.</p>
+          <div className="projects-section">
+            <h2>My Projects</h2>
+            
+            {/* Stats Cards */}
+            <div className="project-stats-cards">
+              <div className="stat-card">
+                <div className="stat-number">{stats.total}</div>
+                <div className="stat-label">Total Projects</div>
+              </div>
+              <div className="stat-card published">
+                <div className="stat-number">{stats.published}</div>
+                <div className="stat-label">Published</div>
+              </div>
+              <div className="stat-card review">
+                <div className="stat-number">{stats.underReview}</div>
+                <div className="stat-label">Under Review</div>
+              </div>
             </div>
-          ) : (
-            projects.map(project => (
-              <div key={project._id || project.id} className="project-item">
-                <div className="project-main">
-                  <div className="project-title-row">
-                    <h3>{project.title}</h3>
+
+            <div className="project-list">
+              {projects.length === 0 ? (
+                <div className="empty-state">
+                  <p style={{ color: '#95a5a6', fontSize: '1rem' }}>*You haven't created any projects yet.</p>
+                </div>
+              ) : (
+                projects.map(project => (
+                  <div key={project._id || project.id} className="project-item">
+                    <div className="project-main">
+                      <div className="project-title-row">
+                        <h3>{project.title}</h3>
                     <span className={`status-badge ${(project.status || 'Under Review').toLowerCase().replace(' ', '-')}`}>
                       {project.status || 'Under Review'}
                     </span>
@@ -282,6 +322,70 @@ function ProjectManagement({ showNotification }) {
           )}
         </div>
       </div>
+      </>
+      )}
+
+      {/* Student Proposals Section */}
+      {activeTab === 'student-proposals' && (
+        <div className="proposals-review-section">
+          <h2>Student Proposed Topics</h2>
+          
+          {proposals.length === 0 ? (
+            <div className="empty-state">
+              <p>No student proposals yet.</p>
+            </div>
+          ) : (
+            <div className="proposals-list">
+              {proposals.map(proposal => (
+                <div key={proposal._id} className="proposal-review-card">
+                  <div className="proposal-info-box">
+                    <table className="proposal-info-table">
+                      <tbody>
+                        <tr>
+                          <td className="info-label">Title</td>
+                          <td className="info-value-title">{proposal.title}</td>
+                          <td className="info-label">Status</td>
+                          <td>
+                            <span className={`proposal-status-badge ${proposal.proposalStatus || 'pending'}`}>
+                              {proposal.proposalStatus === 'pending' ? 'Pending Review' : 
+                               proposal.proposalStatus === 'approved' ? 'Approved' :
+                               proposal.proposalStatus === 'rejected' ? 'Rejected' : 'Pending'}
+                            </span>
+                          </td>
+                        </tr>
+                        <tr>
+                          <td className="info-label">Name</td>
+                          <td className="info-value">{proposal.studentName}</td>
+                          <td className="info-label">Student ID</td>
+                          <td className="info-value">{proposal.studentId}</td>
+                          <td className="info-label">GPA</td>
+                          <td className="info-value gpa-value">{proposal.studentGpa}</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                  
+                  <div className="proposal-description">
+                    <strong>Description:</strong>
+                    <p>{proposal.description}</p>
+                  </div>
+                  
+                  {proposal.skills && proposal.skills.length > 0 && (
+                    <div className="proposal-skills">
+                      <strong>Required Skills:</strong>
+                      <div className="skills-tags">
+                        {proposal.skills.map((skill, idx) => (
+                          <span key={idx} className="skill-tag">{skill}</span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Create Project Modal */}
       {showCreateModal && (

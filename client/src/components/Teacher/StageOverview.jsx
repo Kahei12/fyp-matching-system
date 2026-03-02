@@ -5,8 +5,8 @@ function StageOverview({ currentSection, onStageChange }) {
     {
       id: 'student-applications',
       badgeLabel: 'Stage 1 (Proposal)',
-      title: 'Student Application',
-      description: 'Collect and review student submissions.',
+      title: 'Student Proposal',
+      description: 'Collect and review student proposals.',
       icon: '✍',
       stageClass: 'stage-1',
       cardClass: 'status-card-stage-1'
@@ -14,8 +14,8 @@ function StageOverview({ currentSection, onStageChange }) {
     {
       id: 'project-management',
       badgeLabel: 'Stage 2 (Matching)',
-      title: 'Project Management',
-      description: 'Approve, update and maintain project pool.',
+      title: 'Teacher Proposal',
+      description: 'Approve, update and maintain teacher proposal pool.',
       icon: '⚙',
       stageClass: 'stage-2',
       cardClass: 'status-card-stage-2'
