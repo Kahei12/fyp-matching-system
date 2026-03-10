@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 
-function Proposal({ preferences, onSwitchSection, studentId, isAssigned = false, assignmentType = null }) {
+function Proposal({ preferences, onSwitchSection, studentId, isAssigned = false, assignmentType = null, currentSection = 'proposal' }) {
   const preferencesCount = preferences?.length || 0;
   const proposalTableRef = useRef(null);
   
@@ -43,16 +43,6 @@ function Proposal({ preferences, onSwitchSection, studentId, isAssigned = false,
   const showNotification = (message, type) => {
     setNotification({ message, type });
     setTimeout(() => setNotification(null), 3000);
-  };
-
-  const handleSubmitProposal = () => {
-    // 滚动到提案表单
-    if (proposalTableRef.current) {
-      proposalTableRef.current.scrollIntoView({ 
-        behavior: 'smooth', 
-        block: 'start' 
-      });
-    }
   };
 
   const handleInputChange = (e) => {
@@ -218,19 +208,50 @@ function Proposal({ preferences, onSwitchSection, studentId, isAssigned = false,
         </div>
       </div>
 
-      {/* Status Cards */}
-      <div className="status-cards">
-        <div className="status-card status-card-stage-1">
+      {/* Navigation Tags - Unified Style */}
+      <div className="status-cards stage-status-cards">
+        {/* Tag 1: Self-proposal */}
+        <div
+          className={`status-card status-card-stage-1 ${currentSection === 'proposal' ? 'active' : ''}`}
+          onClick={() => {
+            // Scroll to the proposal form section
+            if (proposalTableRef.current) {
+              proposalTableRef.current.scrollIntoView({ 
+                behavior: 'smooth', 
+                block: 'start' 
+              });
+            }
+          }}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              if (proposalTableRef.current) {
+                proposalTableRef.current.scrollIntoView({ 
+                  behavior: 'smooth', 
+                  block: 'start' 
+                });
+              }
+            }
+          }}
+        >
           <span className="stage-badge stage-1">Stage 1 (Proposal)</span>
           <div className="status-icon">✍</div>
           <div className="status-content">
-            <h3>Proposal Status</h3>
-            <p className="status-value">
-              {getDisplayStatus()}
-            </p>
+            <h3>Self-proposal</h3>
+            <p>Propose your own project</p>
             <button 
-              className="action-btn" 
-              onClick={handleSubmitProposal}
+              className="action-btn"
+              onClick={(e) => {
+                e.stopPropagation();
+                if (proposalTableRef.current) {
+                  proposalTableRef.current.scrollIntoView({ 
+                    behavior: 'smooth', 
+                    block: 'start' 
+                  });
+                }
+              }}
               disabled={isProposalApproved}
             >
               {isProposalApproved ? 'Proposal Approved' : 'Submit Proposal'}
@@ -238,15 +259,30 @@ function Proposal({ preferences, onSwitchSection, studentId, isAssigned = false,
           </div>
         </div>
         
-        <div className="status-card status-card-stage-2">
+        {/* Tag 2: Project List */}
+        <div
+          className={`status-card status-card-stage-2 ${currentSection === 'project-browse' || currentSection === 'my-preferences' ? 'active' : ''}`}
+          onClick={() => onSwitchSection('project-browse')}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              onSwitchSection('project-browse');
+            }
+          }}
+        >
           <span className="stage-badge stage-2">Stage 2 (Matching)</span>
           <div className="status-icon">★</div>
           <div className="status-content">
-            <h3>Preferences</h3>
-            <p className="status-value">{preferencesCount}/5 Selected</p>
+            <h3>Project List</h3>
+            <p>View the project list and manage your project preferences</p>
             <button 
-              className="action-btn" 
-              onClick={() => onSwitchSection('project-browse')}
+              className="action-btn"
+              onClick={(e) => {
+                e.stopPropagation();
+                onSwitchSection('project-browse');
+              }}
               disabled={isProposalApproved}
             >
               {isProposalApproved ? 'Auto-Matched' : 'Browse Projects'}
@@ -254,16 +290,29 @@ function Proposal({ preferences, onSwitchSection, studentId, isAssigned = false,
           </div>
         </div>
         
-        <div className="status-card status-card-stage-3">
+        {/* Tag 3: Results */}
+        <div
+          className={`status-card status-card-stage-3 ${currentSection === 'results' ? 'active' : ''}`}
+          onClick={() => onSwitchSection('results')}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              onSwitchSection('results');
+            }
+          }}
+        >
           <span className="stage-badge stage-3">Stage 3 (Clearing)</span>
           <div className="status-icon">☰</div>
           <div className="status-content">
-            <h3>Assignment</h3>
-            <p className="status-value">
-              {isProposalApproved ? proposal?.title || 'Assigned' : 'Not Assigned'}
-            </p>
-            <button className="action-btn" onClick={() => onSwitchSection('results')}>
-              View Status
+            <h3>Result</h3>
+            <p>View your project assignment and matching results</p>
+            <button className="action-btn" onClick={(e) => {
+                e.stopPropagation();
+                onSwitchSection('results');
+              }}>
+              Go to Result
             </button>
           </div>
         </div>

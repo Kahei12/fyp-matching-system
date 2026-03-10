@@ -523,6 +523,7 @@ function Student() {
     const formattedDate = preferenceDeadline.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 
     const titles = {
+      'proposal': 'Proposal',
       'project-browse': 'Browse Projects',
       'my-preferences': 'My Preferences',
       'results': 'Assignment Results'
@@ -553,11 +554,12 @@ function Student() {
   const renderSection = () => {
     switch (currentSection) {
       case 'proposal':
-        return <Proposal 
-          preferences={preferences} 
-          onSwitchSection={setCurrentSection} 
+        return <Proposal
+          preferences={preferences}
+          onSwitchSection={setCurrentSection}
           isAssigned={isAssigned}
           assignmentType={assignmentType}
+          currentSection={currentSection}
         />;
       case 'project-browse':
         return <ProjectBrowse 
@@ -629,33 +631,58 @@ function Student() {
 }
 
 function StageOverview({ currentSection, onStageChange, preferencesCount }) {
+  // 決定哪個 tag 應該處於 active 狀態
+  // My Preferences 頁面時，Project List tag 要浮起
+  const getActiveStageId = () => {
+    if (currentSection === 'my-preferences') {
+      return 'project-browse';
+    }
+    return currentSection;
+  };
+  
+  // 根據當前頁面決定按鈕文字
+  const getButtonText = (stage) => {
+    if (stage.id === 'project-browse' && currentSection === 'my-preferences') {
+      return 'Go to Browse Project';
+    }
+    return stage.buttonText;
+  };
+  
+  const activeStageId = getActiveStageId();
+  
   const stages = [
     {
-      id: 'project-browse',
+      id: 'proposal',
       badgeLabel: 'Stage 1 (Proposal)',
-      title: 'Browse Projects',
-      description: 'Explore available FYP projects and add to preferences.',
+      title: 'Self-proposal',
+      description: 'Propose your own project',
       icon: '✍',
       stageClass: 'stage-1',
-      cardClass: 'status-card-stage-1'
+      cardClass: 'status-card-stage-1',
+      buttonText: 'Submit Proposal',
+      targetSection: 'proposal'
     },
     {
-      id: 'my-preferences',
+      id: 'project-browse',
       badgeLabel: 'Stage 2 (Matching)',
-      title: 'My Preferences',
-      description: `Manage your project preferences (${preferencesCount}/10 selected).`,
+      title: 'Project List',
+      description: 'View the project list and manage your project preferences',
       icon: '★',
       stageClass: 'stage-2',
-      cardClass: 'status-card-stage-2'
+      cardClass: 'status-card-stage-2',
+      buttonText: 'Go to My Preference',
+      targetSection: 'my-preferences'
     },
     {
       id: 'results',
       badgeLabel: 'Stage 3 (Clearing)',
-      title: 'Results',
-      description: 'View your project assignment and matching results.',
+      title: 'Result',
+      description: 'View your project assignment and matching results',
       icon: '☰',
       stageClass: 'stage-3',
-      cardClass: 'status-card-stage-3'
+      cardClass: 'status-card-stage-3',
+      buttonText: 'Go to Result',
+      targetSection: 'results'
     }
   ];
 
@@ -664,7 +691,7 @@ function StageOverview({ currentSection, onStageChange, preferencesCount }) {
       {stages.map(stage => (
         <div
           key={stage.id}
-          className={`status-card ${stage.cardClass} ${currentSection === stage.id ? 'active' : ''}`}
+          className={`status-card ${stage.cardClass} ${activeStageId === stage.id ? 'active' : ''}`}
           onClick={() => onStageChange(stage.id)}
           role="button"
           tabIndex={0}
@@ -682,21 +709,14 @@ function StageOverview({ currentSection, onStageChange, preferencesCount }) {
           <div className="status-content">
             <h3>{stage.title}</h3>
             <p>{stage.description}</p>
-            <button 
+            <button
               className="action-btn"
               onClick={(e) => {
                 e.stopPropagation();
-                // If on My Preferences page, the button should go to Browse Projects
-                if (currentSection === 'my-preferences' && stage.id === 'my-preferences') {
-                  onStageChange('project-browse');
-                } else {
-                  onStageChange(stage.id);
-                }
+                onStageChange(stage.targetSection);
               }}
             >
-              {currentSection === 'my-preferences' && stage.id === 'my-preferences' 
-                ? 'Browse Projects' 
-                : `Go to ${stage.title}`}
+              {getButtonText(stage)}
             </button>
           </div>
         </div>
