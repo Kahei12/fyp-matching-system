@@ -53,13 +53,6 @@ function ProjectReview({ showNotification }) {
     }
   };
 
-  const addComment = (index) => {
-    const comment = prompt(`Enter your comment for "${pendingProjects[index].title}":`);
-    if (comment) {
-      showNotification('Comment added successfully!', 'info');
-    }
-  };
-
   return (
     <section className="content-section active">
       <div className="section-header">
@@ -117,7 +110,6 @@ function ProjectReview({ showNotification }) {
               <div className="action-buttons">
                 <button className="btn-approve" onClick={() => approveProject(index)}>Approve</button>
                 <button className="btn-reject" onClick={() => rejectProject(index)}>Reject</button>
-                <button className="btn-comment" onClick={() => addComment(index)}>Comment</button>
               </div>
             </div>
           ))}
