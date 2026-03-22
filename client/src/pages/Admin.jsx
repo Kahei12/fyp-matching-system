@@ -7,6 +7,7 @@ import MatchingControl from '../components/Admin/MatchingControl';
 import FinalAssignment from '../components/Admin/FinalAssignment';
 import DeadlineManagement from '../components/Admin/DeadlineManagement';
 import DataExport from '../components/Admin/DataExport';
+import CreateStudentAccount from '../components/Admin/CreateStudentAccount';
 
 function Admin() {
   const [currentSection, setCurrentSection] = useState('project-review');
@@ -79,6 +80,8 @@ function Admin() {
         return <MatchingControl showNotification={showNotification} />;
       case 'final-assignment':
         return <FinalAssignment showNotification={showNotification} />;
+      case 'create-student-account':
+        return <CreateStudentAccount showNotification={showNotification} />;
       case 'data-export':
         return <DataExport showNotification={showNotification} />;
       case 'deadline-management':
@@ -126,6 +129,7 @@ function getSectionTitle(sectionId) {
     'project-review': 'Project Review',
     'matching-control': 'Matching Control',
     'final-assignment': 'Final Assignment',
+    'create-student-account': 'Create Student Account',
     'data-export': 'Data Export',
     'deadline-management': 'Deadline Management'
   };

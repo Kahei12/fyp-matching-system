@@ -110,32 +110,88 @@ app.post('/login', async (req, res) => {
     console.log('📨 收到登入請求:', req.body);
     
     const { email, password } = req.body;
-    const user = users.find(u => u.email === email);
     
-    if (!user) {
-        console.log('❌ 用戶不存在');
-        return res.json({ success: false, message: 'Email or password is incorrect' });
-    }
-
-    // 檢查密碼
-    const isMatch = await bcrypt.compare(password, user.password);
-    if (!isMatch) {
-        console.log('❌ 密碼錯誤');
-        return res.json({ success: false, message: 'Email or password is incorrect' });
-    }
-
-    // 登入成功
-    console.log('✅ 登入成功，用戶角色:', user.role);
-    res.json({ 
-        success: true, 
-        message: `Login successful! Welcome, ${user.role}.`,
-        user: { 
-            email: user.email, 
-            role: user.role,
-            name: user.name,
-            studentId: user.studentId // 添加 studentId
+    // 首先檢查本地 users 數組
+    let user = users.find(u => u.email === email);
+    
+    // 如果本地沒有找到，且是學生 email 格式，檢查 MongoDB
+    if (!user && email.includes('@hkmu.edu.hk')) {
+        try {
+            const mongoose = require('mongoose');
+            const isDbConnected = mongoose.connection.readyState === 1;
+            
+            if (isDbConnected) {
+                const Student = require('./models/Student');
+                const student = await Student.findOne({ email: email }).lean().exec();
+                
+                if (student) {
+                    // 從 MongoDB 找到學生，構造 user 對象
+                    // 注意：密碼在創建時已經 hashed，所以我們需要用 bcrypt 驗證
+                    // 但我們需要先確保密碼是 hashed 後存儲的
+                    // 由於新創建的學生密碼是 plain text 或已 hashed，讓我們檢查
+                    
+                    // 檢查是否是 bcrypt hash 格式
+                    if (student.password && student.password.startsWith('$2')) {
+                        // 密碼已經是 hashed，用 bcrypt 驗證
+                        const isMatch = await bcrypt.compare(password, student.password);
+                        if (isMatch) {
+                            user = {
+                                email: student.email,
+                                role: 'student',
+                                name: student.name,
+                                studentId: student.id,
+                                gpa: student.gpa,
+                                major: student.major
+                            };
+                        }
+                    } else if (student.password === password) {
+                        // 密碼是 plain text（新創建的學生密碼是 plain text）
+                        user = {
+                            email: student.email,
+                            role: 'student',
+                            name: student.name,
+                            studentId: student.id,
+                            gpa: student.gpa,
+                            major: student.major
+                        };
+                    }
+                }
+            }
+        } catch (err) {
+            console.error('❌ 檢查 MongoDB 學生錯誤:', err);
         }
-    });
+    }
+    
+    // 如果本地找到用戶
+    if (user) {
+        // 如果是本地用戶（admin/teacher），需要 bcrypt 驗證密碼
+        if (users.find(u => u.email === email)) {
+            const localUser = users.find(u => u.email === email);
+            const isMatch = await bcrypt.compare(password, localUser.password);
+            if (!isMatch) {
+                console.log('❌ 密碼錯誤');
+                return res.json({ success: false, message: 'Email or password is incorrect' });
+            }
+        }
+        
+        // 登入成功
+        console.log('✅ 登入成功，用戶角色:', user.role);
+        return res.json({ 
+            success: true, 
+            message: `Login successful! Welcome, ${user.role}.`,
+            user: { 
+                email: user.email, 
+                role: user.role,
+                name: user.name,
+                studentId: user.studentId,
+                gpa: user.gpa,
+                major: user.major
+            }
+        });
+    }
+    
+    console.log('❌ 用戶不存在');
+    return res.json({ success: false, message: 'Email or password is incorrect' });
 });
 
 // 注意：HTML 頁面路由已移除，React 版本通過 Vite 開發伺服器提供前端
@@ -1210,6 +1266,188 @@ initializeUsers().then(() => {
         console.log('   Student: student@hkmu.edu.hk / student123');
         console.log('   Teacher: teacher@hkmu.edu.hk / teacher123');
     });
+});
+
+// ============================================
+// Admin: Student Account Management API
+// ============================================
+
+// Helper function to check database connection
+const checkDbConnectionForAdmin = () => {
+    try {
+        const mongoose = require('mongoose');
+        return mongoose.connection.readyState === 1;
+    } catch (e) {
+        return false;
+    }
+};
+
+// Create student account (admin only)
+app.post('/api/admin/students/create', async (req, res) => {
+    console.log('👤 Admin 創建學生帳戶:', req.body);
+    try {
+        const { studentId, password, name, major } = req.body;
+        
+        // Validation
+        if (!studentId || !password || !name || !major) {
+            return res.status(400).json({ 
+                success: false, 
+                message: 'All fields are required: studentId, password, name, major' 
+            });
+        }
+        
+        // Validate studentId: 8 digits
+        if (!/^\d{8}$/.test(studentId)) {
+            return res.status(400).json({ 
+                success: false, 
+                message: 'Student ID must be exactly 8 digits' 
+            });
+        }
+        
+        // Validate password: at least 8 characters
+        if (password.length < 8) {
+            return res.status(400).json({ 
+                success: false, 
+                message: 'Password must be at least 8 characters' 
+            });
+        }
+        
+        const isDbConnected = checkDbConnectionForAdmin();
+        const Student = require('./models/Student');
+        
+        if (isDbConnected && Student) {
+            // Check if student ID already exists
+            const existingStudent = await Student.findOne({ id: studentId }).exec();
+            if (existingStudent) {
+                return res.status(400).json({ 
+                    success: false, 
+                    message: `Student ID ${studentId} already exists` 
+                });
+            }
+            
+            // Generate email: first 7 digits + @hkmu.edu.hk
+            const email = studentId.substring(0, 7) + '@hkmu.edu.hk';
+            
+            // Check if email already exists
+            const existingEmail = await Student.findOne({ email: email }).exec();
+            if (existingEmail) {
+                return res.status(400).json({ 
+                    success: false, 
+                    message: `Email ${email} already exists` 
+                });
+            }
+            
+            // Hash password for security
+            const hashedPassword = await bcrypt.hash(password, 10);
+            
+            // Create new student
+            const newStudent = new Student({
+                id: studentId,
+                name: name,
+                email: email,
+                password: hashedPassword, // 存儲 hashed 密碼
+                gpa: 0, // Default GPA
+                major: major,
+                year: 'Year 4', // 預設為 Year 4
+                preferences: [],
+                proposalSubmitted: false,
+                assignedProject: null,
+                proposedProject: null,
+                proposalApproved: false,
+                proposalStatus: 'none'
+            });
+            
+            await newStudent.save();
+            
+            console.log('✅ Student account created:', {
+                id: studentId,
+                name: name,
+                email: email,
+                major: major
+            });
+            
+            return res.json({ 
+                success: true, 
+                message: 'Student account created successfully!',
+                student: {
+                    id: studentId,
+                    name: name,
+                    email: email,
+                    major: major,
+                    year: 'Year 4'
+                },
+                loginCredentials: {
+                    email: email,
+                    password: password
+                }
+            });
+        }
+        
+        // If no database, return mock success for testing
+        const email = studentId.substring(0, 7) + '@hkmu.edu.hk';
+        console.log('⚠️ Database not connected - mock success response');
+        console.log('   Student ID:', studentId);
+        console.log('   Email:', email);
+        console.log('   Name:', name);
+        console.log('   Major:', major);
+        
+        return res.json({ 
+            success: true, 
+            message: 'Student account created successfully! (Mock mode - no database)',
+            student: {
+                id: studentId,
+                name: name,
+                email: email,
+                major: major,
+                year: 'Year 4'
+            },
+            loginCredentials: {
+                email: email,
+                password: password
+            }
+        });
+        
+    } catch (error) {
+        console.error('❌ 創建學生帳戶錯誤:', error);
+        return res.status(500).json({ 
+            success: false, 
+            message: 'Failed to create student account: ' + error.message 
+        });
+    }
+});
+
+// Get all students (admin only)
+app.get('/api/admin/students', async (req, res) => {
+    console.log('👥 Admin 請求學生列表');
+    try {
+        const isDbConnected = checkDbConnectionForAdmin();
+        const Student = require('./models/Student');
+        
+        if (isDbConnected && Student) {
+            const students = await Student.find({}).lean().exec();
+            return res.json({ 
+                success: true, 
+                students: students.map(s => ({
+                    id: s.id,
+                    name: s.name,
+                    email: s.email,
+                    gpa: s.gpa,
+                    major: s.major,
+                    year: s.year,
+                    proposalSubmitted: s.proposalSubmitted,
+                    proposalStatus: s.proposalStatus
+                }))
+            });
+        }
+        
+        return res.json({ success: true, students: [] });
+    } catch (error) {
+        console.error('❌ 獲取學生列表錯誤:', error);
+        return res.status(500).json({ 
+            success: false, 
+            message: 'Failed to get student list' 
+        });
+    }
 });
 
 // 錯誤處理

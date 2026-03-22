@@ -1,9 +1,10 @@
 const mongoose = require('mongoose');
 
 const StudentSchema = new mongoose.Schema({
-  id: String, // student id like "S001"
+  id: String, // student id like "12345678"
   name: String,
   email: String,
+  password: String, // hashed password
   gpa: Number,
   major: String,
   year: String,

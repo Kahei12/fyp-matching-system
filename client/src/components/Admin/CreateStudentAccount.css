@@ -1,0 +1,321 @@
+.create-student-container {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 2rem;
+}
+
+.create-student-header {
+  margin-bottom: 2rem;
+}
+
+.create-student-header h2 {
+  font-size: 1.8rem;
+  color: #2c3e50;
+  margin-bottom: 0.5rem;
+}
+
+.create-student-header p {
+  color: #6c757d;
+  font-size: 0.95rem;
+}
+
+.create-student-form {
+  background: #f8f9fa;
+  border-radius: 12px;
+  padding: 2rem;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.form-section {
+  margin-bottom: 2rem;
+  padding-bottom: 1.5rem;
+  border-bottom: 1px solid #e9ecef;
+}
+
+.form-section:last-of-type {
+  border-bottom: none;
+  margin-bottom: 1rem;
+}
+
+.form-section h3 {
+  color: #2c3e50;
+  font-size: 1.2rem;
+  margin-bottom: 0.5rem;
+}
+
+.section-description {
+  color: #6c757d;
+  font-size: 0.9rem;
+  margin-bottom: 1.5rem;
+}
+
+.form-group {
+  margin-bottom: 1.25rem;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 0.5rem;
+  color: #495057;
+  font-weight: 500;
+  font-size: 0.95rem;
+}
+
+.form-group .required {
+  color: #e74c3c;
+}
+
+.form-group input,
+.form-group select {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  border: 1px solid #ced4da;
+  border-radius: 6px;
+  font-size: 0.95rem;
+  transition: all 0.3s ease;
+  background: white;
+}
+
+.form-group input:focus,
+.form-group select:focus {
+  outline: none;
+  border-color: #3498db;
+  box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.2);
+}
+
+.form-group input.error,
+.form-group select.error {
+  border-color: #e74c3c;
+  background: #fff5f5;
+}
+
+.form-group input::placeholder {
+  color: #adb5bd;
+}
+
+.form-group select {
+  cursor: pointer;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23333' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 1rem center;
+  padding-right: 2.5rem;
+}
+
+.error-message {
+  display: block;
+  color: #e74c3c;
+  font-size: 0.85rem;
+  margin-top: 0.35rem;
+}
+
+.email-preview {
+  display: block;
+  color: #27ae60;
+  font-size: 0.85rem;
+  margin-top: 0.35rem;
+}
+
+.email-preview strong {
+  font-family: monospace;
+  background: #e8f8f0;
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+}
+
+.password-hint {
+  display: block;
+  color: #6c757d;
+  font-size: 0.85rem;
+  margin-top: 0.35rem;
+}
+
+.form-actions {
+  display: flex;
+  gap: 1rem;
+  justify-content: flex-end;
+  padding-top: 1rem;
+  border-top: 1px solid #e9ecef;
+}
+
+.btn-primary,
+.btn-secondary {
+  padding: 0.75rem 1.5rem;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.95rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  min-width: 120px;
+}
+
+.btn-primary {
+  background: #3498db;
+  color: white;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: #2980b9;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(52, 152, 219, 0.3);
+}
+
+.btn-primary:disabled {
+  background: #95a5a6;
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.btn-secondary {
+  background: #6c757d;
+  color: white;
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background: #5a6268;
+  transform: translateY(-1px);
+}
+
+/* Success Card */
+.success-card {
+  background: linear-gradient(135deg, #27ae60 0%, #2ecc71 100%);
+  color: white;
+  border-radius: 12px;
+  padding: 2rem;
+  margin-bottom: 2rem;
+  text-align: center;
+  animation: slideIn 0.4s ease;
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.success-icon {
+  width: 60px;
+  height: 60px;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 1rem;
+  font-size: 2rem;
+}
+
+.success-card h3 {
+  font-size: 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.credentials-box {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 8px;
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+  text-align: left;
+}
+
+.credentials-box p {
+  margin-bottom: 0.5rem;
+  font-size: 0.95rem;
+}
+
+.credentials-box p:last-child {
+  margin-bottom: 0;
+}
+
+.login-credentials {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px dashed rgba(255, 255, 255, 0.3);
+}
+
+.login-credentials h4 {
+  margin-bottom: 0.75rem;
+  font-size: 1rem;
+}
+
+.login-credentials p {
+  font-family: monospace;
+  font-size: 1rem;
+  background: rgba(255, 255, 255, 0.1);
+  padding: 0.35rem 0.5rem;
+  border-radius: 4px;
+  display: inline-block;
+  margin-right: 1rem;
+}
+
+.success-card .btn-secondary {
+  background: white;
+  color: #27ae60;
+}
+
+.success-card .btn-secondary:hover {
+  background: #f0f0f0;
+  transform: translateY(-1px);
+}
+
+/* Info Box */
+.info-box {
+  margin-top: 2rem;
+  background: #e8f4fd;
+  border-left: 4px solid #3498db;
+  border-radius: 8px;
+  padding: 1.5rem;
+}
+
+.info-box h4 {
+  color: #2c3e50;
+  margin-bottom: 0.75rem;
+  font-size: 1rem;
+}
+
+.info-box ul {
+  margin: 0;
+  padding-left: 1.5rem;
+  color: #495057;
+  font-size: 0.9rem;
+}
+
+.info-box li {
+  margin-bottom: 0.4rem;
+}
+
+.info-box li:last-child {
+  margin-bottom: 0;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .create-student-container {
+    padding: 1rem;
+  }
+
+  .create-student-form {
+    padding: 1.5rem;
+  }
+
+  .form-actions {
+    flex-direction: column;
+  }
+
+  .btn-primary,
+  .btn-secondary {
+    width: 100%;
+  }
+
+  .login-credentials p {
+    display: block;
+    margin-right: 0;
+    margin-bottom: 0.5rem;
+  }
+}
