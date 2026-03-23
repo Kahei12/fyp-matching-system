@@ -7,6 +7,8 @@ function ProjectManagement({ showNotification }) {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingProject, setEditingProject] = useState(null);
   const [activeTab, setActiveTab] = useState('my-projects');
+  /** Teacher Proposal → Student Proposals：篩選已審核列表（全部 / 僅 Approved / 僅 Rejected） */
+  const [reviewedProposalFilter, setReviewedProposalFilter] = useState('all');
   const [newProject, setNewProject] = useState({
     title: '',
     description: '',
@@ -17,6 +19,10 @@ function ProjectManagement({ showNotification }) {
   });
 
   const userEmail = sessionStorage.getItem('userEmail') || 'teacher@hkmu.edu.hk';
+  const userEmailLower = userEmail.toLowerCase();
+
+  const getMyReview = (proposal) =>
+    proposal.teacherReviews?.find((r) => r.teacherEmail?.toLowerCase() === userEmailLower);
 
   useEffect(() => {
     fetchProjects();
@@ -179,69 +185,8 @@ function ProjectManagement({ showNotification }) {
     }
   };
 
-  const handleApproveStudentProposal = async (proposalId) => {
-    if (!window.confirm('Approve this proposal? You will become the supervisor.')) return;
-    
-    try {
-      const response = await fetch(`/api/proposals/${proposalId}/status`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          status: 'approve',
-          supervisorEmail: userEmail,
-          supervisorName: sessionStorage.getItem('userName') || 'Teacher',
-          teacherId: userEmail
-        })
-      });
-      
-      const data = await response.json();
-      if (data.success) {
-        showNotification('Proposal approved! You are now the supervisor.', 'success');
-        fetchProposals();
-      } else {
-        showNotification(data.message || 'Failed to approve', 'error');
-      }
-    } catch (error) {
-      console.error('Error:', error);
-      showNotification('Failed to approve proposal', 'error');
-    }
-  };
-
-  const handleRejectStudentProposal = async (proposalId) => {
-    if (!window.confirm('Reject this proposal?')) return;
-    
-    try {
-      const response = await fetch(`/api/proposals/${proposalId}/status`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          status: 'reject',
-          teacherId: userEmail
-        })
-      });
-      
-      const data = await response.json();
-      if (data.success) {
-        showNotification('Proposal rejected.', 'info');
-        fetchProposals();
-      } else {
-        showNotification(data.message || 'Failed to reject', 'error');
-      }
-    } catch (error) {
-      console.error('Error:', error);
-      showNotification('Failed to reject proposal', 'error');
-    }
-  };
-
-  // 計算 Student Proposals 的顯示數量（未批准的 + 自己批准的）
-  // Student Proposals count - API 已過濾，只返回老師已審核的 proposals
-  const studentProposalsCount = proposals.length;
-
-  const stats = {
-    total: projects.length,
-    approved: projects.filter(p => p.status === 'Approved').length,
-    underReview: projects.filter(p => p.status === 'Under Review').length
-  };
+  // 計算 Student Proposals 分頁中已審核的提案數量（用於括號 badge）
+  const reviewedProposalsCount = proposals.filter((p) => getMyReview(p)).length;
 
   if (loading) {
     return (
@@ -266,8 +211,8 @@ function ProjectManagement({ showNotification }) {
           onClick={() => setActiveTab('student-proposals')}
         >
           📝 Student Proposals
-          {studentProposalsCount > 0 && (
-            <span className="tab-badge">({studentProposalsCount})</span>
+          {reviewedProposalsCount > 0 && (
+            <span className="tab-badge">({reviewedProposalsCount})</span>
           )}
         </button>
       </div>
@@ -283,21 +228,6 @@ function ProjectManagement({ showNotification }) {
           </div>
 
           <div className="projects-section">
-            <div className="project-stats-cards">
-              <div className="stat-card">
-                <div className="stat-number">{stats.total}</div>
-                <div className="stat-label">Total Projects</div>
-              </div>
-              <div className="stat-card published">
-                <div className="stat-number">{stats.approved}</div>
-                <div className="stat-label">Approved</div>
-              </div>
-              <div className="stat-card review">
-                <div className="stat-number">{stats.underReview}</div>
-                <div className="stat-label">Under Review</div>
-              </div>
-            </div>
-
             <div className="project-list">
               {projects.length === 0 ? (
                 <div className="empty-state">
@@ -357,24 +287,71 @@ function ProjectManagement({ showNotification }) {
       )}
 
       {/* Student Proposals Section - 只顯示老師已審核的 student-proposed 項目 */}
-      {activeTab === 'student-proposals' && (
-        <div className="proposals-review-section">
-          <h2>Student Proposed Topics</h2>
-          <p className="section-description">
-            View your reviewed student proposals. New proposals appear on the Dashboard for review.
-          </p>
+      {activeTab === 'student-proposals' && (() => {
+        const reviewedProposals = proposals.filter((p) => getMyReview(p));
+        const filteredReviewed =
+          reviewedProposalFilter === 'all'
+            ? reviewedProposals
+            : reviewedProposals.filter((p) => {
+                const d = getMyReview(p)?.decision;
+                return reviewedProposalFilter === 'approve' ? d === 'approve' : d === 'reject';
+              });
 
-          {proposals.length === 0 ? (
+        return (
+        <div className="proposals-review-section">
+          <div className="proposals-section-header">
+            <div>
+              <h2>Student Proposed Topics</h2>
+              <p className="section-description">
+                View your reviewed student proposals. New proposals appear on the Dashboard for review.
+              </p>
+            </div>
+            {reviewedProposals.length > 0 && (
+              <div className="reviewed-proposals-filter" role="group" aria-label="Filter by decision">
+                <button
+                  type="button"
+                  className={`filter-pill ${reviewedProposalFilter === 'all' ? 'active' : ''}`}
+                  onClick={() => setReviewedProposalFilter('all')}
+                >
+                  All
+                </button>
+                <button
+                  type="button"
+                  className={`filter-pill ${reviewedProposalFilter === 'approve' ? 'active' : ''}`}
+                  onClick={() => setReviewedProposalFilter('approve')}
+                >
+                  Approved
+                </button>
+                <button
+                  type="button"
+                  className={`filter-pill ${reviewedProposalFilter === 'reject' ? 'active' : ''}`}
+                  onClick={() => setReviewedProposalFilter('reject')}
+                >
+                  Rejected
+                </button>
+              </div>
+            )}
+          </div>
+
+          {reviewedProposals.length === 0 ? (
             <div className="empty-state">
               <p>No reviewed student proposals.</p>
-              <p className="empty-hint">Student proposals will appear here after you approve or reject them on the Dashboard.</p>
+              <p className="empty-hint">Student proposals will appear here after you approve or reject them on the Dashboard (Home → Student Proposals).</p>
+            </div>
+          ) : filteredReviewed.length === 0 ? (
+            <div className="empty-state">
+              <p>No proposals in this category.</p>
+              <p className="empty-hint">Try switching to &quot;All&quot; or another filter.</p>
             </div>
           ) : (
             <div className="proposals-list">
-              {proposals.map(proposal => {
-                const myReview = proposal.teacherReviews?.find(r => r.teacherEmail === userEmail);
+              {filteredReviewed.map((proposal) => {
+                const myReview = getMyReview(proposal);
+                const decision = myReview?.decision;
+                const cardTone =
+                  decision === 'approve' ? 'approved' : decision === 'reject' ? 'rejected' : '';
                 return (
-                  <div key={proposal._id} className={`proposal-review-card ${myReview?.decision === 'approve' ? 'approved' : 'rejected'}`}>
+                  <div key={proposal._id} className={`proposal-review-card ${cardTone}`.trim()}>
                     <div className="proposal-info-box">
                       <table className="proposal-info-table">
                         <tbody>
@@ -383,8 +360,12 @@ function ProjectManagement({ showNotification }) {
                             <td className="info-value-title">{proposal.title}</td>
                             <td className="info-label">Your Decision</td>
                             <td>
-                              <span className={`your-decision ${myReview?.decision}`}>
-                                {myReview?.decision === 'approve' ? '✓ Approved' : '✗ Rejected'}
+                              <span className={`your-decision ${decision || ''}`}>
+                                {decision === 'approve'
+                                  ? '✓ Approved'
+                                  : decision === 'reject'
+                                    ? '✗ Rejected'
+                                    : '—'}
                               </span>
                             </td>
                           </tr>
@@ -420,24 +401,14 @@ function ProjectManagement({ showNotification }) {
                       </div>
                     )}
 
-                    {/* 如果之前 reject，可以 override 為 approve */}
-                    {myReview?.decision === 'reject' && (
-                      <div className="proposal-actions">
-                        <button
-                          className="btn-approve-proposal"
-                          onClick={() => handleApproveStudentProposal(proposal._id)}
-                        >
-                          ✓ Override & Approve
-                        </button>
-                      </div>
-                    )}
                   </div>
                 );
               })}
             </div>
           )}
         </div>
-      )}
+        );
+      })()}
 
       {/* Create Project Modal */}
       {showCreateModal && (

@@ -10,6 +10,7 @@ import MatchingResults from '../components/Teacher/MatchingResults';
 
 function Teacher() {
   const [currentSection, setCurrentSection] = useState('student-applications');
+  const [projectStats, setProjectStats] = useState({ total: 0, approved: 0, underReview: 0 });
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -39,7 +40,7 @@ function Teacher() {
     const notification = document.createElement('div');
     notification.className = `notification notification-${type}`;
     notification.textContent = message;
-    
+
     notification.style.cssText = `
       position: fixed;
       top: 20px;
@@ -50,13 +51,13 @@ function Teacher() {
       z-index: 10000;
       font-weight: bold;
       box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-      ${type === 'success' ? 'background: #27ae60;' : 
-        type === 'error' ? 'background: #e74c3c;' : 
+      ${type === 'success' ? 'background: #27ae60;' :
+        type === 'error' ? 'background: #e74c3c;' :
         'background: #3498db;'}
     `;
-    
+
     document.body.appendChild(notification);
-    
+
     setTimeout(() => {
       if (notification.parentNode) {
         notification.style.opacity = '0';
@@ -70,7 +71,55 @@ function Teacher() {
     }, 3000);
   };
 
-  // 计算 deadlines
+  const userEmail = sessionStorage.getItem('userEmail') || 'teacher@hkmu.edu.hk';
+
+  useEffect(() => {
+    const isLoggedIn = sessionStorage.getItem('isLoggedIn');
+    const userRole = sessionStorage.getItem('userRole');
+
+    if (!isLoggedIn || userRole !== 'teacher') {
+      navigate('/');
+      return;
+    }
+    fetchProjectStats();
+  }, [navigate]);
+
+  const fetchProjectStats = async () => {
+    try {
+      // 获取该老师自己的项目
+      const projectsResponse = await fetch(`/api/teacher/projects?email=${encodeURIComponent(userEmail)}`, {
+        headers: { 'x-teacher-email': userEmail }
+      });
+      const projectsData = await projectsResponse.json();
+      
+      // 获取该老师批准的学生提案
+      const proposalsResponse = await fetch(`/api/teacher/student-proposals?email=${encodeURIComponent(userEmail)}`, {
+        headers: { 'x-teacher-email': userEmail }
+      });
+      const proposalsData = await proposalsResponse.json();
+      
+      // My Projects: 该老师自己创建的项目数量
+      const myProjectsCount = projectsData.success && projectsData.projects ? projectsData.projects.length : 0;
+      
+      // Approved: 该老师已批准的学生提案数量
+      const approvedCount = proposalsData.success && proposalsData.proposals 
+        ? proposalsData.proposals.filter(p => p.myDecision === 'approve').length 
+        : 0;
+      
+      // Under Review: 待审批的学生提案数量
+      const underReviewCount = proposalsData.success && proposalsData.proposals 
+        ? proposalsData.proposals.filter(p => !p.myDecision).length 
+        : 0;
+      
+      setProjectStats({
+        total: myProjectsCount,
+        approved: approvedCount,
+        underReview: underReviewCount
+      });
+    } catch (error) {
+      console.error('Error fetching project stats:', error);
+    }
+  };
   const now = new Date();
   const applicationDeadline = new Date('2025-04-15T23:59:00');
   const projectUpdateDeadline = new Date('2025-05-30T23:59:00');
@@ -156,7 +205,7 @@ function Teacher() {
   const renderSection = () => {
     switch (currentSection) {
       case 'student-applications':
-        return <StudentApplications showNotification={showNotification} />;
+        return <StudentApplications showNotification={showNotification} projectStats={projectStats} onStatsChange={fetchProjectStats} />;
       case 'project-management':
         return <ProjectManagement showNotification={showNotification} />;
       case 'results':
@@ -221,6 +270,28 @@ function Teacher() {
                   <span className="deadline-date">2025-05-30 23:59</span>
                   <span className="deadline-days">{projectUpdateDaysLeft} days left</span>
                 </div>
+              </div>
+            </div>
+          )}
+
+          {/* My Project Stats - 在首頁顯示 */}
+          {currentSection === 'student-applications' && (
+            <div className="project-stats-cards">
+              <div className="stat-card">
+                <div className="stat-number">{projectStats.total}</div>
+                <div className="stat-label">My Projects</div>
+              </div>
+              <div className="stat-card approved">
+                <div className="stat-number">{projectStats.approved}</div>
+                <div className="stat-label">Approved</div>
+              </div>
+              <div className="stat-card review">
+                <div className="stat-number">{projectStats.underReview}</div>
+                <div className="stat-label">Under Review</div>
+              </div>
+              <div className="stat-card total">
+                <div className="stat-number">{projectStats.total + projectStats.approved}</div>
+                <div className="stat-label">Total Projects</div>
               </div>
             </div>
           )}

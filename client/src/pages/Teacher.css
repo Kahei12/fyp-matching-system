@@ -570,6 +570,68 @@
   margin-bottom: 3rem;
 }
 
+.proposals-section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 1.5rem;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.btn-show-processed {
+  padding: 0.6rem 1.2rem;
+  border: 2px solid #3498db;
+  background: white;
+  color: #3498db;
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.btn-show-processed:hover {
+  background: #eaf4fc;
+}
+
+.btn-show-processed.active {
+  background: #3498db;
+  color: white;
+}
+
+/* Teacher Proposal → Student Proposals tab: Approved / Rejected filter */
+.reviewed-proposals-filter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  align-items: center;
+}
+
+.filter-pill {
+  padding: 0.45rem 0.9rem;
+  border: 1px solid #ced4da;
+  background: #fff;
+  color: #495057;
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  border-radius: 999px;
+  transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+}
+
+.filter-pill:hover {
+  background: #f8f9fa;
+  border-color: #adb5bd;
+}
+
+.filter-pill.active {
+  background: #2c3e50;
+  color: #fff;
+  border-color: #2c3e50;
+}
+
 .student-proposals-section h2 {
   color: #2c3e50;
   margin-bottom: 1.5rem;
@@ -719,19 +781,39 @@
 .your-decision.approve {
   background: #27ae60;
   color: white;
+  border: 2px solid #1e8449;
 }
 
 .your-decision.reject {
   background: #e74c3c;
   color: white;
+  border: 2px solid #c0392b;
+}
+
+.decision-date {
+  margin-left: 0.75rem;
+  color: #6c757d;
+  font-size: 0.85rem;
+  font-style: italic;
+}
+
+/* Processed proposals card styling */
+.proposal-review-card.approve,
+.proposal-review-card.reject {
+  opacity: 0.9;
+}
+
+.proposal-review-card.approve:hover,
+.proposal-review-card.reject:hover {
+  opacity: 1;
 }
 
 /* Proposal card states */
-.proposal-review-card.approved {
+.proposal-review-card.approve {
   border-left: 4px solid #27ae60;
 }
 
-.proposal-review-card.rejected {
+.proposal-review-card.reject {
   border-left: 4px solid #e74c3c;
 }
 
@@ -1428,9 +1510,18 @@
   .teacher-container {
     flex-direction: column;
   }
-  
+
   .page-overview {
     padding: 1.5rem;
+  }
+
+  .proposals-section-header {
+    flex-direction: column;
+  }
+
+  .btn-show-processed {
+    width: 100%;
+    text-align: center;
   }
   
   .sidebar {
@@ -1508,6 +1599,10 @@
 
   .stage-status-cards {
     grid-template-columns: 1fr;
+  }
+
+  .project-stats-cards {
+    grid-template-columns: repeat(2, 1fr);
   }
 
   .matching-card {
@@ -1666,8 +1761,9 @@
 /* Project Stats Cards */
 .project-stats-cards {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  grid-template-columns: repeat(4, 1fr);
   gap: 1rem;
+  margin-top: 3rem;
   margin-bottom: 2rem;
 }
 
@@ -1684,9 +1780,24 @@
   border-color: #a9dfbf;
 }
 
+.stat-card.approved {
+  background: #d4efdf;
+  border-color: #a9dfbf;
+}
+
 .stat-card.review {
   background: #fcf3cf;
   border-color: #f9e79f;
+}
+
+.stat-card.total {
+  background: linear-gradient(135deg, #2c3e50, #34495e);
+  border-color: #2c3e50;
+}
+
+.stat-card.total .stat-number,
+.stat-card.total .stat-label {
+  color: white;
 }
 
 .stat-number {

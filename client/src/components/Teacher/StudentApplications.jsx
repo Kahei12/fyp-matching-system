@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 
-function StudentApplications({ showNotification }) {
+function StudentApplications({ showNotification, onStatsChange }) {
   const [loading, setLoading] = useState(true);
   const [proposals, setProposals] = useState([]);
   const userEmail = sessionStorage.getItem('userEmail') || 'teacher@hkmu.edu.hk';
@@ -50,6 +50,7 @@ function StudentApplications({ showNotification }) {
       if (data.success) {
         showNotification('Proposal approved! You are now the supervisor of this project.', 'success');
         fetchProposals(); // Refresh proposals
+        if (onStatsChange) onStatsChange(); // Refresh stats
       } else {
         showNotification(data.message || 'Failed to approve proposal', 'error');
       }
@@ -76,6 +77,7 @@ function StudentApplications({ showNotification }) {
       if (data.success) {
         showNotification('Proposal rejected.', 'info');
         fetchProposals(); // Refresh proposals
+        if (onStatsChange) onStatsChange(); // Refresh stats
       } else {
         showNotification(data.message || 'Failed to reject proposal', 'error');
       }
@@ -95,15 +97,11 @@ function StudentApplications({ showNotification }) {
 
   // Filter proposals based on visibility rules
   // 只顯示：該老師還沒審批過的 proposals
-  // - 未審批的：顯示 Approve/Reject 按鈕
-  // - 已審批過的：不顯示（或者顯示已審批的狀態）
   const visibleProposals = proposals.filter(p => {
-    // 如果已有我的審批決定，跳過
     if (p.myDecision) {
       return false;
     }
-    // 如果已被其他老師approve，跳過
-    const otherApproval = p.teacherReviews?.some(r => 
+    const otherApproval = p.teacherReviews?.some(r =>
       r.decision === 'approve' && r.teacherEmail?.toLowerCase() !== userEmail.toLowerCase()
     );
     if (otherApproval) {
@@ -120,7 +118,7 @@ function StudentApplications({ showNotification }) {
         <p className="section-description">
           Review and approve student-proposed project topics. Once you approve a proposal, you become its supervisor.
         </p>
-          
+
           {visibleProposals.length === 0 ? (
             <div className="empty-state">
               <p>No student proposals available for review.</p>
@@ -129,7 +127,7 @@ function StudentApplications({ showNotification }) {
           ) : (
             <div className="proposals-list">
               {visibleProposals.map(proposal => (
-                <div key={proposal._id} className="proposal-review-card">
+                <div key={proposal._id} className={`proposal-review-card ${proposal.myDecision || ''}`}>
                   {/* 统一信息框 - 表格形式 */}
                   <div className="proposal-info-box">
                     <table className="proposal-info-table">
@@ -203,17 +201,6 @@ function StudentApplications({ showNotification }) {
                         onClick={() => handleRejectProposal(proposal._id)}
                       >
                         ✗ Reject
-                      </button>
-                    </div>
-                  )}
-                  
-                  {proposal.myDecision && proposal.myDecision === 'reject' && (
-                    <div className="proposal-actions">
-                      <button 
-                        className="btn-approve-proposal"
-                        onClick={() => handleApproveProposal(proposal._id)}
-                      >
-                        ✓ Override - Approve Anyway
                       </button>
                     </div>
                   )}
