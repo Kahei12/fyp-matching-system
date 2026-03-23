@@ -61,6 +61,7 @@ if (process.env.MONGO_URI) {
 }
 const fs = require('fs');
 const Project = require('./models/Project');
+const mockData = require('./services/mockData');
 
 // 用戶資料（會自動初始化）
 let users = [];
@@ -542,8 +543,14 @@ try {
             const Student = require('./models/Student');
             
             if (isDbConnected && Project && Student) {
-                // Create new project from proposal
-                const projectCode = `P${Date.now().toString().slice(-6)}`;
+                // 獲取學生信息
+                const student = await Student.findOne({ id: studentId }).exec();
+                if (!student) {
+                    return res.status(404).json({ success: false, message: 'Student not found' });
+                }
+                
+                // Create new project from proposal with new schema
+                const projectCode = `S${Date.now().toString().slice(-6)}`;
                 
                 const newProject = new Project({
                     code: projectCode,
@@ -551,28 +558,27 @@ try {
                     description,
                     skills: skills || [],
                     capacity: 1,
-                    supervisor: 'TBD', // To be assigned
-                    supervisorEmail: '',
-                    department: 'Computer Science',
+                    type: 'student',                    // Mark as student-proposed
                     category: 'Student Proposed',
-                    status: 'Pending Review', // Needs teacher/admin approval
+                    department: student.major || 'Computer Science',
+                    status: 'Under Review',              // 等待老師審批
+                    proposalStatus: 'pending',
                     popularity: 0,
-                    isProposed: true, // Mark as student-proposed
-                    proposedBy: studentId,
+                    proposedBy: studentId,             // 學生ID
+                    proposedByName: student.name,       // 學生名字
+                    proposedByEmail: student.email,     // 學生email
+                    teacherReviews: [],                 // 老師審批記錄
                     createdAt: new Date()
                 });
                 
                 await newProject.save();
-                console.log('✅ Project saved:', newProject);
+                console.log('✅ Student proposal saved:', newProject);
                 
                 // Update student's proposal status
-                const student = await Student.findOne({ id: studentId }).exec();
-                if (student) {
-                    student.proposalSubmitted = true;
-                    student.proposedProject = newProject._id;
-                    student.proposalStatus = 'pending';
-                    await student.save();
-                }
+                student.proposalSubmitted = true;
+                student.proposedProject = newProject._id;
+                student.proposalStatus = 'pending';
+                await student.save();
                 
                 return res.json({ 
                     success: true, 
@@ -583,16 +589,34 @@ try {
                         title,
                         description,
                         skills: skills || [],
-                        status: 'Pending Review',
+                        type: 'student',
+                        status: 'Under Review',
                         proposalStatus: 'pending'
                     }
                 });
             }
             
-            res.status(500).json({ success: false, message: 'Database not available' });
+            // Mock mode fallback - 當數據庫未連接時
+            console.log('⚠️ Database not connected - Mock mode for student proposal');
+            const projectCode = `S${Date.now().toString().slice(-6)}`;
+            
+            return res.json({ 
+                success: true, 
+                message: 'Proposal submitted successfully! (Mock mode)',
+                proposal: {
+                    id: projectCode,
+                    code: projectCode,
+                    title,
+                    description,
+                    skills: skills || [],
+                    type: 'student',
+                    status: 'Under Review',
+                    proposalStatus: 'pending'
+                }
+            });
         } catch (error) {
             console.error('❌ 提交提議錯誤:', error);
-            res.status(500).json({ success: false, message: 'Failed to submit proposal' });
+            res.status(500).json({ success: false, message: 'Failed to submit proposal: ' + error.message });
         }
     });
 
@@ -640,35 +664,124 @@ try {
 
     // Get all proposals (for Teacher/Admin)
     app.get('/api/proposals/all', async (req, res) => {
-        console.log('📋 獲取所有提議');
+        console.log('📋 獲取所有學生提議');
         try {
             const isDbConnected = checkDbConnection();
             const Project = require('./models/Project');
             const Student = require('./models/Student');
             
             if (isDbConnected && Project && Student) {
-                const proposals = await Project.find({ isProposed: true }).lean().exec();
+                // 使用新的 type: 'student' 字段
+                const proposals = await Project.find({ type: 'student' }).lean().exec();
                 
                 // Enrich with student info
                 const enrichedProposals = await Promise.all(proposals.map(async (proposal) => {
                     const student = await Student.findOne({ proposedProject: proposal._id }).exec();
+                    
+                    // 計算顯示狀態
+                    // 只有當所有老師都reject了，或者deadline過了，才顯示rejected
+                    // 否則顯示pending
+                    let displayStatus = proposal.proposalStatus;
+                    if (displayStatus === 'rejected') {
+                        // 檢查是否所有老師都reject了
+                        const hasAnyApproval = proposal.teacherReviews?.some(r => r.decision === 'approve');
+                        if (!hasAnyApproval) {
+                            // 所有老師都沒有approve，檢查是否deadline過了
+                            // 這裡我們假設 deadline logic 會在之後實裝
+                            // 目前只要有reject記錄就顯示rejected
+                        }
+                    }
+                    
                     return {
                         ...proposal,
                         studentId: student?.id || proposal.proposedBy,
-                        studentName: student?.name || 'Unknown',
-                        studentEmail: student?.email || '',
+                        studentName: student?.name || proposal.proposedByName || 'Unknown',
+                        studentEmail: student?.email || proposal.proposedByEmail || '',
                         studentGpa: student?.gpa || 0,
-                        proposalStatus: student?.proposalStatus || 'pending'
+                        studentMajor: student?.major || '',
+                        displayStatus: displayStatus // 前端使用的顯示狀態
                     };
                 }));
                 
                 return res.json({ success: true, proposals: enrichedProposals });
             }
             
-            res.json({ success: true, proposals: [] });
+            // Mock mode
+            res.json({ success: true, proposals: mockData.projects.filter(p => p.type === 'student') });
         } catch (error) {
             console.error('❌ 獲取所有提議錯誤:', error);
             res.status(500).json({ success: false, message: 'Failed to get proposals' });
+        }
+    });
+    
+    // Get proposals for specific teacher
+    // 返回所有 student-proposed 項目，包括未審核的
+    // 老師可以approve/reject 尚未被任何老師審核的項目
+    app.get('/api/teacher/student-proposals', async (req, res) => {
+        console.log('📋 獲取老師的學生提議（包含未審核）');
+        try {
+            const teacherEmail = req.query.email || req.headers['x-teacher-email'];
+            const teacherEmailLower = teacherEmail?.toLowerCase();
+            const isDbConnected = checkDbConnection();
+            const Project = require('./models/Project');
+            const Student = require('./models/Student');
+            
+            if (isDbConnected && Project && Student) {
+                // 獲取所有 student-proposed 項目
+                const proposals = await Project.find({ type: 'student' }).lean().exec();
+                
+                // 過濾邏輯：
+                // - 返回所有未經過該老師審核的項目
+                // - 已經被其他老師 approve 的項目不顯示
+                const filteredProposals = proposals.filter(p => {
+                    // 檢查是否已被其他老師 approve
+                    const hasOtherApproval = p.teacherReviews?.some(r => 
+                        r.decision === 'approve' && r.teacherEmail?.toLowerCase() !== teacherEmailLower
+                    );
+                    if (hasOtherApproval) {
+                        return false;
+                    }
+                    return true;
+                });
+                
+                const enrichedProposals = await Promise.all(filteredProposals.map(async (proposal) => {
+                    const reviews = proposal.teacherReviews || [];
+                    const myReview = reviews.find(r => r.teacherEmail?.toLowerCase() === teacherEmailLower);
+                    
+                    // 獲取提出這個 proposal 的學生
+                    const student = await Student.findOne({ proposedProject: proposal._id }).exec();
+                    
+                    // 檢查是否有其他老師的 approve
+                    const otherApproval = reviews.find(r => 
+                        r.decision === 'approve' && r.teacherEmail?.toLowerCase() !== teacherEmailLower
+                    );
+                    
+                    return {
+                        ...proposal,
+                        studentId: student?.id || proposal.proposedBy,
+                        studentName: student?.name || proposal.proposedByName || 'Unknown',
+                        studentEmail: student?.email || proposal.proposedByEmail || '',
+                        studentGpa: student?.gpa || 0,
+                        studentMajor: student?.major || '',
+                        myDecision: myReview?.decision || null,
+                        myReviewedAt: myReview?.reviewedAt || null,
+                        isApprovedByOther: !!otherApproval,
+                        otherApprover: otherApproval?.teacherName || null
+                    };
+                }));
+                
+                console.log('📋 老師的 student proposals (含未審核):', enrichedProposals.length);
+                return res.json({ success: true, proposals: enrichedProposals });
+            }
+            
+            // Mock mode
+            const mockProposals = mockData.projects.filter(p => 
+                p.type === 'student' && p.supervisorEmail === teacherEmail
+            );
+            res.json({ success: true, proposals: mockProposals });
+        } catch (error) {
+            console.error('❌ 獲取老師的學生提議錯誤:', error);
+            res.status(500).json({ success: false, message: 'Failed to get teacher proposals' });
         }
     });
 
@@ -677,7 +790,7 @@ try {
         console.log('✏️ 更新提議狀態');
         try {
             const { proposalId } = req.params;
-            const { status, supervisorEmail, supervisorName } = req.body; // status: approved, rejected
+            const { status, supervisorEmail, supervisorName, teacherId } = req.body; 
             
             if (!status) {
                 return res.status(400).json({ success: false, message: 'Status required' });
@@ -693,14 +806,39 @@ try {
                     return res.status(404).json({ success: false, message: 'Proposal not found' });
                 }
                 
-                // Update project
-                if (status === 'approved') {
-                    project.status = 'Approved';
-                    project.supervisorEmail = supervisorEmail || '';
-                    project.supervisor = supervisorName || supervisorEmail?.split('@')[0] || 'Assigned';
-                    project.isApproved = true;
+                // 初始化 teacherReviews 數組
+                if (!project.teacherReviews) {
+                    project.teacherReviews = [];
+                }
+                
+                // 找到或創建當前老師的review記錄
+                let reviewIndex = project.teacherReviews.findIndex(r => r.teacherEmail === teacherId || r.teacherEmail === supervisorEmail);
+                const reviewRecord = {
+                    teacherEmail: teacherId || supervisorEmail,
+                    teacherName: supervisorName || supervisorEmail?.split('@')[0] || 'Teacher',
+                    decision: status,
+                    reviewedAt: new Date()
+                };
+                
+                if (reviewIndex >= 0) {
+                    project.teacherReviews[reviewIndex] = reviewRecord;
                 } else {
-                    project.status = 'Rejected';
+                    project.teacherReviews.push(reviewRecord);
+                }
+                
+                // 根據decision更新項目狀態
+                if (status === 'approve') {
+                    project.status = 'Approved';
+                    project.supervisorEmail = teacherId || supervisorEmail;
+                    project.supervisor = supervisorName || supervisorEmail?.split('@')[0] || 'Assigned';
+                    project.proposalStatus = 'approved';
+                } else {
+                    // reject: 檢查是否所有老師都reject了
+                    // 如果有至少一個approve，整體是approved
+                    const hasApproval = project.teacherReviews.some(r => r.decision === 'approve');
+                    if (!hasApproval) {
+                        project.proposalStatus = 'rejected';
+                    }
                 }
                 
                 await project.save();
@@ -708,8 +846,8 @@ try {
                 // Update student's proposal status
                 const student = await Student.findOne({ proposedProject: proposalId }).exec();
                 if (student) {
-                    student.proposalStatus = status;
-                    if (status === 'approved') {
+                    student.proposalStatus = project.proposalStatus;
+                    if (project.proposalStatus === 'approved') {
                         student.proposalApproved = true;
                         student.assignedProject = project._id; // Auto-assign!
                     } else {
@@ -720,8 +858,13 @@ try {
                 
                 return res.json({ 
                     success: true, 
-                    message: status === 'approved' ? 'Proposal approved!' : 'Proposal rejected',
-                    project
+                    message: status === 'approve' ? 'Proposal approved!' : 'Proposal rejected',
+                    project: {
+                        _id: project._id,
+                        title: project.title,
+                        proposalStatus: project.proposalStatus,
+                        teacherReviews: project.teacherReviews
+                    }
                 });
             }
             
@@ -799,7 +942,8 @@ try {
         }
     };
 
-    // Get teacher's projects
+    // Get teacher's projects 
+    // 包括：老師自己創建的 teacher-proposed 項目 + 老師approve的 student-proposed 項目
     app.get('/api/teacher/projects', async (req, res) => {
         console.log('📋 請求導師項目列表');
         try {
@@ -809,29 +953,92 @@ try {
             }
             
             console.log('📧 教師郵箱:', teacherEmail);
-            const teacherName = teacherEmail.split('@')[0]; // "teacher"
-            console.log('👤 教師名稱:', teacherName);
             
             const isDbConnected = teacherCheckDbConnection();
             const Project = require('./models/Project');
             
             if (isDbConnected && Project) {
-                // Find: teacher's projects OR student-proposed projects
-                // Also include projects where supervisor field contains the teacher name
-                const projects = await Project.find({
-                    $or: [
-                        { supervisorEmail: teacherEmail },
-                        { supervisorEmail: teacherEmail.toLowerCase() },
-                        { supervisor: teacherName },
-                        { supervisor: { $regex: new RegExp(teacherName, 'i') } },
-                        { supervisor: { $regex: /bell/i } },  // Match "Bell" for Dr. Bell Liu
-                        { isProposed: true }  // Include student-proposed projects
-                    ]
-                }).lean().exec();
+                const teacherEmailLower = teacherEmail.toLowerCase();
                 
-                console.log('✅ 返回項目數:', projects.length);
+                // 特殊映射：測試帳號 teacher@hkmu.edu.hk 等同於 Dr. Bell Liu
+                const SPECIAL_TEACHER_MAP = {
+                    'teacher@hkmu.edu.hk': { name: 'Dr. Bell Liu', extract: 'bell liu' }
+                };
+                
+                // 從 email 提取老師名字
+                // e.g., "teacherBellLiu@hkmu.edu.hk" -> "Bell Liu"
+                const extractNameFromEmail = (email) => {
+                    // 檢查特殊映射
+                    if (SPECIAL_TEACHER_MAP[email.toLowerCase()]) {
+                        return SPECIAL_TEACHER_MAP[email.toLowerCase()].extract;
+                    }
+                    const userPart = email.split('@')[0]; // "teacherBellLiu"
+                    // 移除前綴 "teacher" 或 "Teacher"
+                    let name = userPart.replace(/^teacher(s?)/i, '');
+                    // 在每個大寫字母前加空格，分割成單詞
+                    name = name.replace(/([A-Z])/g, ' $1').trim();
+                    // 如果只有一個詞，保持原樣
+                    return name || userPart;
+                };
+                const teacherName = extractNameFromEmail(teacherEmail);
+                console.log('👤 提取的老師名:', teacherName);
+                
+                // 先獲取所有文檔
+                const allDocs = await Project.find({}).lean().exec();
+                console.log('📋 總文檔數:', allDocs.length);
+                allDocs.forEach(doc => {
+                    console.log('  📄 ', doc.title, '| type:', doc.type, '| supervisor:', doc.supervisor, '| email:', doc.supervisorEmail);
+                });
+                
+                // 過濾條件（只用於 "My Projects"）：
+                // 必須是 teacher-proposed 項目
+                // type === 'student' 的項目屬於 "Student Proposals"，不應顯示在 "My Projects"
+                // 
+                // 規則：
+                // - type === 'student' → 排除（這些屬於 "Student Proposals"）
+                // - type === undefined/null/'' → 視為 teacher-proposed（舊數據兼容）
+                // - type === 'teacher' → 包含
+                const projects = allDocs.filter(doc => {
+                    // 明確排除 student-proposed 項目
+                    if (doc.type === 'student') {
+                        console.log('  🚫 排除 student-proposed:', doc.title);
+                        return false;
+                    }
+                    
+                    // 匹配 supervisorEmail 精確匹配
+                    if (doc.supervisorEmail && doc.supervisorEmail.toLowerCase() === teacherEmailLower) {
+                        return true;
+                    }
+                    
+                    // 匹配 supervisor 名字
+                    if (doc.supervisor && doc.supervisor !== 'TBD') {
+                        const supLower = doc.supervisor.toLowerCase();
+                        const teacherLower = teacherName.toLowerCase();
+                        
+                        // 特殊映射處理：teacher@hkmu.edu.hk <-> Dr. Bell Liu
+                        if (SPECIAL_TEACHER_MAP[teacherEmailLower]) {
+                            const mappedName = SPECIAL_TEACHER_MAP[teacherEmailLower].name.toLowerCase();
+                            // "dr. bell liu" 包含 "bell" 或 "liu"
+                            if (supLower.includes('bell') || supLower.includes('liu') || 
+                                mappedName.includes(supLower) || supLower.includes(mappedName.split(' ')[0])) {
+                                return true;
+                            }
+                        }
+                        
+                        // supervisor 包含老師名字
+                        if (teacherLower && (supLower.includes(teacherLower) || teacherLower.includes(supLower))) return true;
+                        
+                        // 老師名字包含 supervisor 第一個詞
+                        const supFirstWord = supLower.split(' ')[0];
+                        if (teacherLower && teacherLower.includes(supFirstWord)) return true;
+                    }
+                    
+                    return false;
+                });
+                
+                console.log('✅ 過濾後返回項目數:', projects.length);
                 projects.forEach(p => {
-                    console.log('  - ', p.title, '| supervisor:', p.supervisor, '| isProposed:', p.isProposed);
+                    console.log('  - ', p.title, '| type:', p.type, '| supervisor:', p.supervisor);
                 });
                 
                 return res.json({ 
@@ -845,7 +1052,8 @@ try {
             
             // Fallback to mock data
             const mockProjects = mockData.projects.filter(p => 
-                p.supervisor && p.supervisor.toLowerCase().includes(teacherName.toLowerCase())
+                (p.type === 'teacher' && p.supervisorEmail === teacherEmail) ||
+                (p.type === 'student' && p.supervisorEmail === teacherEmail && p.proposalStatus === 'approved')
             );
             res.json({ success: true, projects: mockProjects });
         } catch (error) {
@@ -957,7 +1165,7 @@ try {
         }
     });
 
-    // Create new project
+    // Create new project (teacher-proposed)
     app.post('/api/teacher/projects', async (req, res) => {
         console.log('➕ 導師創建項目');
         try {
@@ -973,7 +1181,6 @@ try {
             
             if (isDbConnected && Project) {
                 // Generate project code
-                const count = await Project.countDocuments({ supervisorEmail: teacherEmail });
                 const projectCode = `T${Date.now().toString().slice(-6)}`;
                 
                 const newProject = new Project({
@@ -982,6 +1189,7 @@ try {
                     description,
                     skills: skills || [],
                     capacity: capacity || 2,
+                    type: 'teacher',                           // Mark as teacher-proposed
                     supervisor: teacherEmail.split('@')[0],
                     supervisorEmail: teacherEmail,
                     department: department || 'Computer Science',

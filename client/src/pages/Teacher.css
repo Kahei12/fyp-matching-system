@@ -708,6 +708,33 @@
   background: #e74c3c;
 }
 
+/* Your Decision badges */
+.your-decision {
+  padding: 0.3rem 0.8rem;
+  border-radius: 12px;
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
+.your-decision.approve {
+  background: #27ae60;
+  color: white;
+}
+
+.your-decision.reject {
+  background: #e74c3c;
+  color: white;
+}
+
+/* Proposal card states */
+.proposal-review-card.approved {
+  border-left: 4px solid #27ae60;
+}
+
+.proposal-review-card.rejected {
+  border-left: 4px solid #e74c3c;
+}
+
 .proposal-student-info {
   display: flex;
   align-items: center;
@@ -761,7 +788,6 @@
   padding: 1rem;
   background: #f8f9fa;
   border-radius: 5px;
-  border-left: 3px solid #3498db;
 }
 
 .proposal-description strong {

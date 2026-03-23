@@ -6,7 +6,7 @@ function ProjectManagement({ showNotification }) {
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingProject, setEditingProject] = useState(null);
-  const [activeTab, setActiveTab] = useState('my-projects'); // 'my-projects' or 'student-proposals'
+  const [activeTab, setActiveTab] = useState('my-projects');
   const [newProject, setNewProject] = useState({
     title: '',
     description: '',
@@ -39,33 +39,11 @@ function ProjectManagement({ showNotification }) {
         setProjects(data.projects);
       } else {
         console.log('⚠️ No projects found or API error:', data.message);
+        setProjects([]);
       }
     } catch (error) {
       console.error('Error fetching projects:', error);
-      // Fallback to mock data
-      setProjects([
-        {
-          id: 1,
-          title: 'AI Learning System',
-          status: 'Approved',
-          description: 'Develop an intelligent learning platform that adapts to student learning patterns using machine learning algorithms.',
-          skills: ['Python', 'Machine Learning', 'Web Development']
-        },
-        {
-          id: 2,
-          title: 'Mobile App Development',
-          status: 'Approved',
-          description: 'Build a mobile application for campus services.',
-          skills: ['React Native', 'JavaScript', 'Mobile Development']
-        },
-        {
-          id: 3,
-          title: 'Advanced Database System',
-          status: 'Under Review',
-          description: 'Design and implement an advanced database management system.',
-          skills: ['Database', 'SQL', 'System Design']
-        }
-      ]);
+      setProjects([]);
     } finally {
       setLoading(false);
     }
@@ -73,14 +51,15 @@ function ProjectManagement({ showNotification }) {
 
   const fetchProposals = async () => {
     try {
-      const response = await fetch('/api/proposals/all');
+      const response = await fetch(`/api/teacher/student-proposals?email=${encodeURIComponent(userEmail)}`, {
+        headers: {
+          'x-teacher-email': userEmail
+        }
+      });
       const data = await response.json();
+      console.log('📋 Fetched student proposals:', data);
       if (data.success && data.proposals) {
-        // Filter proposals that are approved and matched to this teacher
-        const teacherProposals = data.proposals.filter(p => 
-          p.supervisorEmail === userEmail || p.supervisorEmail === userEmail
-        );
-        setProposals(teacherProposals);
+        setProposals(data.proposals);
       }
     } catch (error) {
       console.error('Error fetching proposals:', error);
@@ -138,15 +117,7 @@ function ProjectManagement({ showNotification }) {
     if (!editingProject) return;
 
     try {
-      // Use _id first, then fall back to id
       const projectId = editingProject._id || editingProject.id;
-      console.log('🔧 Editing project:', { 
-        id: projectId, 
-        _id: editingProject._id, 
-        idField: editingProject.id,
-        title: editingProject.title 
-      });
-      
       if (!projectId) {
         showNotification('Error: Project ID not found', 'error');
         return;
@@ -170,7 +141,6 @@ function ProjectManagement({ showNotification }) {
       });
 
       const data = await response.json();
-      console.log('📝 Update response:', data);
       if (data.success) {
         showNotification('Project updated successfully!', 'success');
         setEditingProject(null);
@@ -209,10 +179,68 @@ function ProjectManagement({ showNotification }) {
     }
   };
 
+  const handleApproveStudentProposal = async (proposalId) => {
+    if (!window.confirm('Approve this proposal? You will become the supervisor.')) return;
+    
+    try {
+      const response = await fetch(`/api/proposals/${proposalId}/status`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          status: 'approve',
+          supervisorEmail: userEmail,
+          supervisorName: sessionStorage.getItem('userName') || 'Teacher',
+          teacherId: userEmail
+        })
+      });
+      
+      const data = await response.json();
+      if (data.success) {
+        showNotification('Proposal approved! You are now the supervisor.', 'success');
+        fetchProposals();
+      } else {
+        showNotification(data.message || 'Failed to approve', 'error');
+      }
+    } catch (error) {
+      console.error('Error:', error);
+      showNotification('Failed to approve proposal', 'error');
+    }
+  };
+
+  const handleRejectStudentProposal = async (proposalId) => {
+    if (!window.confirm('Reject this proposal?')) return;
+    
+    try {
+      const response = await fetch(`/api/proposals/${proposalId}/status`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          status: 'reject',
+          teacherId: userEmail
+        })
+      });
+      
+      const data = await response.json();
+      if (data.success) {
+        showNotification('Proposal rejected.', 'info');
+        fetchProposals();
+      } else {
+        showNotification(data.message || 'Failed to reject', 'error');
+      }
+    } catch (error) {
+      console.error('Error:', error);
+      showNotification('Failed to reject proposal', 'error');
+    }
+  };
+
+  // 計算 Student Proposals 的顯示數量（未批准的 + 自己批准的）
+  // Student Proposals count - API 已過濾，只返回老師已審核的 proposals
+  const studentProposalsCount = proposals.length;
+
   const stats = {
-    published: projects.filter(p => p.status === 'Approved').length,
-    underReview: projects.filter(p => p.status === 'Under Review').length,
-    total: projects.length
+    total: projects.length,
+    approved: projects.filter(p => p.status === 'Approved').length,
+    underReview: projects.filter(p => p.status === 'Under Review').length
   };
 
   if (loading) {
@@ -238,33 +266,31 @@ function ProjectManagement({ showNotification }) {
           onClick={() => setActiveTab('student-proposals')}
         >
           📝 Student Proposals
-          {proposals.filter(p => p.proposalStatus === 'pending').length > 0 && (
-            <span className="tab-badge">{proposals.filter(p => p.proposalStatus === 'pending').length}</span>
+          {studentProposalsCount > 0 && (
+            <span className="tab-badge">({studentProposalsCount})</span>
           )}
         </button>
       </div>
 
-      {/* My Projects Section */}
+      {/* My Projects Section - 老師自己創建的項目 */}
       {activeTab === 'my-projects' && (
         <>
           <div className="section-header">
+            <h2>My Projects (Teacher-Proposed)</h2>
             <button className="btn-create-project" onClick={() => setShowCreateModal(true)}>
               <span>+</span> Create New Project
             </button>
           </div>
 
           <div className="projects-section">
-            <h2>My Projects</h2>
-            
-            {/* Stats Cards */}
             <div className="project-stats-cards">
               <div className="stat-card">
                 <div className="stat-number">{stats.total}</div>
                 <div className="stat-label">Total Projects</div>
               </div>
               <div className="stat-card published">
-                <div className="stat-number">{stats.published}</div>
-                <div className="stat-label">Published</div>
+                <div className="stat-number">{stats.approved}</div>
+                <div className="stat-label">Approved</div>
               </div>
               <div className="stat-card review">
                 <div className="stat-number">{stats.underReview}</div>
@@ -283,105 +309,131 @@ function ProjectManagement({ showNotification }) {
                     <div className="project-main">
                       <div className="project-title-row">
                         <h3>{project.title}</h3>
-                    <span className={`status-badge ${(project.status || 'Under Review').toLowerCase().replace(' ', '-')}`}>
-                      {project.status || 'Under Review'}
-                    </span>
-                  </div>
-                  <p className="project-description">
-                    {project.description || 'No description provided'}
-                  </p>
-                  <div className="project-meta">
-                    {project.popularity > 0 && <span className="project-popularity">Applicants: {project.popularity}</span>}
-                  </div>
-                  {project.skills && project.skills.length > 0 && (
-                    <div className="skills-tags">
-                      {project.skills.map((skill, index) => (
-                        <span key={index} className="skill-tag">{skill}</span>
-                      ))}
+                        <span className={`status-badge ${(project.status || 'Under Review').toLowerCase().replace(' ', '-')}`}>
+                          {project.status || 'Under Review'}
+                        </span>
+                      </div>
+                      <p className="project-description">
+                        {project.description || 'No description provided'}
+                      </p>
+                      <div className="project-meta">
+                        <span className="project-code">Code: {project.code}</span>
+                        <span className="project-category">Category: {project.category}</span>
+                        <span className="project-capacity">Capacity: {project.capacity || 1}</span>
+                        {project.popularity > 0 && (
+                          <span className="project-popularity">Popularity: {project.popularity}</span>
+                        )}
+                      </div>
+                      {project.skills && project.skills.length > 0 && (
+                        <div className="skills-tags">
+                          {project.skills.map((skill, index) => (
+                            <span key={index} className="skill-tag">{skill}</span>
+                          ))}
+                        </div>
+                      )}
                     </div>
-                  )}
-                </div>
-                <div className="project-actions">
-                  <button 
-                    className="btn-edit" 
-                    onClick={() => setEditingProject(project)}
-                    title="Edit"
-                  >
-                    ✎ Edit
-                  </button>
-                  <button 
-                    className="btn-delete" 
-                    onClick={() => handleDeleteProject(project._id || project.id)}
-                    title="Delete"
-                  >
-                    ⊗ Delete
-                  </button>
-                </div>
-              </div>
-            ))
-          )}
-        </div>
-      </div>
-      </>
+                    <div className="project-actions">
+                      <button 
+                        className="btn-edit" 
+                        onClick={() => setEditingProject(project)}
+                        title="Edit"
+                      >
+                        ✎ Edit
+                      </button>
+                      <button 
+                        className="btn-delete" 
+                        onClick={() => handleDeleteProject(project._id || project.id)}
+                        title="Delete"
+                      >
+                        ⊗ Delete
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </>
       )}
 
-      {/* Student Proposals Section */}
+      {/* Student Proposals Section - 只顯示老師已審核的 student-proposed 項目 */}
       {activeTab === 'student-proposals' && (
         <div className="proposals-review-section">
           <h2>Student Proposed Topics</h2>
-          
+          <p className="section-description">
+            View your reviewed student proposals. New proposals appear on the Dashboard for review.
+          </p>
+
           {proposals.length === 0 ? (
             <div className="empty-state">
-              <p>No student proposals yet.</p>
+              <p>No reviewed student proposals.</p>
+              <p className="empty-hint">Student proposals will appear here after you approve or reject them on the Dashboard.</p>
             </div>
           ) : (
             <div className="proposals-list">
-              {proposals.map(proposal => (
-                <div key={proposal._id} className="proposal-review-card">
-                  <div className="proposal-info-box">
-                    <table className="proposal-info-table">
-                      <tbody>
-                        <tr>
-                          <td className="info-label">Title</td>
-                          <td className="info-value-title">{proposal.title}</td>
-                          <td className="info-label">Status</td>
-                          <td>
-                            <span className={`proposal-status-badge ${proposal.proposalStatus || 'pending'}`}>
-                              {proposal.proposalStatus === 'pending' ? 'Pending Review' : 
-                               proposal.proposalStatus === 'approved' ? 'Approved' :
-                               proposal.proposalStatus === 'rejected' ? 'Rejected' : 'Pending'}
-                            </span>
-                          </td>
-                        </tr>
-                        <tr>
-                          <td className="info-label">Name</td>
-                          <td className="info-value">{proposal.studentName}</td>
-                          <td className="info-label">Student ID</td>
-                          <td className="info-value">{proposal.studentId}</td>
-                          <td className="info-label">GPA</td>
-                          <td className="info-value gpa-value">{proposal.studentGpa}</td>
-                        </tr>
-                      </tbody>
-                    </table>
-                  </div>
-                  
-                  <div className="proposal-description">
-                    <strong>Description:</strong>
-                    <p>{proposal.description}</p>
-                  </div>
-                  
-                  {proposal.skills && proposal.skills.length > 0 && (
-                    <div className="proposal-skills">
-                      <strong>Required Skills:</strong>
-                      <div className="skills-tags">
-                        {proposal.skills.map((skill, idx) => (
-                          <span key={idx} className="skill-tag">{skill}</span>
-                        ))}
-                      </div>
+              {proposals.map(proposal => {
+                const myReview = proposal.teacherReviews?.find(r => r.teacherEmail === userEmail);
+                return (
+                  <div key={proposal._id} className={`proposal-review-card ${myReview?.decision === 'approve' ? 'approved' : 'rejected'}`}>
+                    <div className="proposal-info-box">
+                      <table className="proposal-info-table">
+                        <tbody>
+                          <tr>
+                            <td className="info-label">Title</td>
+                            <td className="info-value-title">{proposal.title}</td>
+                            <td className="info-label">Your Decision</td>
+                            <td>
+                              <span className={`your-decision ${myReview?.decision}`}>
+                                {myReview?.decision === 'approve' ? '✓ Approved' : '✗ Rejected'}
+                              </span>
+                            </td>
+                          </tr>
+                          <tr>
+                            <td className="info-label">Student</td>
+                            <td className="info-value">{proposal.proposedByName || 'Unknown'}</td>
+                            <td className="info-label">Major</td>
+                            <td className="info-value">{proposal.department || 'N/A'}</td>
+                          </tr>
+                          {myReview?.reviewedAt && (
+                            <tr>
+                              <td className="info-label">Reviewed At</td>
+                              <td colSpan="3">{new Date(myReview.reviewedAt).toLocaleString()}</td>
+                            </tr>
+                          )}
+                        </tbody>
+                      </table>
                     </div>
-                  )}
-                </div>
-              ))}
+
+                    <div className="proposal-description">
+                      <strong>Description:</strong>
+                      <p>{proposal.description}</p>
+                    </div>
+
+                    {proposal.skills && proposal.skills.length > 0 && (
+                      <div className="proposal-skills">
+                        <strong>Required Skills:</strong>
+                        <div className="skills-tags">
+                          {proposal.skills.map((skill, idx) => (
+                            <span key={idx} className="skill-tag">{skill}</span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* 如果之前 reject，可以 override 為 approve */}
+                    {myReview?.decision === 'reject' && (
+                      <div className="proposal-actions">
+                        <button
+                          className="btn-approve-proposal"
+                          onClick={() => handleApproveStudentProposal(proposal._id)}
+                        >
+                          ✓ Override & Approve
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>
@@ -392,7 +444,7 @@ function ProjectManagement({ showNotification }) {
         <div className="modal-overlay" onClick={() => setShowCreateModal(false)}>
           <div className="modal-content create-project-modal" onClick={e => e.stopPropagation()}>
             <div className="modal-header">
-              <h2>Create New Project</h2>
+              <h2>Create New Teacher Project</h2>
               <button className="modal-close-btn" onClick={() => setShowCreateModal(false)}>×</button>
             </div>
             <div className="modal-body">

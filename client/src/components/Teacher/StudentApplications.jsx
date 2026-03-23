@@ -4,6 +4,7 @@ function StudentApplications({ showNotification }) {
   const [loading, setLoading] = useState(true);
   const [proposals, setProposals] = useState([]);
   const userEmail = sessionStorage.getItem('userEmail') || 'teacher@hkmu.edu.hk';
+  const userName = sessionStorage.getItem('userName') || 'Teacher';
 
   useEffect(() => {
     fetchProposals();
@@ -12,9 +13,15 @@ function StudentApplications({ showNotification }) {
   const fetchProposals = async () => {
     try {
       setLoading(true);
-      const response = await fetch('/api/proposals/all');
+      // 使用新的 API 端點，只獲取屬於當前老師可見的 student-proposed 項目
+      const response = await fetch(`/api/teacher/student-proposals?email=${encodeURIComponent(userEmail)}`, {
+        headers: {
+          'x-teacher-email': userEmail
+        }
+      });
       const data = await response.json();
       if (data.success && data.proposals) {
+        console.log('📋 獲取到學生提議:', data.proposals.length);
         setProposals(data.proposals);
       }
     } catch (error) {
@@ -25,20 +32,23 @@ function StudentApplications({ showNotification }) {
   };
 
   const handleApproveProposal = async (proposalId) => {
+    if (!window.confirm('Are you sure you want to approve this proposal? You will become the supervisor of this project.')) return;
+    
     try {
       const response = await fetch(`/api/proposals/${proposalId}/status`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          status: 'approved',
+          status: 'approve',
           supervisorEmail: userEmail,
-          supervisorName: sessionStorage.getItem('userName') || 'Teacher'
+          supervisorName: userName,
+          teacherId: userEmail
         })
       });
       
       const data = await response.json();
       if (data.success) {
-        showNotification('Proposal approved! Student has been auto-matched.', 'success');
+        showNotification('Proposal approved! You are now the supervisor of this project.', 'success');
         fetchProposals(); // Refresh proposals
       } else {
         showNotification(data.message || 'Failed to approve proposal', 'error');
@@ -50,13 +60,16 @@ function StudentApplications({ showNotification }) {
   };
 
   const handleRejectProposal = async (proposalId) => {
-    if (!window.confirm('Are you sure you want to reject this proposal?')) return;
+    if (!window.confirm('Are you sure you want to reject this proposal? The student will be notified.')) return;
     
     try {
       const response = await fetch(`/api/proposals/${proposalId}/status`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'rejected' })
+        body: JSON.stringify({ 
+          status: 'reject',
+          teacherId: userEmail
+        })
       });
       
       const data = await response.json();
@@ -75,24 +88,47 @@ function StudentApplications({ showNotification }) {
   if (loading) {
     return (
       <section className="content-section active">
-        <div className="loading-spinner">Loading student applications...</div>
+        <div className="loading-spinner">Loading student proposals...</div>
       </section>
     );
   }
+
+  // Filter proposals based on visibility rules
+  // 只顯示：該老師還沒審批過的 proposals
+  // - 未審批的：顯示 Approve/Reject 按鈕
+  // - 已審批過的：不顯示（或者顯示已審批的狀態）
+  const visibleProposals = proposals.filter(p => {
+    // 如果已有我的審批決定，跳過
+    if (p.myDecision) {
+      return false;
+    }
+    // 如果已被其他老師approve，跳過
+    const otherApproval = p.teacherReviews?.some(r => 
+      r.decision === 'approve' && r.teacherEmail?.toLowerCase() !== userEmail.toLowerCase()
+    );
+    if (otherApproval) {
+      return false;
+    }
+    return true;
+  });
 
   return (
     <section className="content-section active">
       {/* Student Proposals Section */}
       <div className="proposals-review-section">
         <h2>Student Proposed Topics</h2>
+        <p className="section-description">
+          Review and approve student-proposed project topics. Once you approve a proposal, you become its supervisor.
+        </p>
           
-          {proposals.length === 0 ? (
+          {visibleProposals.length === 0 ? (
             <div className="empty-state">
-              <p>No student proposals yet.</p>
+              <p>No student proposals available for review.</p>
+              <p className="empty-hint">Proposals that have been approved by other teachers will not appear here.</p>
             </div>
           ) : (
             <div className="proposals-list">
-              {proposals.map(proposal => (
+              {visibleProposals.map(proposal => (
                 <div key={proposal._id} className="proposal-review-card">
                   {/* 统一信息框 - 表格形式 */}
                   <div className="proposal-info-box">
@@ -111,13 +147,29 @@ function StudentApplications({ showNotification }) {
                           </td>
                         </tr>
                         <tr>
-                          <td className="info-label">Name</td>
+                          <td className="info-label">Student Name</td>
                           <td className="info-value">{proposal.studentName}</td>
                           <td className="info-label">Student ID</td>
                           <td className="info-value">{proposal.studentId}</td>
-                          <td className="info-label">GPA</td>
-                          <td className="info-value gpa-value">{proposal.studentGpa}</td>
+                          <td className="info-label">Major</td>
+                          <td className="info-value">{proposal.studentMajor}</td>
                         </tr>
+                        {proposal.myDecision && (
+                          <tr>
+                            <td className="info-label">Your Decision</td>
+                            <td colSpan="5">
+                              <span className={`your-decision ${proposal.myDecision}`}>
+                                {proposal.myDecision === 'approve' ? '✓ You Approved' : 
+                                 proposal.myDecision === 'reject' ? '✗ You Rejected' : 'Pending'}
+                              </span>
+                              {proposal.myReviewedAt && (
+                                <span className="decision-date">
+                                  on {new Date(proposal.myReviewedAt).toLocaleDateString()}
+                                </span>
+                              )}
+                            </td>
+                          </tr>
+                        )}
                       </tbody>
                     </table>
                   </div>
@@ -138,19 +190,30 @@ function StudentApplications({ showNotification }) {
                     </div>
                   )}
                   
-                  {proposal.proposalStatus === 'pending' && (
+                  {proposal.proposalStatus === 'pending' && !proposal.myDecision && (
                     <div className="proposal-actions">
                       <button 
                         className="btn-approve-proposal"
                         onClick={() => handleApproveProposal(proposal._id)}
                       >
-                        Approve & Auto-Match
+                        ✓ Approve as Supervisor
                       </button>
                       <button 
                         className="btn-reject-proposal"
                         onClick={() => handleRejectProposal(proposal._id)}
                       >
-                        Reject
+                        ✗ Reject
+                      </button>
+                    </div>
+                  )}
+                  
+                  {proposal.myDecision && proposal.myDecision === 'reject' && (
+                    <div className="proposal-actions">
+                      <button 
+                        className="btn-approve-proposal"
+                        onClick={() => handleApproveProposal(proposal._id)}
+                      >
+                        ✓ Override - Approve Anyway
                       </button>
                     </div>
                   )}

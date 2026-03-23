@@ -1,4 +1,7 @@
 // 模擬數據庫
+// 注意：這個文件作為 fallback，當 MongoDB 未連接時使用
+// 建議：將數據逐步遷移到 MongoDB，並使用 MongoDB 作為主要數據源
+
 const mockData = {
     projects: [
         {
@@ -6,11 +9,14 @@ const mockData = {
             title: "AI-based Learning System",
             supervisor: "Dr. Bell Liu",
             supervisorId: "T001",
+            supervisorEmail: "teacher@hkmu.edu.hk",
             description: "Develop an intelligent learning platform that adapts to student learning patterns using machine learning algorithms.",
             skills: ["Python", "Machine Learning", "Web Development"],
             popularity: 15,
             capacity: 3,
             status: "active",
+            type: "teacher",
+            category: "AI/ML",
             createdAt: "2025-01-15"
         },
         {
@@ -23,6 +29,8 @@ const mockData = {
             popularity: 8,
             capacity: 2,
             status: "active",
+            type: "teacher",
+            category: "IoT",
             createdAt: "2025-01-10"
         },
         {
@@ -35,6 +43,8 @@ const mockData = {
             popularity: 12,
             capacity: 2,
             status: "active",
+            type: "teacher",
+            category: "Security",
             createdAt: "2025-01-12"
         },
         {
@@ -47,6 +57,8 @@ const mockData = {
             popularity: 6,
             capacity: 3,
             status: "active",
+            type: "teacher",
+            category: "Mobile App",
             createdAt: "2025-01-08"
         },
         {
@@ -59,7 +71,23 @@ const mockData = {
             popularity: 9,
             capacity: 2,
             status: "active",
+            type: "teacher",
+            category: "Web Development",
             createdAt: "2025-01-05"
+        },
+        // Student-proposed projects (for future use, currently hidden from students)
+        {
+            id: 101,
+            title: "Student Research Project 1",
+            description: "A student-proposed project",
+            skills: ["Research"],
+            popularity: 0,
+            capacity: 1,
+            status: "active",
+            type: "student",           // student-proposed project
+            proposalStatus: "pending",
+            proposedBy: "S001",
+            createdAt: "2025-02-01"
         }
     ],
     
@@ -71,22 +99,18 @@ const mockData = {
             gpa: "3.45",
             major: "Computer Science",
             year: "Year 4",
-            preferences: [], // 項目ID數組，按偏好順序
+            preferences: [],
             proposalSubmitted: false,
             assignedProject: null
         }
     ],
     
-    preferences: [
-        // 格式: { studentId, projectId, rank, submittedAt }
-    ],
+    preferences: [],
     
-    assignments: [
-        // 格式: { studentId, projectId, assignedAt }
-    ],
+    assignments: [],
     
     system: {
-        currentPhase: "preference", // proposal, preference, matching, results
+        currentPhase: "preference",
         deadlines: {
             proposal: "2025-03-20T23:59:00",
             preference: "2025-04-15T22:59:00", 

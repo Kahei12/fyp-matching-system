@@ -2,45 +2,68 @@ const mockData = require('./mockData');
 let ProjectModel = null;
 let StudentModel = null;
 let dbEnabled = false;
-let connectionChecked = false;
 
-// 檢查並初始化數據庫連接
-async function checkDBConnection() {
-    if (connectionChecked) return dbEnabled;
-
+// 同步檢查數據庫連接狀態
+function checkDBConnection() {
     try {
-        // 檢查 mongoose 是否已連接
         const mongoose = require('mongoose');
-        if (mongoose.connection.readyState === 1) { // 1 = connected
-            ProjectModel = require('../models/Project');
-            StudentModel = require('../models/Student');
+        if (mongoose.connection.readyState === 1) {
+            if (!ProjectModel) {
+                ProjectModel = require('../models/Project');
+                StudentModel = require('../models/Student');
+            }
             dbEnabled = true;
             console.log('studentService: ✅ MongoDB 已連接，DB-backed queries 已啟用');
-        } else {
-            console.log('studentService: ⚠️ MongoDB 未連接，使用 mockData');
-            dbEnabled = false;
+            return true;
         }
-    } catch (err) {
-        console.log('studentService: ❌ DB 模型載入失敗，使用 mockData:', err.message);
+        console.log('studentService: ⚠️ MongoDB 未連接 (readyState:', mongoose.connection.readyState, ')');
         dbEnabled = false;
+        return false;
+    } catch (err) {
+        console.log('studentService: ❌ DB 模型載入失敗:', err.message);
+        dbEnabled = false;
+        return false;
     }
-
-    connectionChecked = true;
-    return dbEnabled;
 }
-
-// 嘗試初始化
-setTimeout(() => checkDBConnection(), 1000); // 延遲1秒初始化，讓 mongoose 有時間連接
 
 const studentService = {
     // 獲取所有可用項目（DB-backed if available）
+    // 學生可以看到非 student-proposed 的項目，狀態為 Active/Approved/Under Review
     getAvailableProjects: async () => {
         try {
+            checkDBConnection();
             if (dbEnabled && ProjectModel) {
-                // return plain objects and normalize shape for frontend compatibility
-                // 查询所有项目，不过滤状态，确保学生能看到项目
-                const docs = await ProjectModel.find({}).lean().exec();
-                console.log('📋 getAvailableProjects: DB模式，返回', docs.length, '个项目');
+                // 獲取所有文檔
+                const allDocs = await ProjectModel.find({}).lean().exec();
+                console.log('📋 getAvailableProjects: DB模式，總文檔數:', allDocs.length);
+                
+                // 過濾條件：顯示所有非 student-proposed 的項目
+                // 規則：
+                // - type === 'student' → 排除（明確的 student-proposed 項目）
+                // - supervisor === 'TBD' 或 '' → 排除（未 accept 的 student-proposed 項目）
+                // - 其他 → 包含
+                const docs = allDocs.filter(doc => {
+                    // 排除 student-proposed 項目
+                    if (doc.type === 'student') {
+                        console.log('  🚫 排除 student-proposed:', doc.title);
+                        return false;
+                    }
+                    // 排除未 accept 的項目（supervisor 為 TBD）
+                    if (doc.supervisor === 'TBD' || doc.supervisor === '') {
+                        console.log('  🚫 排除 TBD supervisor:', doc.title);
+                        return false;
+                    }
+                    // 顯示 Active, Approved, 或 Under Review 狀態
+                    const validStatuses = ['Active', 'Approved', 'Under Review', 'active', 'approved', 'under review'];
+                    if (!validStatuses.includes(doc.status)) {
+                        console.log('  🚫 排除無效狀態:', doc.title, 'status:', doc.status);
+                        return false;
+                    }
+                    console.log('  ✅ 包含:', doc.title, '| supervisor:', doc.supervisor);
+                    return true;
+                });
+                
+                console.log('📋 過濾後返回:', docs.length, '个项目');
                 return docs.map(p => ({
                     ...p,
                     id: (p.id !== undefined && p.id !== null) ? p.id : (p.code || String(p._id)),
@@ -48,11 +71,16 @@ const studentService = {
                     popularity: typeof p.popularity === 'number' ? p.popularity : (parseInt(p.popularity) || 0)
                 }));
             }
-            console.log('📋 getAvailableProjects: Mock模式，返回', mockData.projects.filter(project => project.status === "active").length, '个项目');
-            return mockData.projects.filter(project => project.status === "active");
+            // Mock mode
+            console.log('📋 getAvailableProjects: Mock模式');
+            return mockData.projects.filter(project => 
+                project.type !== 'student'
+            );
         } catch (err) {
             console.error('❌ getAvailableProjects 错误:', err.message);
-            return mockData.projects.filter(project => project.status === "active");
+            return mockData.projects.filter(project => 
+                project.type === 'teacher' && project.status === "active"
+            );
         }
     },
     
@@ -362,7 +390,14 @@ const studentService = {
             // fetch students who submitted preferences
             const studentDocs = await StudentModel.find({ proposalSubmitted: true, preferences: { $exists: true, $ne: [] } }).lean().exec();
             console.log(`[runMatching] Found ${studentDocs.length} students with submitted preferences`);
-            const projectDocs = await ProjectModel.find({}).lean().exec();
+            
+            // 只使用 teacher-proposed 且 status === 'Approved' 的項目
+            const projectDocs = await ProjectModel.find({ 
+                type: 'teacher',
+                status: 'Approved',
+                isActive: true 
+            }).lean().exec();
+            console.log(`[runMatching] Found ${projectDocs.length} teacher-proposed projects for matching`);
 
             // build quick lookup by possible identifiers
             const projectLookup = {};

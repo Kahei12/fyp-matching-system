@@ -1,0 +1,75 @@
+---
+description: FYP Matching System - Account Conventions
+alwaysApply: true
+---
+
+# FYP Matching System - Account Conventions
+
+## Test vs Production Accounts
+
+This project has **test accounts** (for development) and **production accounts** (for formal use). All logic must work for **both**.
+
+### Account Types
+
+| Type | Test Account | Production Format |
+|------|-------------|-------------------|
+| Student | `student@hkmu.edu.hk` | `{studentId}@hkmu.edu.hk` |
+| Teacher | `teacher@hkmu.edu.hk` | `teacher{TeacherName}@hkmu.edu.hk` |
+| Admin | `admin@hkmu.edu.hk` | (same format) |
+
+### Example Production Accounts
+
+| Role | Email | Name |
+|------|-------|------|
+| Teacher | `teacherBellLiu@hkmu.edu.hk` | Dr. Bell Liu |
+| Teacher | `teacherAlexWong@hkmu.edu.hk` | Dr. Alex Wong |
+| Student | `12345678@hkmu.edu.hk` | (student name) |
+
+## Teacher Email Name Extraction
+
+When processing teacher emails, extract the name using this logic:
+
+```javascript
+// teacherBellLiu@hkmu.edu.hk -> "Bell Liu"
+const extractNameFromEmail = (email) => {
+    const userPart = email.split('@')[0]; // "teacherBellLiu"
+    let name = userPart.replace(/^teacher(s?)/i, '');
+    name = name.replace(/([A-Z])/g, ' $1').trim();
+    return name || userPart;
+};
+```
+
+## Special Account Mappings
+
+For test accounts that map to production accounts:
+
+```javascript
+const SPECIAL_TEACHER_MAP = {
+    'teacher@hkmu.edu.hk': { name: 'Dr. Bell Liu', email: 'teacher@hkmu.edu.hk' }
+};
+```
+
+## Data Structure Rules
+
+### Project Types
+- `type: 'student'` → Student-proposed project
+- `type: undefined/null` → Teacher-proposed project (legacy compatibility)
+
+### Supervisor Rules
+- Student proposes: `supervisor: 'TBD'`, `supervisorEmail: ''`
+- Teacher approves: `supervisor: 'Dr. X'`, `supervisorEmail: teacherX@hkmu.edu.hk`
+
+### Display Rules
+| Page | Show |
+|------|------|
+| Student Browse Projects | `type !== 'student'` AND `supervisor !== 'TBD'` |
+| Teacher My Projects | `type !== 'student'` AND supervisor matches teacher |
+| Teacher Student Proposals | Only teacher's **reviewed** proposals |
+| Teacher Dashboard | **Unreviewed** student proposals (for approve/reject) |
+
+## Implementation Reminder
+
+When adding new teacher-related filters, always:
+1. Support the email extraction logic for new format emails
+2. Include `SPECIAL_TEACHER_MAP` for test account compatibility
+3. Test with `teacher@hkmu.edu.hk` AND a production format email
