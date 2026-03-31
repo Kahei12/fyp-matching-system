@@ -1624,6 +1624,165 @@ app.post('/api/admin/students/create', async (req, res) => {
     }
 });
 
+// Batch create student accounts (admin only)
+app.post('/api/admin/students/batch-create', async (req, res) => {
+    console.log('👥 Admin 批量創建學生帳戶:', req.body);
+    try {
+        const { students } = req.body;
+
+        if (!students || !Array.isArray(students) || students.length === 0) {
+            return res.status(400).json({
+                success: false,
+                message: 'Students array is required'
+            });
+        }
+
+        const isDbConnected = checkDbConnectionForAdmin();
+        const Student = require('./models/Student');
+        const results = [];
+
+        for (const studentData of students) {
+            const { studentId, password, name, major } = studentData;
+
+            try {
+                // Validation
+                if (!studentId || !password || !name || !major) {
+                    results.push({
+                        studentId,
+                        name,
+                        success: false,
+                        message: 'All fields are required'
+                    });
+                    continue;
+                }
+
+                // Validate studentId: 8 digits
+                if (!/^\d{8}$/.test(studentId)) {
+                    results.push({
+                        studentId,
+                        name,
+                        success: false,
+                        message: 'Student ID must be exactly 8 digits'
+                    });
+                    continue;
+                }
+
+                // Validate password: at least 8 characters
+                if (password.length < 8) {
+                    results.push({
+                        studentId,
+                        name,
+                        success: false,
+                        message: 'Password must be at least 8 characters'
+                    });
+                    continue;
+                }
+
+                if (isDbConnected && Student) {
+                    // Check if student ID already exists
+                    const existingStudent = await Student.findOne({ id: studentId }).exec();
+                    if (existingStudent) {
+                        results.push({
+                            studentId,
+                            name,
+                            success: false,
+                            message: `Student ID ${studentId} already exists`
+                        });
+                        continue;
+                    }
+
+                    // Generate email: first 7 digits + @hkmu.edu.hk
+                    const email = studentId.substring(0, 7) + '@hkmu.edu.hk';
+
+                    // Check if email already exists
+                    const existingEmail = await Student.findOne({ email: email }).exec();
+                    if (existingEmail) {
+                        results.push({
+                            studentId,
+                            name,
+                            success: false,
+                            message: `Email ${email} already exists`
+                        });
+                        continue;
+                    }
+
+                    // Hash password for security
+                    const hashedPassword = await bcrypt.hash(password, 10);
+
+                    // Create new student
+                    const newStudent = new Student({
+                        id: studentId,
+                        name: name,
+                        email: email,
+                        password: hashedPassword,
+                        gpa: 0,
+                        major: major,
+                        year: 'Year 4',
+                        preferences: [],
+                        proposalSubmitted: false,
+                        assignedProject: null,
+                        proposedProject: null,
+                        proposalApproved: false,
+                        proposalStatus: 'none'
+                    });
+
+                    await newStudent.save();
+
+                    console.log('✅ Student account created:', {
+                        id: studentId,
+                        name: name,
+                        email: email,
+                        major: major
+                    });
+
+                    results.push({
+                        studentId,
+                        name,
+                        email,
+                        major,
+                        success: true,
+                        message: 'Account created successfully'
+                    });
+                } else {
+                    // Mock mode
+                    const email = studentId.substring(0, 7) + '@hkmu.edu.hk';
+                    console.log('⚠️ Mock mode - Student account:', { studentId, name, email, major });
+                    results.push({
+                        studentId,
+                        name,
+                        email,
+                        major,
+                        success: true,
+                        message: 'Account created successfully (Mock mode)'
+                    });
+                }
+            } catch (individualError) {
+                console.error('❌ Error creating student:', studentData.studentId, individualError);
+                results.push({
+                    studentId: studentData.studentId,
+                    name: studentData.name,
+                    success: false,
+                    message: 'Error: ' + individualError.message
+                });
+            }
+        }
+
+        const successCount = results.filter(r => r.success).length;
+        return res.json({
+            success: true,
+            message: `Created ${successCount} out of ${students.length} accounts`,
+            results: results
+        });
+
+    } catch (error) {
+        console.error('❌ 批量創建學生帳戶錯誤:', error);
+        return res.status(500).json({
+            success: false,
+            message: 'Failed to batch create student accounts: ' + error.message
+        });
+    }
+});
+
 // Get all students (admin only)
 app.get('/api/admin/students', async (req, res) => {
     console.log('👥 Admin 請求學生列表');

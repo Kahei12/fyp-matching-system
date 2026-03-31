@@ -2,16 +2,15 @@ import React, { useState } from 'react';
 import './CreateStudentAccount.css';
 
 function CreateStudentAccount({ showNotification }) {
-  const [formData, setFormData] = useState({
-    studentId: '',
-    password: '',
-    confirmPassword: '',
-    name: '',
-    major: ''
-  });
-  const [errors, setErrors] = useState({});
+  const [mode, setMode] = useState('batch'); // 'batch' | 'single'
+  const [students, setStudents] = useState([
+    { id: 1, studentId: '', name: '', major: '', studentIdError: '', nameError: '', majorError: '' }
+  ]);
+  const [commonPassword, setCommonPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [passwordError, setPasswordError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [successData, setSuccessData] = useState(null);
+  const [results, setResults] = useState(null);
 
   const majorOptions = [
     'Computer Science',
@@ -28,97 +27,146 @@ function CreateStudentAccount({ showNotification }) {
     'Digital Media'
   ];
 
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
-    
-    // Clear error when user starts typing
-    if (errors[name]) {
-      setErrors(prev => ({ ...prev, [name]: '' }));
-    }
+  // Generate unique ID for new rows
+  const generateId = () => Math.max(0, ...students.map(s => s.id)) + 1;
+
+  const handleAddRow = () => {
+    setStudents(prev => [
+      ...prev,
+      { id: generateId(), studentId: '', name: '', major: '', studentIdError: '', nameError: '', majorError: '' }
+    ]);
   };
 
-  const validateForm = () => {
-    const newErrors = {};
+  const handleRemoveRow = (id) => {
+    if (students.length <= 1) return;
+    setStudents(prev => prev.filter(s => s.id !== id));
+  };
+
+  const handleStudentChange = (id, field, value) => {
+    setStudents(prev => prev.map(s => {
+      if (s.id === id) {
+        // Clear error when user starts typing
+        const newS = { ...s, [field]: value };
+        if (field === 'studentId') newS.studentIdError = '';
+        if (field === 'name') newS.nameError = '';
+        if (field === 'major') newS.majorError = '';
+        return newS;
+      }
+      return s;
+    }));
+  };
+
+  const validateRow = (student) => {
+    let valid = true;
+    let newStudent = { ...student, studentIdError: '', nameError: '', majorError: '' };
 
     // Student ID: exactly 8 digits
-    if (!formData.studentId) {
-      newErrors.studentId = 'Student ID is required';
-    } else if (!/^\d{8}$/.test(formData.studentId)) {
-      newErrors.studentId = 'Student ID must be exactly 8 digits';
-    }
-
-    // Password: at least 8 characters
-    if (!formData.password) {
-      newErrors.password = 'Password is required';
-    } else if (formData.password.length < 8) {
-      newErrors.password = 'Password must be at least 8 characters';
-    }
-
-    // Confirm password
-    if (!formData.confirmPassword) {
-      newErrors.confirmPassword = 'Please confirm your password';
-    } else if (formData.password !== formData.confirmPassword) {
-      newErrors.confirmPassword = 'Passwords do not match';
+    if (!student.studentId) {
+      newStudent.studentIdError = 'Required';
+      valid = false;
+    } else if (!/^\d{8}$/.test(student.studentId)) {
+      newStudent.studentIdError = 'Must be 8 digits';
+      valid = false;
     }
 
     // Name
-    if (!formData.name.trim()) {
-      newErrors.name = 'Student name is required';
+    if (!student.name.trim()) {
+      newStudent.nameError = 'Required';
+      valid = false;
     }
 
     // Major
-    if (!formData.major) {
-      newErrors.major = 'Please select a major';
+    if (!student.major) {
+      newStudent.majorError = 'Required';
+      valid = false;
     }
 
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
+    return { valid, newStudent };
+  };
+
+  const validateAll = () => {
+    let allValid = true;
+    const updatedStudents = [];
+
+    for (const student of students) {
+      const { valid, newStudent } = validateRow(student);
+      updatedStudents.push(newStudent);
+      if (!valid) allValid = false;
+    }
+
+    setStudents(updatedStudents);
+
+    // Validate password
+    let passwordValid = true;
+    if (!commonPassword) {
+      setPasswordError('Password is required');
+      passwordValid = false;
+    } else if (commonPassword.length < 8) {
+      setPasswordError('Password must be at least 8 characters');
+      passwordValid = false;
+    } else if (commonPassword !== confirmPassword) {
+      setPasswordError('Passwords do not match');
+      passwordValid = false;
+    } else {
+      setPasswordError('');
+    }
+
+    return allValid && passwordValid;
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
-    if (!validateForm()) {
+
+    if (!validateAll()) {
       return;
     }
 
     setIsLoading(true);
-    setSuccessData(null);
+    setResults(null);
 
     try {
-      const response = await fetch('/api/admin/students/create', {
+      const studentsData = students.map(s => ({
+        studentId: s.studentId,
+        name: s.name,
+        major: s.major,
+        password: commonPassword
+      }));
+
+      const response = await fetch('/api/admin/students/batch-create', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({
-          studentId: formData.studentId,
-          password: formData.password,
-          name: formData.name,
-          major: formData.major
-        })
+        body: JSON.stringify({ students: studentsData })
       });
 
       const result = await response.json();
 
       if (result.success) {
-        setSuccessData(result);
-        showNotification(result.message, 'success');
-        
-        // Reset form
-        setFormData({
-          studentId: '',
-          password: '',
-          confirmPassword: '',
-          name: '',
-          major: ''
-        });
+        setResults(result.results);
+        const successCount = result.results.filter(r => r.success).length;
+        showNotification(`Successfully created ${successCount} out of ${students.length} accounts`, 'success');
+
+        // Keep successful rows, mark failed ones for editing
+        if (result.results.some(r => !r.success)) {
+          setStudents(prev => prev.map((s, i) => {
+            if (!result.results[i].success) {
+              return {
+                ...s,
+                studentIdError: result.results[i].message?.includes('already exists') ? 'Already exists' : '',
+              };
+            }
+            return { id: s.id, studentId: '', name: '', major: '', studentIdError: '', nameError: '', majorError: '' };
+          }));
+        } else {
+          // All succeeded, reset form
+          handleReset();
+        }
       } else {
-        showNotification(result.message || 'Failed to create student account', 'error');
+        showNotification(result.message || 'Failed to create accounts', 'error');
       }
     } catch (error) {
-      console.error('Create student account error:', error);
+      console.error('Batch create error:', error);
       showNotification('Network error. Please try again later.', 'error');
     } finally {
       setIsLoading(false);
@@ -126,154 +174,257 @@ function CreateStudentAccount({ showNotification }) {
   };
 
   const handleReset = () => {
-    setFormData({
-      studentId: '',
-      password: '',
-      confirmPassword: '',
-      name: '',
-      major: ''
-    });
-    setErrors({});
-    setSuccessData(null);
+    setStudents([
+      { id: 1, studentId: '', name: '', major: '', studentIdError: '', nameError: '', majorError: '' }
+    ]);
+    setCommonPassword('');
+    setConfirmPassword('');
+    setPasswordError('');
+    setResults(null);
+  };
+
+  const handleDownloadTemplate = () => {
+    const csvContent = [
+      ['StudentID', 'Name', 'Major'],
+      ['12345678', 'John Chan', 'Computer Science'],
+      ['23456789', 'Mary Lee', 'Data Science'],
+    ].map(row => row.join(',')).join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = 'student_template.csv';
+    link.click();
+  };
+
+  const handleImportCSV = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const content = event.target.result;
+      const lines = content.split('\n').filter(line => line.trim());
+
+      // Skip header row
+      const dataRows = lines.slice(1);
+
+      if (dataRows.length === 0) {
+        showNotification('No data found in CSV file', 'error');
+        return;
+      }
+
+      const newStudents = dataRows.map((line, index) => {
+        const [studentId, name, major] = line.split(',').map(s => s.trim());
+        return {
+          id: generateId() + index,
+          studentId: studentId || '',
+          name: name || '',
+          major: major || '',
+          studentIdError: '',
+          nameError: '',
+          majorError: ''
+        };
+      });
+
+      setStudents(newStudents);
+      showNotification(`Imported ${newStudents.length} students from CSV`, 'success');
+    };
+    reader.readAsText(file);
+    e.target.value = '';
   };
 
   // Preview email based on student ID
-  const previewEmail = formData.studentId.length >= 7 
-    ? formData.studentId.substring(0, 7) + '@hkmu.edu.hk'
-    : '';
+  const getPreviewEmail = (studentId) => {
+    if (studentId.length >= 7) {
+      return studentId.substring(0, 7) + '@hkmu.edu.hk';
+    }
+    return '';
+  };
 
   return (
     <div className="create-student-container">
       <div className="create-student-header">
-        <h2>Create Student Account</h2>
-        <p>Create a new student account for the FYP Matching System</p>
+        <h2>Batch Create Student Accounts</h2>
+        <p>Create multiple student accounts at once for the FYP Matching System</p>
       </div>
 
-      {successData && (
-        <div className="success-card">
-          <div className="success-icon">&#10004;</div>
-          <h3>Account Created Successfully!</h3>
-          <div className="credentials-box">
-            <p><strong>Student ID:</strong> {successData.student.id}</p>
-            <p><strong>Student Name:</strong> {successData.student.name}</p>
-            <p><strong>Major:</strong> {successData.student.major}</p>
-            <div className="login-credentials">
-              <h4>Login Credentials</h4>
-              <p><strong>Email:</strong> {successData.loginCredentials.email}</p>
-              <p><strong>Password:</strong> {successData.loginCredentials.password}</p>
-            </div>
+      {results && (
+        <div className="results-summary">
+          <h3>Results Summary</h3>
+          <div className="results-stats">
+            <span className="stat success">
+              Success: {results.filter(r => r.success).length}
+            </span>
+            <span className="stat failed">
+              Failed: {results.filter(r => !r.success).length}
+            </span>
           </div>
-          <button 
-            className="btn-secondary"
-            onClick={() => setSuccessData(null)}
-          >
-            Create Another Account
+          <button className="btn-link" onClick={() => setResults(null)}>
+            Dismiss
           </button>
         </div>
       )}
 
-      <form className="create-student-form" onSubmit={handleSubmit}>
-        <div className="form-section">
-          <h3>Student Information</h3>
-          
-          <div className="form-group">
-            <label htmlFor="studentId">
-              Student ID <span className="required">*</span>
-            </label>
+      <form className="batch-form" onSubmit={handleSubmit}>
+        <div className="batch-actions">
+          <button
+            type="button"
+            className="btn-secondary"
+            onClick={handleAddRow}
+          >
+            + Add Row
+          </button>
+          <button
+            type="button"
+            className="btn-secondary"
+            onClick={handleDownloadTemplate}
+          >
+            Download CSV Template
+          </button>
+          <label className="btn-secondary csv-import-btn">
+            Import from CSV
             <input
-              type="text"
-              id="studentId"
-              name="studentId"
-              value={formData.studentId}
-              onChange={handleChange}
-              placeholder="Enter 8-digit student ID (e.g., 12345678)"
-              maxLength={8}
-              className={errors.studentId ? 'error' : ''}
+              type="file"
+              accept=".csv"
+              onChange={handleImportCSV}
+              style={{ display: 'none' }}
             />
-            {errors.studentId && <span className="error-message">{errors.studentId}</span>}
-            {previewEmail && (
-              <span className="email-preview">
-                Email will be: <strong>{previewEmail}</strong>
-              </span>
-            )}
-          </div>
-
-          <div className="form-group">
-            <label htmlFor="name">
-              Student Name <span className="required">*</span>
-            </label>
-            <input
-              type="text"
-              id="name"
-              name="name"
-              value={formData.name}
-              onChange={handleChange}
-              placeholder="Enter student's full name"
-              className={errors.name ? 'error' : ''}
-            />
-            {errors.name && <span className="error-message">{errors.name}</span>}
-          </div>
-
-          <div className="form-group">
-            <label htmlFor="major">
-              Major Subject <span className="required">*</span>
-            </label>
-            <select
-              id="major"
-              name="major"
-              value={formData.major}
-              onChange={handleChange}
-              className={errors.major ? 'error' : ''}
-            >
-              <option value="">-- Select Major --</option>
-              {majorOptions.map(major => (
-                <option key={major} value={major}>{major}</option>
-              ))}
-            </select>
-            {errors.major && <span className="error-message">{errors.major}</span>}
-          </div>
+          </label>
         </div>
 
-        <div className="form-section">
-          <h3>Login Credentials</h3>
+        <div className="batch-table-container">
+          <table className="batch-table">
+            <thead>
+              <tr>
+                <th className="col-index">#</th>
+                <th className="col-student-id">
+                  Student ID <span className="required">*</span>
+                </th>
+                <th className="col-preview">Email Preview</th>
+                <th className="col-name">
+                  Student Name <span className="required">*</span>
+                </th>
+                <th className="col-major">
+                  Major <span className="required">*</span>
+                </th>
+                <th className="col-action"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {students.map((student, index) => (
+                <tr key={student.id} className={student.studentIdError || student.nameError || student.majorError ? 'row-error' : ''}>
+                  <td className="col-index">{index + 1}</td>
+                  <td className="col-student-id">
+                    <input
+                      type="text"
+                      value={student.studentId}
+                      onChange={(e) => handleStudentChange(student.id, 'studentId', e.target.value)}
+                      placeholder="12345678"
+                      maxLength={8}
+                      className={student.studentIdError ? 'error' : ''}
+                    />
+                    {student.studentIdError && (
+                      <span className="cell-error">{student.studentIdError}</span>
+                    )}
+                  </td>
+                  <td className="col-preview">
+                    {getPreviewEmail(student.studentId) && (
+                      <span className="email-preview">{getPreviewEmail(student.studentId)}</span>
+                    )}
+                  </td>
+                  <td className="col-name">
+                    <input
+                      type="text"
+                      value={student.name}
+                      onChange={(e) => handleStudentChange(student.id, 'name', e.target.value)}
+                      placeholder="Student name"
+                      className={student.nameError ? 'error' : ''}
+                    />
+                    {student.nameError && (
+                      <span className="cell-error">{student.nameError}</span>
+                    )}
+                  </td>
+                  <td className="col-major">
+                    <select
+                      value={student.major}
+                      onChange={(e) => handleStudentChange(student.id, 'major', e.target.value)}
+                      className={student.majorError ? 'error' : ''}
+                    >
+                      <option value="">Select</option>
+                      {majorOptions.map(major => (
+                        <option key={major} value={major}>{major}</option>
+                      ))}
+                    </select>
+                    {student.majorError && (
+                      <span className="cell-error">{student.majorError}</span>
+                    )}
+                  </td>
+                  <td className="col-action">
+                    {students.length > 1 && (
+                      <button
+                        type="button"
+                        className="btn-remove"
+                        onClick={() => handleRemoveRow(student.id)}
+                        title="Remove row"
+                      >
+                        ×
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        <div className="form-section password-section">
+          <h3>Common Login Credentials</h3>
           <p className="section-description">
-            The email will be automatically generated as: <strong>[First 7 digits of Student ID]@hkmu.edu.hk</strong>
+            The same password will be applied to all accounts above.
+            Email will be auto-generated as: <strong>[First 7 digits of Student ID]@hkmu.edu.hk</strong>
           </p>
-          
-          <div className="form-group">
-            <label htmlFor="password">
-              Password <span className="required">*</span>
-            </label>
-            <input
-              type="password"
-              id="password"
-              name="password"
-              value={formData.password}
-              onChange={handleChange}
-              placeholder="At least 8 characters"
-              className={errors.password ? 'error' : ''}
-            />
-            {errors.password && <span className="error-message">{errors.password}</span>}
-            <span className="password-hint">
-              Minimum 8 characters required
-            </span>
+
+          <div className="form-row">
+            <div className="form-group">
+              <label htmlFor="commonPassword">
+                Password <span className="required">*</span>
+              </label>
+              <input
+                type="password"
+                id="commonPassword"
+                value={commonPassword}
+                onChange={(e) => {
+                  setCommonPassword(e.target.value);
+                  setPasswordError('');
+                }}
+                placeholder="At least 8 characters"
+                className={passwordError ? 'error' : ''}
+              />
+              <span className="password-hint">Minimum 8 characters</span>
+            </div>
+
+            <div className="form-group">
+              <label htmlFor="confirmPassword">
+                Confirm Password <span className="required">*</span>
+              </label>
+              <input
+                type="password"
+                id="confirmPassword"
+                value={confirmPassword}
+                onChange={(e) => {
+                  setConfirmPassword(e.target.value);
+                  setPasswordError('');
+                }}
+                placeholder="Re-enter password"
+                className={passwordError ? 'error' : ''}
+              />
+            </div>
           </div>
 
-          <div className="form-group">
-            <label htmlFor="confirmPassword">
-              Confirm Password <span className="required">*</span>
-            </label>
-            <input
-              type="password"
-              id="confirmPassword"
-              name="confirmPassword"
-              value={formData.confirmPassword}
-              onChange={handleChange}
-              placeholder="Re-enter your password"
-              className={errors.confirmPassword ? 'error' : ''}
-            />
-            {errors.confirmPassword && <span className="error-message">{errors.confirmPassword}</span>}
-          </div>
+          {passwordError && (
+            <span className="error-message">{passwordError}</span>
+          )}
         </div>
 
         <div className="form-actions">
@@ -283,26 +434,26 @@ function CreateStudentAccount({ showNotification }) {
             onClick={handleReset}
             disabled={isLoading}
           >
-            Reset
+            Reset All
           </button>
           <button
             type="submit"
             className="btn-primary"
             disabled={isLoading}
           >
-            {isLoading ? 'Creating...' : 'Create Account'}
+            {isLoading ? 'Creating...' : `Create ${students.length} Account${students.length > 1 ? 's' : ''}`}
           </button>
         </div>
       </form>
 
       <div className="info-box">
-        <h4>Information</h4>
+        <h4>Batch Registration Instructions</h4>
         <ul>
           <li>Student ID must be exactly 8 digits</li>
           <li>Email is auto-generated from Student ID (first 7 digits)</li>
-          <li>Password must be at least 8 characters</li>
-          <li>After creation, the student can login with the generated credentials</li>
-          <li>The student profile and preferences will be separate for each student</li>
+          <li>All accounts will use the same password</li>
+          <li>Download CSV template for bulk import</li>
+          <li>After creation, students can login with their generated credentials</li>
         </ul>
       </div>
     </div>

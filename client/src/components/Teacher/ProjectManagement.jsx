@@ -438,7 +438,7 @@ function ProjectManagement({ showNotification }) {
                   value={newProject.description}
                   onChange={e => setNewProject({ ...newProject, description: e.target.value })}
                   placeholder="Describe the project..."
-                  rows={5}
+                  rows={10}
                 />
               </div>
               <div className="form-group">
@@ -518,7 +518,7 @@ function ProjectManagement({ showNotification }) {
                   className="form-textarea"
                   value={editingProject.description || ''}
                   onChange={e => setEditingProject({ ...editingProject, description: e.target.value })}
-                  rows={5}
+                  rows={10}
                   placeholder="Describe the project..."
                 />
               </div>
