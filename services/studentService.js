@@ -13,14 +13,11 @@ function checkDBConnection() {
                 StudentModel = require('../models/Student');
             }
             dbEnabled = true;
-            console.log('studentService: ✅ MongoDB 已連接，DB-backed queries 已啟用');
             return true;
         }
-        console.log('studentService: ⚠️ MongoDB 未連接 (readyState:', mongoose.connection.readyState, ')');
         dbEnabled = false;
         return false;
     } catch (err) {
-        console.log('studentService: ❌ DB 模型載入失敗:', err.message);
         dbEnabled = false;
         return false;
     }
@@ -28,42 +25,20 @@ function checkDBConnection() {
 
 const studentService = {
     // 獲取所有可用項目（DB-backed if available）
-    // 學生可以看到非 student-proposed 的項目，狀態為 Active/Approved/Under Review
     getAvailableProjects: async () => {
         try {
             checkDBConnection();
             if (dbEnabled && ProjectModel) {
-                // 獲取所有文檔
                 const allDocs = await ProjectModel.find({}).lean().exec();
-                console.log('📋 getAvailableProjects: DB模式，總文檔數:', allDocs.length);
-                
-                // 過濾條件：顯示所有非 student-proposed 的項目
-                // 規則：
-                // - type === 'student' → 排除（明確的 student-proposed 項目）
-                // - supervisor === 'TBD' 或 '' → 排除（未 accept 的 student-proposed 項目）
-                // - 其他 → 包含
+
                 const docs = allDocs.filter(doc => {
-                    // 排除 student-proposed 項目
-                    if (doc.type === 'student') {
-                        console.log('  🚫 排除 student-proposed:', doc.title);
-                        return false;
-                    }
-                    // 排除未 accept 的項目（supervisor 為 TBD）
-                    if (doc.supervisor === 'TBD' || doc.supervisor === '') {
-                        console.log('  🚫 排除 TBD supervisor:', doc.title);
-                        return false;
-                    }
-                    // 顯示 Active, Approved, 或 Under Review 狀態
+                    if (doc.type === 'student') return false;
+                    if (doc.supervisor === 'TBD' || doc.supervisor === '') return false;
                     const validStatuses = ['Active', 'Approved', 'Under Review', 'active', 'approved', 'under review'];
-                    if (!validStatuses.includes(doc.status)) {
-                        console.log('  🚫 排除無效狀態:', doc.title, 'status:', doc.status);
-                        return false;
-                    }
-                    console.log('  ✅ 包含:', doc.title, '| supervisor:', doc.supervisor);
+                    if (!validStatuses.includes(doc.status)) return false;
                     return true;
                 });
-                
-                console.log('📋 過濾後返回:', docs.length, '个项目');
+
                 return docs.map(p => ({
                     ...p,
                     id: (p.id !== undefined && p.id !== null) ? p.id : (p.code || String(p._id)),
@@ -72,14 +47,13 @@ const studentService = {
                 }));
             }
             // Mock mode
-            console.log('📋 getAvailableProjects: Mock模式');
-            return mockData.projects.filter(project => 
+            return mockData.projects.filter(project =>
                 project.type !== 'student'
             );
         } catch (err) {
-            console.error('❌ getAvailableProjects 错误:', err.message);
-            return mockData.projects.filter(project => 
-                project.type === 'teacher' && project.status === "active"
+            console.error('❌ getAvailableProjects error:', err.message);
+            return mockData.projects.filter(project =>
+                project.type !== 'teacher' && project.status === "active"
             );
         }
     },

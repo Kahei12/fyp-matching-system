@@ -6,40 +6,31 @@ const port = 3000;
 
 // 中介軟體
 app.use(express.json());
-// 注意：React 版本通過 Vite 提供前端，不需要靜態檔案服務
 
-// load env and attempt DB connection (optional)
+// load env and attempt DB connection
 require('dotenv').config();
 const mongoose = require('mongoose');
 
 if (process.env.MONGO_URI) {
-    // MongoDB Atlas TLS連接配置 - 解決 Windows SSL 握手問題
     const mongooseOptions = {
-        // 伺服器選擇超時
         serverSelectionTimeoutMS: 30000,
-        // Socket 超時
         socketTimeoutMS: 45000,
-        // 連接池大小
         maxPoolSize: 5,
         minPoolSize: 1,
-        // 重試寫操作
         retryWrites: true,
-        // TLS/SSL 選項
         tls: true,
         tlsAllowInvalidCertificates: true,
-        // 禁用證書主機名驗證（解決某些 Atlas 配置問題）
         tlsAllowInvalidHostnames: true,
     };
 
     console.log('🔄 正在連接 MongoDB Atlas...');
 
-    // 監聽連接事件
     mongoose.connection.on('connected', () => {
         console.log('✅ MongoDB 連接成功');
     });
 
     mongoose.connection.on('error', (err) => {
-        console.error('❌ MongoDB 連接錯誤:', err.message);
+        console.error('❌ MongoDB 連接錯誤:', err.message.split('\n')[0]);
     });
 
     mongoose.connection.on('disconnected', () => {
@@ -53,8 +44,8 @@ if (process.env.MONGO_URI) {
     mongoose.connect(process.env.MONGO_URI, mongooseOptions)
         .then(() => console.log('✅ Connected to MongoDB'))
         .catch(err => {
-            console.error('❌ MongoDB connection error:', err.message);
-            console.log('⚠️ 將嘗試使用模擬數據運行...');
+            console.error('❌ MongoDB connection error:', err.message.split('\n')[0]);
+            console.log('⚠️ 將使用模擬數據運行...');
         });
 } else {
     console.log('⚠️ MONGO_URI not set — running with mockData only');
@@ -1779,6 +1770,140 @@ app.post('/api/admin/students/batch-create', async (req, res) => {
         return res.status(500).json({
             success: false,
             message: 'Failed to batch create student accounts: ' + error.message
+        });
+    }
+});
+
+// Batch create teacher accounts
+app.post('/api/admin/teachers/batch-create', async (req, res) => {
+    console.log('👨‍🏫 Admin 批量創建教師帳戶:', req.body);
+    try {
+        const { accounts } = req.body;
+
+        if (!accounts || !Array.isArray(accounts) || accounts.length === 0) {
+            return res.status(400).json({
+                success: false,
+                message: 'Accounts array is required'
+            });
+        }
+
+        const isDbConnected = checkDbConnectionForAdmin();
+        const Teacher = require('./models/Teacher');
+        const results = [];
+
+        for (const teacherData of accounts) {
+            const { name, email, password } = teacherData;
+
+            try {
+                // Validation
+                if (!name || !email || !password) {
+                    results.push({
+                        name,
+                        email,
+                        success: false,
+                        message: 'All fields are required'
+                    });
+                    continue;
+                }
+
+                // Validate email format
+                if (!/^[\w.-]+@hkmu\.edu\.hk$/.test(email)) {
+                    results.push({
+                        name,
+                        email,
+                        success: false,
+                        message: 'Invalid email format. Must be @hkmu.edu.hk'
+                    });
+                    continue;
+                }
+
+                // Validate password: at least 8 characters
+                if (password.length < 8) {
+                    results.push({
+                        name,
+                        email,
+                        success: false,
+                        message: 'Password must be at least 8 characters'
+                    });
+                    continue;
+                }
+
+                if (isDbConnected && Teacher) {
+                    // Check if teacher already exists by email
+                    const existingTeacher = await Teacher.findOne({ email: email }).exec();
+                    if (existingTeacher) {
+                        results.push({
+                            name,
+                            email,
+                            success: false,
+                            message: `Teacher with email ${email} already exists`
+                        });
+                        continue;
+                    }
+
+                    // Hash password for security
+                    const hashedPassword = await bcrypt.hash(password, 10);
+
+                    // Create new teacher
+                    const newTeacher = new Teacher({
+                        email: email,
+                        name: name,
+                        password: hashedPassword,
+                        title: 'Teacher',
+                        department: 'FYP',
+                        researchInterests: [],
+                        maxStudents: 5,
+                        currentStudents: 0,
+                        projects: [],
+                        proposals: []
+                    });
+
+                    await newTeacher.save();
+
+                    console.log('✅ Teacher account created:', {
+                        name: name,
+                        email: email
+                    });
+
+                    results.push({
+                        name,
+                        email,
+                        success: true,
+                        message: 'Account created successfully'
+                    });
+                } else {
+                    // Mock mode
+                    console.log('⚠️ Mock mode - Teacher account:', { name, email });
+                    results.push({
+                        name,
+                        email,
+                        success: true,
+                        message: 'Account created successfully (Mock mode)'
+                    });
+                }
+            } catch (individualError) {
+                console.error('❌ Error creating teacher:', teacherData.name, individualError);
+                results.push({
+                    name: teacherData.name,
+                    email: teacherData.email,
+                    success: false,
+                    message: 'Error: ' + individualError.message
+                });
+            }
+        }
+
+        const successCount = results.filter(r => r.success).length;
+        return res.json({
+            success: true,
+            message: `Created ${successCount} out of ${accounts.length} accounts`,
+            results: results
+        });
+
+    } catch (error) {
+        console.error('❌ 批量創建教師帳戶錯誤:', error);
+        return res.status(500).json({
+            success: false,
+            message: 'Failed to batch create teacher accounts: ' + error.message
         });
     }
 });

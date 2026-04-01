@@ -5,7 +5,7 @@ function Sidebar({ currentSection, onSwitchSection, userName, onLogout }) {
     { id: 'project-review', label: 'Project Review' },
     { id: 'matching-control', label: 'Matching Control' },
     { id: 'final-assignment', label: 'Final Assignment' },
-    { id: 'create-student-account', label: 'Create Student Account' },
+    { id: 'create-student-account', label: 'Create Account' },
     { id: 'data-export', label: 'Data Export' },
     { id: 'deadline-management', label: 'Deadline Management' }
   ];
