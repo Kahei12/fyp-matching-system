@@ -1,9 +1,36 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 
 function MatchingControl({ showNotification }) {
   const [status, setStatus] = useState('Ready');
   const [totalProjects, setTotalProjects] = useState(0);
   const [matchedProjects, setMatchedProjects] = useState(0);
+
+  // 從數據庫獲取真實統計數據
+  const fetchStats = async () => {
+    try {
+      // 獲取項目總數
+      const projResp = await fetch('/api/admin/all-projects');
+      const projJson = await projResp.json();
+      const projects = projJson.projects || [];
+      const projectCount = projects.length;
+
+      // 獲取配對結果
+      const resResp = await fetch('/api/match/results');
+      const resJson = await resResp.json();
+      const results = resJson.results || [];
+      const matched = results.filter(r => r.studentId).length;
+
+      setTotalProjects(projectCount);
+      setMatchedProjects(matched);
+    } catch (err) {
+      console.error('Error fetching stats:', err);
+    }
+  };
+
+  // 組件載入時獲取初始數據
+  useEffect(() => {
+    fetchStats();
+  }, []);
 
   const startMatching = async () => {
     if (!window.confirm('Start matching algorithm? This will assign students to projects based on preferences and GPA.')) return;
@@ -19,21 +46,10 @@ function MatchingControl({ showNotification }) {
       }
 
       // fetch results to compute stats
-      const resResp = await fetch('/api/match/results');
-      const resJson = await resResp.json();
-      if (!resResp.ok || !resJson.success) {
-        throw new Error('Failed to load match results');
-      }
-
-      const results = resJson.results || [];
-      const total = results.length;
-      const matched = results.filter(r => r.studentId).length;
-
-      setTotalProjects(total);
-      setMatchedProjects(matched);
+      await fetchStats();
       setStatus('Completed');
 
-      showNotification(`Matching completed ${matched}/${total} projects matched`, 'success');
+      showNotification(`Matching completed`, 'success');
     } catch (err) {
       console.error('Matching error:', err);
       setStatus('Error');
@@ -51,13 +67,7 @@ function MatchingControl({ showNotification }) {
       if (!resp.ok) throw new Error(json && json.message ? json.message : 'Reset failed');
 
       // refresh results/stats
-      const resResp = await fetch('/api/match/results');
-      const resJson = await resResp.json();
-      const results = resJson.results || [];
-      const total = results.length;
-      const matched = results.filter(r => r.studentId).length;
-      setTotalProjects(total);
-      setMatchedProjects(matched);
+      await fetchStats();
       setStatus('Ready');
       showNotification(json.message || 'Server reset completed', 'success');
     } catch (err) {
@@ -88,6 +98,7 @@ function MatchingControl({ showNotification }) {
         <div className="control-buttons">
           <button className="btn-primary" onClick={startMatching}>Start Matching</button>
           <button className="btn-danger" onClick={resetServer} style={{ marginLeft: '8px' }}>Reset Server</button>
+          <button className="btn-secondary" onClick={fetchStats} style={{ marginLeft: '8px' }}>Refresh Stats</button>
         </div>
 
         <div className="live-statistics">
@@ -99,7 +110,7 @@ function MatchingControl({ showNotification }) {
             </div>
             <div className="stat-item">
               <span className="stat-label">Available Projects:</span>
-              <span className="stat-value">{totalProjects || 45}</span>
+              <span className="stat-value">{totalProjects}</span>
             </div>
             <div className="stat-item">
               <span className="stat-label">Matching Algorithm Status:</span>
