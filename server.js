@@ -144,9 +144,12 @@ app.post('/login', async (req, res) => {
             if (isDbConnected) {
                 // 先當作學生
                 const Student = require('./models/Student');
-                const student = await Student.findOne({ email: email }).lean().exec();
+                const student = await Student.findOne({ email: email }).exec();
+
+                console.log('🔍 Login - student from DB:', JSON.stringify(student));
 
                 if (student) {
+                    console.log('🔍 Login - mustChangePassword from DB:', student.mustChangePassword);
                     if (student.password && student.password.startsWith('$2')) {
                         const isMatch = await bcrypt.compare(password, student.password);
                         if (isMatch) {
@@ -157,7 +160,8 @@ app.post('/login', async (req, res) => {
                                 studentId: student.id,
                                 gpa: student.gpa,
                                 major: student.major,
-                                mustChangePassword: student.mustChangePassword
+                                mustChangePassword: student.mustChangePassword,
+                                initialPassword: student.initialPassword
                             };
                         }
                     } else if (student.password === password) {
@@ -168,13 +172,14 @@ app.post('/login', async (req, res) => {
                             studentId: student.id,
                             gpa: student.gpa,
                             major: student.major,
-                            mustChangePassword: student.mustChangePassword
+                            mustChangePassword: student.mustChangePassword,
+                            initialPassword: student.initialPassword
                         };
                     }
                 } else {
                     // 再當作老師
                     const Teacher = require('./models/Teacher');
-                    const teacher = await Teacher.findOne({ email: email }).lean().exec();
+                    const teacher = await Teacher.findOne({ email: email }).exec();
 
                     if (teacher) {
                         if (teacher.password && teacher.password.startsWith('$2')) {
@@ -184,7 +189,8 @@ app.post('/login', async (req, res) => {
                                     email: teacher.email,
                                     role: 'teacher',
                                     name: teacher.name,
-                                    mustChangePassword: teacher.mustChangePassword
+                                    mustChangePassword: teacher.mustChangePassword,
+                                    initialPassword: teacher.initialPassword
                                 };
                             }
                         } else if (teacher.password === password) {
@@ -192,7 +198,8 @@ app.post('/login', async (req, res) => {
                                 email: teacher.email,
                                 role: 'teacher',
                                 name: teacher.name,
-                                mustChangePassword: teacher.mustChangePassword
+                                mustChangePassword: teacher.mustChangePassword,
+                                initialPassword: teacher.initialPassword
                             };
                         }
                     }
@@ -239,17 +246,18 @@ app.post('/login', async (req, res) => {
         // 登入成功
         console.log('✅ 登入成功，用戶角色:', user.role, '| studentId:', user.studentId);
         return res.json({ 
-            success: true, 
+        success: true,
             message: `Login successful! Welcome, ${user.role}.`,
-            user: { 
-                email: user.email, 
+            user: {
+                email: user.email,
                 role: user.role,
                 name: user.name,
                 studentId: user.studentId,
                 id: user.studentId,
                 gpa: user.gpa,
                 major: user.major,
-                mustChangePassword: user.mustChangePassword ?? false
+                mustChangePassword: user.mustChangePassword,
+                initialPassword: user.initialPassword
             }
         });
     }
@@ -280,10 +288,10 @@ app.post('/api/change-password', async (req, res) => {
         const Teacher = require('./models/Teacher');
 
         // Try student first
-        let user = await Student.findOne({ email }).lean().exec();
+        let user = await Student.findOne({ email }).exec();
 
         if (!user) {
-            user = await Teacher.findOne({ email }).lean().exec();
+            user = await Teacher.findOne({ email }).exec();
         }
 
         if (!user) {
@@ -1743,6 +1751,10 @@ app.post('/api/admin/students/create', async (req, res) => {
             });
             
             await newStudent.save();
+
+            // Verify the save worked
+            const savedStudent = await Student.findOne({ email: email }).exec();
+            console.log('🔍 Single create - mustChangePassword:', savedStudent?.mustChangePassword);
             
             console.log('✅ Student account created:', {
                 id: studentId,
