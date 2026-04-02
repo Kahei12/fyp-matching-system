@@ -13,7 +13,7 @@ function ProjectManagement({ showNotification }) {
     title: '',
     description: '',
     skills: '',
-    capacity: 2,
+    capacity: 1,
     department: 'Computer Science',
     category: 'General'
   });
@@ -105,7 +105,7 @@ function ProjectManagement({ showNotification }) {
           title: '',
           description: '',
           skills: '',
-          capacity: 2,
+          capacity: 1,
           department: 'Computer Science',
           category: 'General'
         });

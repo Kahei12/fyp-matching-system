@@ -12,7 +12,7 @@ function PrivateRoute({ children, role }) {
     return <Navigate to="/" replace />;
   }
   
-  if (role && userRole !== role) {
+  if (role && role !== 'any' && userRole !== role) {
     console.log('✖ 角色不匹配，重定向到登入頁');
     return <Navigate to="/" replace />;
   }

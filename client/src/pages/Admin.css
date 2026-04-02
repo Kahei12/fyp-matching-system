@@ -405,6 +405,36 @@
   display: grid;
   grid-template-columns: 2fr 1fr;
   gap: 2rem;
+  align-items: stretch;
+}
+
+/* Final Assignment: fixed viewport ≈ 10 table rows; sticky header while scrolling */
+.assignment-container .students-table-scroll-wrap {
+  min-height: 500px;
+  max-height: 500px;
+  overflow-y: auto;
+  border-radius: 4px;
+  background: white;
+}
+
+.assignment-container .students-table-scroll-wrap thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: #2c3e50;
+  box-shadow: 0 2px 2px -1px rgba(0, 0, 0, 0.2);
+}
+
+.assignment-container .projects-section {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.assignment-container .projects-section .final-assign-project-list {
+  flex: 1;
+  min-height: 500px;
+  max-height: 500px;
 }
 
 @media (max-width: 1200px) {
@@ -481,6 +511,7 @@
   flex-direction: column;
   gap: 0.75rem;
   margin-bottom: 1rem;
+  overflow-y: auto;
 }
 
 .available-project {

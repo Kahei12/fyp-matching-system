@@ -14,7 +14,9 @@ function Profile({ studentData }) {
           </div>
           <div className="profile-info">
             <h2>{studentData.name}</h2>
-            <p className="profile-id">Student ID: {studentData.studentId}</p>
+            <p className="profile-id">
+              Student ID: {studentData?.studentId || studentData?.id || sessionStorage.getItem('studentId') || '—'}
+            </p>
           </div>
         </div>
 

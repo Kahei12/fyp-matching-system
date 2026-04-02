@@ -19,7 +19,9 @@ const StudentSchema = new mongoose.Schema({
     note: String,
     teacherEmail: String,
     createdAt: Date
-  }]
+  }],
+  mustChangePassword: { type: Boolean, default: true },  // Requires password change on first login
+  initialPassword: String  // Plain-text initial password for comparison during change
 });
 
 module.exports = mongoose.model('Student', StudentSchema);

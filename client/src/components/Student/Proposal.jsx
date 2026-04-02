@@ -18,7 +18,7 @@ function Proposal({ preferences, onSwitchSection, studentId, isAssigned = false,
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [notification, setNotification] = useState(null);
 
-  const currentStudentId = studentId || sessionStorage.getItem('studentId') || 'S001';
+  const currentStudentId = studentId || sessionStorage.getItem('studentId') || '13700797';
 
   useEffect(() => {
     loadProposal();

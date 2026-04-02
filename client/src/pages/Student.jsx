@@ -12,7 +12,7 @@ function Student() {
   const [currentSection, setCurrentSection] = useState('proposal');
   const [studentData, setStudentData] = useState({
     name: 'Chan Tai Man',
-    studentId: 'S001',
+    studentId: sessionStorage.getItem('studentId') || '13700797',
     gpa: '3.45',
     email: '',
     major: 'Computer Science',
@@ -59,7 +59,7 @@ function Student() {
 
   const loadAssignmentStatus = async () => {
     try {
-      const studentId = sessionStorage.getItem('studentId') || 'S001';
+      const studentId = sessionStorage.getItem('studentId') || '13700797';
       const resp = await fetch(`/api/student/${studentId}/assignment-status`);
       const data = await resp.json();
       
@@ -78,7 +78,7 @@ function Student() {
   };
 
   const loadStudentData = async () => {
-    const studentId = sessionStorage.getItem('studentId') || 'S001';
+    const studentId = sessionStorage.getItem('studentId') || '13700797';
     const userEmail = sessionStorage.getItem('userEmail') || '';
     
     console.log('[SEARCH] 載入學生數據，studentId:', studentId);
@@ -98,9 +98,12 @@ function Student() {
       const result = await response.json();
       
       if (result.success) {
+        const s = result.student || {};
+        const resolvedId = s.studentId || s.id || studentId;
         setStudentData({
-          ...result.student,
-          email: userEmail
+          ...s,
+          studentId: resolvedId,
+          email: s.email || userEmail
         });
         
         // 載入偏好
@@ -118,12 +121,16 @@ function Student() {
   };
 
   const loadProjects = async () => {
+    console.log('[DEBUG] loadProjects called');
     try {
       const response = await fetch('/api/student/projects');
+      console.log('[DEBUG] fetch completed, status:', response.status);
       const result = await response.json();
+      console.log('[DEBUG] result.success:', result.success, 'projects count:', result.projects ? result.projects.length : 0);
       
       if (result.success) {
         setProjects(result.projects);
+        console.log('[DEBUG] projects state updated with', result.projects.length, 'items');
       }
     } catch (error) {
       console.error('載入項目錯誤:', error);
@@ -233,7 +240,7 @@ function Student() {
 
   const handleAddPreference = async (projectId) => {
     // Buffer preference locally; only submit to server on Submit Preferences
-    const currentStudentId = studentData.studentId || sessionStorage.getItem('studentId') || 'S001';
+    const currentStudentId = studentData.studentId || sessionStorage.getItem('studentId') || '13700797';
 
     // 檢查是否已提交或匹配已完成
     const submittedFlag = studentData.proposalSubmitted || sessionStorage.getItem('proposalSubmitted') === 'true';
@@ -274,7 +281,7 @@ function Student() {
   };
 
   const handleRemovePreference = async (projectId) => {
-    const currentStudentId = studentData.studentId || sessionStorage.getItem('studentId') || 'S001';
+    const currentStudentId = studentData.studentId || sessionStorage.getItem('studentId') || '13700797';
     
     console.log('Removing preference:', { projectId, currentStudentId });
     
@@ -314,7 +321,7 @@ function Student() {
   };
 
   const handleSubmitPreferences = async () => {
-    const currentStudentId = studentData.studentId || sessionStorage.getItem('studentId') || 'S001';
+    const currentStudentId = studentData.studentId || sessionStorage.getItem('studentId') || '13700797';
     
     if (preferences.length === 0) {
       showNotification('Please add at least one project!', 'error');
@@ -358,7 +365,7 @@ function Student() {
   };
 
   const handleClearPreferences = () => {
-    const currentStudentId = studentData.studentId || sessionStorage.getItem('studentId') || 'S001';
+    const currentStudentId = studentData.studentId || sessionStorage.getItem('studentId') || '13700797';
     
     // 檢查是否已提交
     const submittedFlag = studentData.proposalSubmitted || sessionStorage.getItem('proposalSubmitted') === 'true';
@@ -383,7 +390,7 @@ function Student() {
   };
 
   const handleMovePreference = async (projectId, direction) => {
-    const currentStudentId = studentData.studentId || sessionStorage.getItem('studentId') || 'S001';
+    const currentStudentId = studentData.studentId || sessionStorage.getItem('studentId') || '13700797';
     
     console.log('[MOVE] Moving preference:', { projectId, direction, currentStudentId });
 
@@ -430,7 +437,7 @@ function Student() {
   };
 
   const handleReorderPreferences = async (newPreferences) => {
-    const currentStudentId = studentData.studentId || sessionStorage.getItem('studentId') || 'S001';
+    const currentStudentId = studentData.studentId || sessionStorage.getItem('studentId') || '13700797';
     
     console.log('[REORDER] Reordering preferences via drag-drop:', { currentStudentId });
     

@@ -212,12 +212,17 @@ function CreateStudentAccount({ showNotification }) {
             password: commonPassword
           }));
 
+      const body =
+        accountType === 'student'
+          ? JSON.stringify({ students: data })
+          : JSON.stringify({ accounts: data });
+
       const response = await fetch(endpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ accounts: data })
+        body
       });
 
       const result = await response.json();
@@ -462,9 +467,9 @@ function CreateStudentAccount({ showNotification }) {
           </label>
         </div>
 
-        <div className="batch-table-container">
+        <div className="batch-table-container batch-table-panel">
           {accountType === 'student' ? (
-            <table className="batch-table">
+            <table className="batch-table batch-table-student">
               <thead>
                 <tr>
                   <th className="col-index">#</th>
@@ -490,7 +495,7 @@ function CreateStudentAccount({ showNotification }) {
                         type="text"
                         value={student.studentId}
                         onChange={(e) => handleStudentChange(student.id, 'studentId', e.target.value)}
-                        placeholder="12345678"
+                        placeholder="(8-digits)"
                         maxLength={8}
                         className={student.studentIdError ? 'error' : ''}
                       />
@@ -499,8 +504,10 @@ function CreateStudentAccount({ showNotification }) {
                       )}
                     </td>
                     <td className="col-preview">
-                      {getPreviewEmail(student.studentId) && (
+                      {getPreviewEmail(student.studentId) ? (
                         <span className="email-preview">{getPreviewEmail(student.studentId)}</span>
+                      ) : (
+                        <span className="email-preview-placeholder">—</span>
                       )}
                     </td>
                     <td className="col-name">
@@ -508,7 +515,7 @@ function CreateStudentAccount({ showNotification }) {
                         type="text"
                         value={student.name}
                         onChange={(e) => handleStudentChange(student.id, 'name', e.target.value)}
-                        placeholder="Student name"
+                        placeholder="e.g. Chan Tai Man"
                         className={student.nameError ? 'error' : ''}
                       />
                       {student.nameError && (
@@ -547,7 +554,7 @@ function CreateStudentAccount({ showNotification }) {
               </tbody>
             </table>
           ) : (
-            <table className="batch-table teacher-table">
+            <table className="batch-table batch-table-teacher">
               <thead>
                 <tr>
                   <th className="col-index">#</th>
@@ -608,20 +615,27 @@ function CreateStudentAccount({ showNotification }) {
         </div>
 
         <div className="form-section password-section">
-          <h3>Common Login Credentials</h3>
+          <h3>Shared password (one entry for all new accounts)</h3>
           <p className="section-description">
-            The same password will be applied to all accounts above.
             {accountType === 'student' ? (
-              <>Email will be auto-generated as: <strong>[First 7 digits of Student ID]@hkmu.edu.hk</strong></>
+              <>
+                Student <strong>email</strong> is generated automatically as{' '}
+                <strong>[first 7 digits of Student ID]@hkmu.edu.hk</strong>.
+                For security, <strong>password is not auto-generated</strong>: enter <strong>one</strong> password
+                below and it will be applied to <strong>every</strong> account in the table above (minimum 8 characters).
+              </>
             ) : (
-              <>Email must match the teacher's official HKMU email: <strong>teacher[Name]@hkmu.edu.hk</strong></>
+              <>
+                Enter <strong>one</strong> password below; it will be set for <strong>all</strong> teacher rows above.
+                Each row still needs its own official HKMU email: <strong>teacher[Name]@hkmu.edu.hk</strong>.
+              </>
             )}
           </p>
 
           <div className="form-row">
             <div className="form-group">
               <label htmlFor="commonPassword">
-                Password <span className="required">*</span>
+                Password for all rows <span className="required">*</span>
               </label>
               <input
                 type="password"

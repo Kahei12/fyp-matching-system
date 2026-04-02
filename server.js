@@ -25,8 +25,13 @@ if (process.env.MONGO_URI) {
 
     console.log('🔄 正在連接 MongoDB Atlas...');
 
-    mongoose.connection.on('connected', () => {
+    mongoose.connection.on('connected', async () => {
         console.log('✅ MongoDB 連接成功');
+        try {
+            await initializeTestStudent();
+        } catch (e) {
+            console.error('❌ initializeTestStudent (on connected):', e.message);
+        }
     });
 
     mongoose.connection.on('error', (err) => {
@@ -77,7 +82,7 @@ async function initializeUsers() {
             password: studentPassword,
             role: 'student',
             name: 'Chan Tai Man',
-            studentId: 'S001',
+            studentId: '13700797',
             gpa: '3.45',
             major: 'Computer Science'
         },
@@ -106,25 +111,43 @@ app.post('/login', async (req, res) => {
     // 首先檢查本地 users 數組
     let user = users.find(u => u.email === email);
     
-    // 如果本地沒有找到，且是學生 email 格式，檢查 MongoDB
-    if (!user && email.includes('@hkmu.edu.hk')) {
+    // 如果是測試學生帳號 student@hkmu.edu.hk，檢查並更新 MongoDB 中的 SID
+    if (email === 'student@hkmu.edu.hk') {
         try {
             const mongoose = require('mongoose');
             const isDbConnected = mongoose.connection.readyState === 1;
             
             if (isDbConnected) {
                 const Student = require('./models/Student');
-                const student = await Student.findOne({ email: email }).lean().exec();
+                const student = await Student.findOne({ email: email }).exec();
                 
                 if (student) {
-                    // 從 MongoDB 找到學生，構造 user 對象
-                    // 注意：密碼在創建時已經 hashed，所以我們需要用 bcrypt 驗證
-                    // 但我們需要先確保密碼是 hashed 後存儲的
-                    // 由於新創建的學生密碼是 plain text 或已 hashed，讓我們檢查
-                    
-                    // 檢查是否是 bcrypt hash 格式
+                    // 確保測試學生的 SID 是 13700797
+                    if (student.id !== '13700797') {
+                        console.log(`🔄 更新測試學生 SID: ${student.id} -> 13700797`);
+                        student.id = '13700797';
+                        await student.save();
+                    }
+                }
+            }
+        } catch (err) {
+            console.error('❌ 更新測試學生 SID 錯誤:', err);
+        }
+    }
+    
+    // 如果本地沒有找到，且是學生 email 格式，檢查 MongoDB
+    if (!user && email.includes('@hkmu.edu.hk')) {
+        try {
+            const mongoose = require('mongoose');
+            const isDbConnected = mongoose.connection.readyState === 1;
+
+            if (isDbConnected) {
+                // 先當作學生
+                const Student = require('./models/Student');
+                const student = await Student.findOne({ email: email }).lean().exec();
+
+                if (student) {
                     if (student.password && student.password.startsWith('$2')) {
-                        // 密碼已經是 hashed，用 bcrypt 驗證
                         const isMatch = await bcrypt.compare(password, student.password);
                         if (isMatch) {
                             user = {
@@ -133,24 +156,50 @@ app.post('/login', async (req, res) => {
                                 name: student.name,
                                 studentId: student.id,
                                 gpa: student.gpa,
-                                major: student.major
+                                major: student.major,
+                                mustChangePassword: student.mustChangePassword
                             };
                         }
                     } else if (student.password === password) {
-                        // 密碼是 plain text（新創建的學生密碼是 plain text）
                         user = {
                             email: student.email,
                             role: 'student',
                             name: student.name,
                             studentId: student.id,
                             gpa: student.gpa,
-                            major: student.major
+                            major: student.major,
+                            mustChangePassword: student.mustChangePassword
                         };
+                    }
+                } else {
+                    // 再當作老師
+                    const Teacher = require('./models/Teacher');
+                    const teacher = await Teacher.findOne({ email: email }).lean().exec();
+
+                    if (teacher) {
+                        if (teacher.password && teacher.password.startsWith('$2')) {
+                            const isMatch = await bcrypt.compare(password, teacher.password);
+                            if (isMatch) {
+                                user = {
+                                    email: teacher.email,
+                                    role: 'teacher',
+                                    name: teacher.name,
+                                    mustChangePassword: teacher.mustChangePassword
+                                };
+                            }
+                        } else if (teacher.password === password) {
+                            user = {
+                                email: teacher.email,
+                                role: 'teacher',
+                                name: teacher.name,
+                                mustChangePassword: teacher.mustChangePassword
+                            };
+                        }
                     }
                 }
             }
         } catch (err) {
-            console.error('❌ 檢查 MongoDB 學生錯誤:', err);
+            console.error('❌ 檢查 MongoDB 用戶錯誤:', err);
         }
     }
     
@@ -166,8 +215,29 @@ app.post('/login', async (req, res) => {
             }
         }
         
+        // 測試學生：先確保 MongoDB 中 SID 是正確的，再取回作為回傳值
+        if (email.toLowerCase() === 'student@hkmu.edu.hk') {
+            try {
+                const mongoose = require('mongoose');
+                if (mongoose.connection.readyState === 1) {
+                    const Student = require('./models/Student');
+                    // find + update in one atomic op (upsert avoids "no matching document" issues)
+                    const updated = await Student.findOneAndUpdate(
+                        { email: email.toLowerCase() },
+                        { $set: { id: '13700797' } },
+                        { upsert: false, new: true, lean: true }
+                    ).exec();
+                    if (updated && updated.id) {
+                        user.studentId = updated.id;
+                    }
+                }
+            } catch (e) {
+                console.error('❌ 同步測試學生 SID:', e.message);
+            }
+        }
+        
         // 登入成功
-        console.log('✅ 登入成功，用戶角色:', user.role);
+        console.log('✅ 登入成功，用戶角色:', user.role, '| studentId:', user.studentId);
         return res.json({ 
             success: true, 
             message: `Login successful! Welcome, ${user.role}.`,
@@ -176,14 +246,75 @@ app.post('/login', async (req, res) => {
                 role: user.role,
                 name: user.name,
                 studentId: user.studentId,
+                id: user.studentId,
                 gpa: user.gpa,
-                major: user.major
+                major: user.major,
+                mustChangePassword: user.mustChangePassword ?? false
             }
         });
     }
     
     console.log('❌ 用戶不存在');
     return res.json({ success: false, message: 'Email or password is incorrect' });
+});
+
+// Change password (forces user to set a new password on first login)
+app.post('/api/change-password', async (req, res) => {
+    const { email, newPassword } = req.body;
+
+    if (!email || !newPassword) {
+        return res.json({ success: false, message: 'Email and new password are required' });
+    }
+
+    if (newPassword.length < 8) {
+        return res.json({ success: false, message: 'Password must be at least 8 characters' });
+    }
+
+    try {
+        const mongoose = require('mongoose');
+        if (mongoose.connection.readyState !== 1) {
+            return res.json({ success: false, message: 'Database not connected' });
+        }
+
+        const Student = require('./models/Student');
+        const Teacher = require('./models/Teacher');
+
+        // Try student first
+        let user = await Student.findOne({ email }).lean().exec();
+
+        if (!user) {
+            user = await Teacher.findOne({ email }).lean().exec();
+        }
+
+        if (!user) {
+            return res.json({ success: false, message: 'User not found' });
+        }
+
+        // Prevent using the same password as initial password
+        if (user.initialPassword && newPassword === user.initialPassword) {
+            return res.json({ success: false, message: 'New password cannot be the same as your initial password' });
+        }
+
+        const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+        if (user.studentId !== undefined || user.id !== undefined) {
+            await Student.findOneAndUpdate(
+                { email },
+                { $set: { password: hashedPassword, mustChangePassword: false } }
+            ).exec();
+        } else {
+            await Teacher.findOneAndUpdate(
+                { email },
+                { $set: { password: hashedPassword, mustChangePassword: false } }
+            ).exec();
+        }
+
+        console.log(`✅ Password changed for ${email}`);
+        return res.json({ success: true, message: 'Password changed successfully' });
+    } catch (err) {
+        console.error('❌ Change password error:', err);
+        return res.json({ success: false, message: 'Failed to change password' });
+    }
 });
 
 // 注意：HTML 頁面路由已移除，React 版本通過 Vite 開發伺服器提供前端
@@ -1179,7 +1310,7 @@ try {
                     title,
                     description,
                     skills: skills || [],
-                    capacity: capacity || 2,
+                    capacity: 1,
                     type: 'teacher',                           // Mark as teacher-proposed
                     supervisor: teacherEmail.split('@')[0],
                     supervisorEmail: teacherEmail,
@@ -1449,8 +1580,61 @@ try {
     });
 }
 
+// 初始化測試學生帳戶（如果存在的話，更新其SID為13700797）
+async function initializeTestStudent() {
+    const mongoose = require('mongoose');
+    if (mongoose.connection.readyState !== 1) {
+        console.log('⚠️ MongoDB 未連接，跳過測試學生初始化');
+        return;
+    }
+    
+    try {
+        const Student = require('./models/Student');
+        
+        // 嘗試找到現有的 student@hkmu.edu.hk 學生
+        let student = await Student.findOne({ email: 'student@hkmu.edu.hk' }).exec();
+        
+        if (student) {
+            // 如果找到但 SID 不是 13700797，則更新
+            if (student.id !== '13700797') {
+                const oldId = student.id;
+                student.id = '13700797';
+                await student.save();
+                console.log(`✅ 測試學生帳戶 SID 更新: ${oldId} -> 13700797`);
+            } else {
+                console.log('✅ 測試學生帳戶 SID 已為 13700797');
+            }
+        } else {
+            // 創建新的測試學生帳戶
+            const studentPassword = await bcrypt.hash('student123', 10);
+            student = new Student({
+                id: '13700797',
+                name: 'Chan Tai Man',
+                email: 'student@hkmu.edu.hk',
+                password: studentPassword,
+                gpa: 3.45,
+                major: 'Computer Science',
+                year: 'Year 4',
+                preferences: [],
+                proposalSubmitted: false,
+                assignedProject: null,
+                proposedProject: null,
+                proposalApproved: false,
+                proposalStatus: 'none'
+            });
+            await student.save();
+            console.log('✅ 測試學生帳戶已創建: student@hkmu.edu.hk / student123');
+        }
+    } catch (err) {
+        console.error('❌ 測試學生初始化失敗:', err.message);
+    }
+}
+
 // 🔥 啟動伺服器前先初始化用戶資料
-initializeUsers().then(() => {
+initializeUsers().then(async () => {
+    // 初始化測試學生帳戶
+    await initializeTestStudent();
+    
     app.listen(port, () => {
         console.log(`🚀 API 伺服器運行在 http://localhost:${port}`);
         console.log(`📡 提供 API 端點:`);
@@ -1462,7 +1646,7 @@ initializeUsers().then(() => {
         console.log(`\n💡 React 前端運行在 http://localhost:5173 (通過 Vite)`);
         console.log(`\n🔑 測試帳號:`);
         console.log('   Admin: admin@hkmu.edu.hk / admin123');
-        console.log('   Student: student@hkmu.edu.hk / student123');
+        console.log('   Student: student@hkmu.edu.hk / student123 (SID: 13700797)');
         console.log('   Teacher: teacher@hkmu.edu.hk / teacher123');
     });
 });
@@ -1544,16 +1728,18 @@ app.post('/api/admin/students/create', async (req, res) => {
                 id: studentId,
                 name: name,
                 email: email,
-                password: hashedPassword, // 存儲 hashed 密碼
-                gpa: 0, // Default GPA
+                password: hashedPassword,
+                gpa: 0,
                 major: major,
-                year: 'Year 4', // 預設為 Year 4
+                year: 'Year 4',
                 preferences: [],
                 proposalSubmitted: false,
                 assignedProject: null,
                 proposedProject: null,
                 proposalApproved: false,
-                proposalStatus: 'none'
+                proposalStatus: 'none',
+                mustChangePassword: true,
+                initialPassword: password
             });
             
             await newStudent.save();
@@ -1619,7 +1805,7 @@ app.post('/api/admin/students/create', async (req, res) => {
 app.post('/api/admin/students/batch-create', async (req, res) => {
     console.log('👥 Admin 批量創建學生帳戶:', req.body);
     try {
-        const { students } = req.body;
+        const students = req.body.students ?? req.body.accounts;
 
         if (!students || !Array.isArray(students) || students.length === 0) {
             return res.status(400).json({
@@ -1714,10 +1900,16 @@ app.post('/api/admin/students/batch-create', async (req, res) => {
                         assignedProject: null,
                         proposedProject: null,
                         proposalApproved: false,
-                        proposalStatus: 'none'
+                        proposalStatus: 'none',
+                        mustChangePassword: true,
+                        initialPassword: password
                     });
 
                     await newStudent.save();
+
+                    // Verify the save worked
+                    const savedStudent = await Student.findOne({ email: email }).exec();
+                    console.log('🔍 Verification - mustChangePassword:', savedStudent?.mustChangePassword);
 
                     console.log('✅ Student account created:', {
                         id: studentId,
@@ -1849,13 +2041,9 @@ app.post('/api/admin/teachers/batch-create', async (req, res) => {
                         email: email,
                         name: name,
                         password: hashedPassword,
-                        title: 'Teacher',
                         department: 'FYP',
-                        researchInterests: [],
-                        maxStudents: 5,
-                        currentStudents: 0,
-                        projects: [],
-                        proposals: []
+                        mustChangePassword: true,
+                        initialPassword: password
                     });
 
                     await newTeacher.save();
@@ -1927,7 +2115,9 @@ app.get('/api/admin/students', async (req, res) => {
                     major: s.major,
                     year: s.year,
                     proposalSubmitted: s.proposalSubmitted,
-                    proposalStatus: s.proposalStatus
+                    proposalStatus: s.proposalStatus,
+                    assignedProject: s.assignedProject ? String(s.assignedProject) : null,
+                    proposalApproved: s.proposalApproved
                 }))
             });
         }
@@ -1939,6 +2129,612 @@ app.get('/api/admin/students', async (req, res) => {
             success: false, 
             message: 'Failed to get student list' 
         });
+    }
+});
+
+// ============================================
+// Admin: Final Assignment API Endpoints
+// ============================================
+
+// Get unmatched students (no assigned project, proposal approved or not)
+app.get('/api/admin/unmatched-students', async (req, res) => {
+    console.log('📋 Admin 請求未分配學生列表');
+    try {
+        const isDbConnected = checkDbConnectionForAdmin();
+        const Student = require('./models/Student');
+        const Project = require('./models/Project');
+        
+        if (isDbConnected && Student && Project) {
+            // Get students without assignedProject
+            const students = await Student.find({ 
+                assignedProject: null 
+            }).lean().exec();
+            
+            // Transform data
+            const unmatchedStudents = students.map(s => ({
+                id: s.id,
+                name: s.name,
+                email: s.email,
+                gpa: s.gpa,
+                major: s.major,
+                year: s.year,
+                proposalSubmitted: s.proposalSubmitted,
+                proposalApproved: s.proposalApproved,
+                proposalStatus: s.proposalStatus
+            }));
+            
+            return res.json({ success: true, students: unmatchedStudents });
+        }
+        
+        return res.json({ success: true, students: [] });
+    } catch (error) {
+        console.error('❌ 獲取未分配學生列表錯誤:', error);
+        return res.status(500).json({ success: false, message: 'Failed to get unmatched students' });
+    }
+});
+
+// Get matched students (with assigned project)
+app.get('/api/admin/matched-students', async (req, res) => {
+    console.log('📋 Admin 請求已分配學生列表');
+    try {
+        const isDbConnected = checkDbConnectionForAdmin();
+        const Student = require('./models/Student');
+        const Project = require('./models/Project');
+        
+        if (isDbConnected && Student && Project) {
+            // Get students with assignedProject
+            const students = await Student.find({ 
+                assignedProject: { $ne: null } 
+            }).lean().exec();
+            
+            // Resolve project details
+            const matchedStudents = await Promise.all(students.map(async (s) => {
+                let project = null;
+                if (s.assignedProject) {
+                    project = await Project.findById(s.assignedProject).lean().exec();
+                }
+                
+                return {
+                    id: s.id,
+                    name: s.name,
+                    email: s.email,
+                    gpa: s.gpa,
+                    major: s.major,
+                    year: s.year,
+                    assignedProject: s.assignedProject ? String(s.assignedProject) : null,
+                    projectTitle: project?.title || null,
+                    projectCode: project?.code || null,
+                    projectType: project?.type || 'teacher',
+                    supervisor: project?.supervisor || 'TBD',
+                    supervisorEmail: project?.supervisorEmail || '',
+                    assignedAt: s.updatedAt
+                };
+            }));
+            
+            return res.json({ success: true, students: matchedStudents });
+        }
+        
+        return res.json({ success: true, students: [] });
+    } catch (error) {
+        console.error('❌ 獲取已分配學生列表錯誤:', error);
+        return res.status(500).json({ success: false, message: 'Failed to get matched students' });
+    }
+});
+
+// Get available projects for assignment
+app.get('/api/admin/available-projects', async (req, res) => {
+    console.log('📋 Admin 請求可用項目列表（用於分配）');
+    try {
+        const isDbConnected = checkDbConnectionForAdmin();
+        const Project = require('./models/Project');
+        const Student = require('./models/Student');
+        
+        if (isDbConnected && Project && Student) {
+            // For unmatched students: only show teacher-proposed projects
+            // (Student-proposed projects have supervisor: 'TBD' and should not be assigned)
+            const projects = await Project.find({
+                type: { $ne: 'student' }, // Only teacher-proposed
+                status: 'Under Review',
+                isActive: { $ne: false }
+            }).lean().exec();
+            
+            // Count assigned students per project
+            const assignedCounts = {};
+            const assignedStudents = await Student.find({ assignedProject: { $ne: null } }).lean().exec();
+            assignedStudents.forEach(s => {
+                const pid = String(s.assignedProject);
+                assignedCounts[pid] = (assignedCounts[pid] || 0) + 1;
+            });
+            
+            // Build available projects
+            const availableProjects = [];
+            
+            projects.forEach(p => {
+                const pid = String(p._id);
+                const capacity = p.capacity || 1;
+                const assigned = assignedCounts[pid] || 0;
+                const remaining = capacity - assigned;
+                
+                const projectData = {
+                    id: pid,
+                    code: p.code,
+                    title: p.title,
+                    supervisor: p.supervisor || (p.proposedByName || 'Student Proposed'),
+                    supervisorEmail: p.supervisorEmail || '',
+                    capacity: capacity,
+                    assignedCount: assigned,
+                    remainingSlots: remaining,
+                    type: 'teacher' // All are teacher-proposed
+                };
+                
+                availableProjects.push(projectData);
+            });
+            
+            return res.json({ 
+                success: true, 
+                projects: availableProjects
+            });
+        }
+        
+        return res.json({ success: true, projects: [] });
+    } catch (error) {
+        console.error('❌ 獲取可用項目列表錯誤:', error);
+        return res.status(500).json({ success: false, message: 'Failed to get available projects' });
+    }
+});
+
+// Get ALL projects for edit modal (admin has maximum permissions)
+// Includes both teacher-proposed and student-proposed projects
+app.get('/api/admin/all-projects', async (req, res) => {
+    console.log('📋 Admin 請求所有項目列表（用於編輯 Modal）');
+    try {
+        const isDbConnected = checkDbConnectionForAdmin();
+        const Project = require('./models/Project');
+        const Student = require('./models/Student');
+        
+        if (isDbConnected && Project && Student) {
+            // Get all projects (both teacher-proposed and student-proposed)
+            // Teacher-proposed: status is 'Under Review'
+            // Student-proposed: proposalStatus is 'approved'
+            const projects = await Project.find({
+                $or: [
+                    { type: { $ne: 'student' }, status: 'Under Review' },
+                    { type: 'student', proposalStatus: 'approved' }
+                ],
+                isActive: { $ne: false }
+            }).lean().exec();
+            
+            // Count assigned students per project
+            const assignedCounts = {};
+            const assignedStudents = await Student.find({ assignedProject: { $ne: null } }).lean().exec();
+            assignedStudents.forEach(s => {
+                const pid = String(s.assignedProject);
+                assignedCounts[pid] = (assignedCounts[pid] || 0) + 1;
+            });
+            
+            // Build all projects
+            const allProjects = [];
+            
+            projects.forEach(p => {
+                const pid = String(p._id);
+                const capacity = p.capacity || 1;
+                const assigned = assignedCounts[pid] || 0;
+                const remaining = capacity - assigned;
+                
+                const projectData = {
+                    id: pid,
+                    code: p.code,
+                    title: p.title,
+                    supervisor: p.supervisor || (p.proposedByName || 'Student Proposed'),
+                    supervisorEmail: p.supervisorEmail || '',
+                    capacity: capacity,
+                    assignedCount: assigned,
+                    remainingSlots: remaining,
+                    type: p.type === 'student' ? 'student' : 'teacher'
+                };
+                
+                allProjects.push(projectData);
+            });
+            
+            return res.json({ 
+                success: true, 
+                projects: allProjects
+            });
+        }
+        
+        return res.json({ success: true, projects: [] });
+    } catch (error) {
+        console.error('❌ 獲取所有項目列表錯誤:', error);
+        return res.status(500).json({ success: false, message: 'Failed to get all projects' });
+    }
+});
+
+// Manual assign project to a student
+app.post('/api/admin/assign-project', async (req, res) => {
+    console.log('📋 Admin 手動分配項目:', req.body);
+    try {
+        const { studentId, projectId } = req.body;
+        
+        if (!studentId || !projectId) {
+            return res.status(400).json({ success: false, message: 'studentId and projectId are required' });
+        }
+        
+        const isDbConnected = checkDbConnectionForAdmin();
+        const Student = require('./models/Student');
+        const Project = require('./models/Project');
+        
+        if (isDbConnected && Student && Project) {
+            // Find student
+            const student = await Student.findOne({ id: studentId }).exec();
+            if (!student) {
+                return res.status(404).json({ success: false, message: 'Student not found' });
+            }
+            
+            // Check if student already has a project assigned
+            if (student.assignedProject) {
+                return res.status(400).json({ success: false, message: 'Student already has an assigned project. Please clear it first.' });
+            }
+            
+            // Find project
+            const project = await Project.findById(projectId).exec();
+            if (!project) {
+                return res.status(404).json({ success: false, message: 'Project not found' });
+            }
+            
+            // Verify project is approved (either teacher-proposed or student-proposed with approved status)
+            // Teacher-proposed: status is 'Under Review' (approved but waiting for final assignment)
+            // Student-proposed: proposalStatus is 'approved'
+            if (project.type !== 'student' && project.status !== 'Under Review') {
+                return res.status(400).json({ success: false, message: 'Project is not approved for assignment' });
+            }
+            if (project.type === 'student' && project.proposalStatus !== 'approved') {
+                return res.status(400).json({ success: false, message: 'Student-proposed project is not approved' });
+            }
+            
+            // Check capacity
+            const currentAssigned = await Student.countDocuments({ assignedProject: projectId });
+            if (currentAssigned >= (project.capacity || 1)) {
+                return res.status(400).json({ success: false, message: 'Project has reached its capacity' });
+            }
+            
+            // Assign project
+            student.assignedProject = project._id;
+            student.updatedAt = new Date();
+            await student.save();
+            
+            // Update project assigned count
+            project.assignedCount = currentAssigned + 1;
+            await project.save();
+            
+            console.log(`✅ Assigned project ${project.title} to student ${student.name}`);
+            
+            return res.json({ 
+                success: true, 
+                message: `Project ${project.title} assigned to ${student.name}`,
+                student: {
+                    id: student.id,
+                    name: student.name,
+                    assignedProject: String(project._id),
+                    projectTitle: project.title
+                }
+            });
+        }
+        
+        return res.status(500).json({ success: false, message: 'Database not available' });
+    } catch (error) {
+        console.error('❌ 分配項目錯誤:', error);
+        return res.status(500).json({ success: false, message: 'Failed to assign project: ' + error.message });
+    }
+});
+
+// Auto-assign selected students to random available projects
+app.post('/api/admin/auto-assign', async (req, res) => {
+    console.log('📋 Admin 自動分配選中學生:', req.body);
+    try {
+        const { studentIds } = req.body;
+        
+        if (!studentIds || !Array.isArray(studentIds) || studentIds.length === 0) {
+            return res.status(400).json({ success: false, message: 'studentIds array is required' });
+        }
+        
+        const isDbConnected = checkDbConnectionForAdmin();
+        const Student = require('./models/Student');
+        const Project = require('./models/Project');
+        
+        if (isDbConnected && Student && Project) {
+            // Get all approved projects (both teacher-proposed and student-proposed)
+            const projects = await Project.find({ 
+                $or: [
+                    { type: { $ne: 'student' }, status: 'Approved' },
+                    { type: 'student', proposalStatus: 'approved' }
+                ],
+                isActive: { $ne: false }
+            }).lean().exec();
+            
+            // Calculate remaining slots for each project
+            const projectSlots = {};
+            for (const p of projects) {
+                const pid = String(p._id);
+                const capacity = p.capacity || 1;
+                const assigned = await Student.countDocuments({ assignedProject: pid });
+                projectSlots[pid] = {
+                    project: p,
+                    remaining: capacity - assigned
+                };
+            }
+            
+            // Filter projects with remaining slots
+            const availableProjects = projects.filter(p => {
+                const pid = String(p._id);
+                return projectSlots[pid] && projectSlots[pid].remaining > 0;
+            });
+            
+            if (availableProjects.length === 0) {
+                return res.status(400).json({ success: false, message: 'No available projects with remaining capacity' });
+            }
+            
+            // Get unmatched students
+            const students = await Student.find({ 
+                id: { $in: studentIds },
+                assignedProject: null 
+            }).exec();
+            
+            if (students.length === 0) {
+                return res.status(400).json({ success: false, message: 'No unmatched students found among the selected IDs' });
+            }
+            
+            const results = [];
+            // Shuffle students for random assignment
+            const shuffledStudents = [...students].sort(() => Math.random() - 0.5);
+            // Keep track of used projects per student to avoid duplicates
+            const studentAssignedProjects = {};
+            
+            for (const student of shuffledStudents) {
+                // Find available projects (with remaining slots, not yet assigned to this student)
+                const availableForStudent = availableProjects.filter(p => {
+                    const pid = String(p._id);
+                    return projectSlots[pid] && projectSlots[pid].remaining > 0;
+                });
+                
+                if (availableForStudent.length === 0) {
+                    continue;
+                }
+                
+                // Randomly select a project
+                const randomIndex = Math.floor(Math.random() * availableForStudent.length);
+                const selectedProject = availableForStudent[randomIndex];
+                const pid = String(selectedProject._id);
+                
+                // Assign project to student
+                student.assignedProject = selectedProject._id;
+                student.updatedAt = new Date();
+                await student.save();
+                
+                // Update slot count
+                projectSlots[pid].remaining--;
+                
+                results.push({
+                    studentId: student.id,
+                    studentName: student.name,
+                    projectId: pid,
+                    projectTitle: selectedProject.title
+                });
+                
+                console.log(`✅ Auto-assigned project ${selectedProject.title} to student ${student.name}`);
+            }
+            
+            return res.json({ 
+                success: true, 
+                message: `Auto-assigned ${results.length} students to projects`,
+                assignments: results
+            });
+        }
+        
+        return res.status(500).json({ success: false, message: 'Database not available' });
+    } catch (error) {
+        console.error('❌ 自動分配錯誤:', error);
+        return res.status(500).json({ success: false, message: 'Failed to auto-assign: ' + error.message });
+    }
+});
+
+// Clear student's assignment
+app.post('/api/admin/clear-assignment', async (req, res) => {
+    console.log('📋 Admin 清除學生分配:', req.body);
+    try {
+        const { studentId } = req.body;
+        
+        if (!studentId) {
+            return res.status(400).json({ success: false, message: 'studentId is required' });
+        }
+        
+        const isDbConnected = checkDbConnectionForAdmin();
+        const Student = require('./models/Student');
+        const Project = require('./models/Project');
+        
+        if (isDbConnected && Student && Project) {
+            // Find student
+            const student = await Student.findOne({ id: studentId }).exec();
+            if (!student) {
+                return res.status(404).json({ success: false, message: 'Student not found' });
+            }
+            
+            // Check if student has a project assigned
+            if (!student.assignedProject) {
+                return res.status(400).json({ success: false, message: 'Student does not have an assigned project' });
+            }
+            
+            const projectId = student.assignedProject;
+            
+            // Clear assignment
+            student.assignedProject = null;
+            student.updatedAt = new Date();
+            await student.save();
+            
+            // Update project assigned count
+            const project = await Project.findById(projectId).exec();
+            if (project && project.assignedCount > 0) {
+                project.assignedCount--;
+                await project.save();
+            }
+            
+            console.log(`✅ Cleared assignment for student ${student.name}`);
+            
+            return res.json({ 
+                success: true, 
+                message: `Assignment cleared for ${student.name}`
+            });
+        }
+        
+        return res.status(500).json({ success: false, message: 'Database not available' });
+    } catch (error) {
+        console.error('❌ 清除分配錯誤:', error);
+        return res.status(500).json({ success: false, message: 'Failed to clear assignment: ' + error.message });
+    }
+});
+
+// Update student's assignment (change project)
+app.post('/api/admin/update-assignment', async (req, res) => {
+    console.log('📋 Admin 更新學生分配:', req.body);
+    try {
+        const { studentId, newProjectId } = req.body;
+        
+        if (!studentId || !newProjectId) {
+            return res.status(400).json({ success: false, message: 'studentId and newProjectId are required' });
+        }
+        
+        const isDbConnected = checkDbConnectionForAdmin();
+        const Student = require('./models/Student');
+        const Project = require('./models/Project');
+        
+        if (isDbConnected && Student && Project) {
+            // Find student
+            const student = await Student.findOne({ id: studentId }).exec();
+            if (!student) {
+                return res.status(404).json({ success: false, message: 'Student not found' });
+            }
+            
+            // Find new project
+            const newProject = await Project.findById(newProjectId).exec();
+            if (!newProject) {
+                return res.status(404).json({ success: false, message: 'Project not found' });
+            }
+            
+            // Verify project is approved (either teacher-proposed or student-proposed with approved status)
+            // Teacher-proposed: status is 'Under Review' (approved but waiting for final assignment)
+            // Student-proposed: proposalStatus is 'approved'
+            if (newProject.type !== 'student' && newProject.status !== 'Under Review') {
+                return res.status(400).json({ success: false, message: 'Project is not approved for assignment' });
+            }
+            if (newProject.type === 'student' && newProject.proposalStatus !== 'approved') {
+                return res.status(400).json({ success: false, message: 'Student-proposed project is not approved' });
+            }
+            
+            const oldProjectId = student.assignedProject;
+            
+            // If same project, do nothing
+            if (oldProjectId && String(oldProjectId) === newProjectId) {
+                return res.json({ success: true, message: 'Student is already assigned to this project' });
+            }
+            
+            // Check capacity for new project (if it's a different project)
+            if (!oldProjectId || String(oldProjectId) !== newProjectId) {
+                const currentAssigned = await Student.countDocuments({ assignedProject: newProjectId });
+                if (currentAssigned >= (newProject.capacity || 1)) {
+                    return res.status(400).json({ success: false, message: 'New project has reached its capacity' });
+                }
+            }
+            
+            // Update old project count
+            if (oldProjectId) {
+                const oldProject = await Project.findById(oldProjectId).exec();
+                if (oldProject && oldProject.assignedCount > 0) {
+                    oldProject.assignedCount--;
+                    await oldProject.save();
+                }
+            }
+            
+            // Assign new project
+            student.assignedProject = newProject._id;
+            student.updatedAt = new Date();
+            await student.save();
+            
+            // Update new project count
+            newProject.assignedCount = await Student.countDocuments({ assignedProject: newProjectId });
+            await newProject.save();
+            
+            console.log(`✅ Updated assignment for student ${student.name} to project ${newProject.title}`);
+            
+            return res.json({ 
+                success: true, 
+                message: `Updated assignment to ${newProject.title}`,
+                student: {
+                    id: student.id,
+                    name: student.name,
+                    assignedProject: String(newProject._id),
+                    projectTitle: newProject.title
+                }
+            });
+        }
+        
+        return res.status(500).json({ success: false, message: 'Database not available' });
+    } catch (error) {
+        console.error('❌ 更新分配錯誤:', error);
+        return res.status(500).json({ success: false, message: 'Failed to update assignment: ' + error.message });
+    }
+});
+
+// Update student test account SID
+app.put('/api/admin/students/test-account-sid', async (req, res) => {
+    console.log('📋 更新測試學生帳戶 SID:', req.body);
+    try {
+        const { email, newId } = req.body;
+        
+        if (!email || !newId) {
+            return res.status(400).json({ success: false, message: 'email and newId are required' });
+        }
+        
+        // Validate newId format (8 digits)
+        if (!/^\d{8}$/.test(newId)) {
+            return res.status(400).json({ success: false, message: 'Student ID must be exactly 8 digits' });
+        }
+        
+        const isDbConnected = checkDbConnectionForAdmin();
+        const Student = require('./models/Student');
+        
+        if (isDbConnected && Student) {
+            // Find student by email
+            const student = await Student.findOne({ email: email }).exec();
+            if (!student) {
+                return res.status(404).json({ success: false, message: 'Student not found' });
+            }
+            
+            // Check if newId already exists
+            const existingStudent = await Student.findOne({ id: newId }).exec();
+            if (existingStudent && String(existingStudent._id) !== String(student._id)) {
+                return res.status(400).json({ success: false, message: `Student ID ${newId} already exists` });
+            }
+            
+            const oldId = student.id;
+            student.id = newId;
+            await student.save();
+            
+            console.log(`✅ Updated student ${email} SID from ${oldId} to ${newId}`);
+            
+            return res.json({ 
+                success: true, 
+                message: `Updated student ID from ${oldId} to ${newId}`,
+                student: {
+                    id: student.id,
+                    name: student.name,
+                    email: student.email
+                }
+            });
+        }
+        
+        return res.status(500).json({ success: false, message: 'Database not available' });
+    } catch (error) {
+        console.error('❌ 更新學生 SID 錯誤:', error);
+        return res.status(500).json({ success: false, message: 'Failed to update student SID: ' + error.message });
     }
 });
 

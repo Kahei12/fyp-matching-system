@@ -1,24 +1,21 @@
 const mockData = require('./mockData');
 let ProjectModel = null;
 let StudentModel = null;
-let dbEnabled = false;
 
-// 同步檢查數據庫連接狀態
+// 同步檢查數據庫連接狀態 - 每次都重新檢查
 function checkDBConnection() {
     try {
         const mongoose = require('mongoose');
-        if (mongoose.connection.readyState === 1) {
+        const isConnected = mongoose.connection.readyState === 1;
+        
+        if (isConnected) {
             if (!ProjectModel) {
                 ProjectModel = require('../models/Project');
                 StudentModel = require('../models/Student');
             }
-            dbEnabled = true;
-            return true;
         }
-        dbEnabled = false;
-        return false;
+        return isConnected;
     } catch (err) {
-        dbEnabled = false;
         return false;
     }
 }
@@ -28,7 +25,7 @@ const studentService = {
     getAvailableProjects: async () => {
         try {
             checkDBConnection();
-            if (dbEnabled && ProjectModel) {
+            if (checkDBConnection() && ProjectModel) {
                 const allDocs = await ProjectModel.find({}).lean().exec();
 
                 const docs = allDocs.filter(doc => {
@@ -46,25 +43,27 @@ const studentService = {
                     popularity: typeof p.popularity === 'number' ? p.popularity : (parseInt(p.popularity) || 0)
                 }));
             }
-            // Mock mode
+            // Mock mode - 過濾 student-proposed 和 supervisor 為 TBD 的項目
             return mockData.projects.filter(project =>
-                project.type !== 'student'
+                project.type !== 'student' && project.supervisor !== 'TBD' && project.supervisor !== ''
             );
         } catch (err) {
             console.error('❌ getAvailableProjects error:', err.message);
+            // 錯誤處理時也使用相同的過濾邏輯
             return mockData.projects.filter(project =>
-                project.type !== 'teacher' && project.status === "active"
+                project.type !== 'student' && project.supervisor !== 'TBD' && project.supervisor !== ''
             );
         }
     },
     
     // 獲取學生信息
     getStudent: async (studentId) => {
-        if (dbEnabled && StudentModel) {
+        if (checkDBConnection() && StudentModel) {
             const doc = await StudentModel.findOne({ id: studentId }).lean().exec();
             if (!doc) return null;
             return {
                 id: doc.id,
+                studentId: doc.id,
                 name: doc.name,
                 email: doc.email,
                 gpa: (typeof doc.gpa === 'number') ? doc.gpa.toString() : (doc.gpa || null),
@@ -75,12 +74,14 @@ const studentService = {
                 assignedProject: doc.assignedProject || null
             };
         }
-        return mockData.students.find(student => student.id === studentId);
+        const s = mockData.students.find(student => student.id === studentId);
+        if (!s) return null;
+        return { ...s, studentId: s.studentId || s.id };
     },
     
     // 獲取學生的偏好列表
     getStudentPreferences: async (studentId) => {
-        if (dbEnabled && StudentModel && ProjectModel) {
+        if (checkDBConnection() && StudentModel && ProjectModel) {
             const student = await StudentModel.findOne({ id: studentId }).lean().exec();
             if (!student) return [];
             const prefs = Array.isArray(student.preferences) ? student.preferences : [];
@@ -143,7 +144,7 @@ const studentService = {
     // 添加項目到偏好
     addPreference: async (studentId, projectId) => {
         // projectId may be a string (code or ObjectId) or numeric id
-        if (dbEnabled && StudentModel && ProjectModel) {
+        if (checkDBConnection() && StudentModel && ProjectModel) {
             const student = await StudentModel.findOne({ id: studentId }).exec();
             if (!student) return { success: false, message: "Student not found" };
             const existing = (student.preferences || []).map(p => String(p));
@@ -184,7 +185,7 @@ const studentService = {
     removePreference: async (studentId, projectId) => {
         // 確保 projectId 是數字類型
         const pidStr = String(projectId);
-        if (dbEnabled && StudentModel && ProjectModel) {
+        if (checkDBConnection() && StudentModel && ProjectModel) {
             const student = await StudentModel.findOne({ id: studentId }).exec();
             if (!student) return { success: false, message: "Student not found" };
             const prefs = Array.isArray(student.preferences) ? student.preferences.map(p => String(p)) : [];
@@ -223,7 +224,7 @@ const studentService = {
     movePreference: async (studentId, projectId, direction) => {
         // 確保 projectId 是數字類型
         const pidStr = String(projectId);
-        if (dbEnabled && StudentModel) {
+        if (checkDBConnection() && StudentModel) {
             const student = await StudentModel.findOne({ id: studentId }).exec();
             if (!student) return { success: false, message: "Student not found" };
             const prefs = Array.isArray(student.preferences) ? student.preferences.map(p => String(p)) : [];
@@ -253,7 +254,7 @@ const studentService = {
     
     // Reorder preferences (用於拖曳排序)
     reorderPreferences: async (studentId, newOrder) => {
-        if (dbEnabled && StudentModel) {
+        if (checkDBConnection() && StudentModel) {
             const student = await StudentModel.findOne({ id: studentId }).exec();
             if (!student) return { success: false, message: "Student not found" };
             const prefs = Array.isArray(student.preferences) ? student.preferences.map(p => String(p)) : [];
@@ -280,7 +281,7 @@ const studentService = {
     
     // 提交最終偏好
     submitPreferences: async (studentId) => {
-        if (dbEnabled && StudentModel) {
+        if (checkDBConnection() && StudentModel) {
             const student = await StudentModel.findOne({ id: studentId }).exec();
             if (!student) return { success: false, message: "Student not found" };
             if (!Array.isArray(student.preferences) || student.preferences.length === 0) return { success: false, message: "No preferences to submit" };
@@ -298,7 +299,7 @@ const studentService = {
     // 直接設定學生的 preferences（由 Student UI 的 Submit 發起）
     setPreferences: async (studentId, preferencesArray) => {
         const stringPrefs = (preferencesArray || []).map(id => String(id));
-        if (dbEnabled && StudentModel && ProjectModel) {
+        if (checkDBConnection() && StudentModel && ProjectModel) {
             const student = await StudentModel.findOne({ id: studentId }).exec();
             if (!student) {
                 console.error(`[setPreferences] Student not found: ${studentId}`);
@@ -354,7 +355,7 @@ const studentService = {
     
     // Run matching using student-proposing Gale–Shapley with GPA tie-breaker and project capacities
     runMatching: async () => {
-        if (dbEnabled && StudentModel && ProjectModel) {
+        if (checkDBConnection() && StudentModel && ProjectModel) {
             console.log('[runMatching] Starting matching algorithm...');
             
             // clear previous assignments only (keep proposalSubmitted status)
@@ -571,7 +572,7 @@ const studentService = {
     
     // Return current matching results (based on assignments if available)
     getMatchingResults: async () => {
-        if (dbEnabled && StudentModel && ProjectModel) {
+        if (checkDBConnection() && StudentModel && ProjectModel) {
             const projects = await ProjectModel.find({}).lean().exec();
             const students = await StudentModel.find({ assignedProject: { $ne: null } }).lean().exec();
             
@@ -649,7 +650,7 @@ const studentService = {
 
     // 獲取所有學生列表（DB-backed if available）
     getAllStudents: async () => {
-        if (dbEnabled && StudentModel) {
+        if (checkDBConnection() && StudentModel) {
             const docs = await StudentModel.find({}).lean().exec();
             return docs.map(d => ({
                 id: d.id,
@@ -671,7 +672,7 @@ const studentService = {
     
     // Reset state to initial test state (clear assignments and student submissions)
     resetState: async () => {
-        if (dbEnabled && StudentModel) {
+        if (checkDBConnection() && StudentModel) {
             try {
                 // 重置所有學生的 preferences 和提交狀態
                 await StudentModel.updateMany(

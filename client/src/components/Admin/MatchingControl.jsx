@@ -67,10 +67,6 @@ function MatchingControl({ showNotification }) {
     }
   };
 
-  const showAdvancedSettings = () => {
-    showNotification('Advanced settings panel opened', 'info');
-  };
-
   return (
     <section className="content-section active">
       <div className="section-header">
@@ -91,7 +87,6 @@ function MatchingControl({ showNotification }) {
 
         <div className="control-buttons">
           <button className="btn-primary" onClick={startMatching}>Start Matching</button>
-          <button className="btn-secondary" onClick={showAdvancedSettings}>Advanced Setting</button>
           <button className="btn-danger" onClick={resetServer} style={{ marginLeft: '8px' }}>Reset Server</button>
         </div>
 

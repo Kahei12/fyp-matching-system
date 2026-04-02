@@ -87,10 +87,13 @@ function Login() {
         sessionStorage.setItem('userEmail', email);
         sessionStorage.setItem('userRole', result.user.role);
         sessionStorage.setItem('userName', result.user.name);
+        sessionStorage.setItem('mustChangePassword', String(!!result.user.mustChangePassword));
         
         // 根據角色存儲特定信息
         if (result.user.role === 'student') {
-          sessionStorage.setItem('studentId', result.user.studentId || 'S001');
+          const sid = result.user.studentId || result.user.id
+            || (email.toLowerCase() === 'student@hkmu.edu.hk' ? '13700797' : '');
+          sessionStorage.setItem('studentId', sid);
           sessionStorage.setItem('userGPA', result.user.gpa || '');
           sessionStorage.setItem('userMajor', result.user.major || '');
         }

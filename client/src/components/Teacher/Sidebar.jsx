@@ -36,7 +36,7 @@ function Sidebar({ currentSection, onSwitchSection, userName, onLogout }) {
         <div className="user-welcome">
           <p>Welcome, {userName}</p>
           <button className="logout-btn" onClick={onLogout}>
-            <span>→</span> Logout
+            Logout
           </button>
         </div>
       </div>

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 
 function ProjectBrowse({ projects, preferences, onAddPreference, isAssigned = false }) {
   const [searchKeyword, setSearchKeyword] = useState('');
@@ -6,6 +6,17 @@ function ProjectBrowse({ projects, preferences, onAddPreference, isAssigned = fa
   const [selectedSupervisor, setSelectedSupervisor] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [sortBy, setSortBy] = useState('popularity');
+  const [displayedCount, setDisplayedCount] = useState(9); // 初始顯示 9 個項目
+
+  // 當過濾條件改變時，重置顯示數量
+  useEffect(() => {
+    setDisplayedCount(9);
+  }, [searchKeyword, selectedSkill, selectedSupervisor, statusFilter, sortBy]);
+
+  // 載入更多項目
+  const loadMoreProjects = () => {
+    setDisplayedCount(prev => prev + 9);
+  };
 
   // 獲取所有技能選項
   const allSkills = useMemo(() => {
@@ -82,6 +93,7 @@ function ProjectBrowse({ projects, preferences, onAddPreference, isAssigned = fa
     setSelectedSupervisor('');
     setStatusFilter('all');
     setSortBy('popularity');
+    setDisplayedCount(9);
   };
 
   return (
@@ -172,15 +184,26 @@ function ProjectBrowse({ projects, preferences, onAddPreference, isAssigned = fa
             <button className="btn-primary" onClick={clearFilters}>Clear All Filters</button>
           </div>
         ) : (
-          filteredProjects.map(project => (
-            <ProjectCard 
-              key={project.id}
-              project={project}
-              isInPreferences={Array.isArray(preferences) && preferences.some(p => p.id === project.id)}
-              onAddPreference={onAddPreference}
-              isAssigned={isAssigned}
-            />
-          ))
+          <>
+            {filteredProjects.slice(0, displayedCount).map(project => (
+              <ProjectCard
+                key={project.id}
+                project={project}
+                isInPreferences={Array.isArray(preferences) && preferences.some(p => p.id === project.id)}
+                onAddPreference={onAddPreference}
+                isAssigned={isAssigned}
+              />
+            ))}
+
+            {/* 載入更多按鈕 */}
+            {displayedCount < filteredProjects.length && (
+              <div className="load-more-container">
+                <button className="btn-secondary load-more-btn" onClick={() => setDisplayedCount(prev => prev + 9)}>
+                  Load More Projects ({filteredProjects.length - displayedCount} remaining)
+                </button>
+              </div>
+            )}
+          </>
         )}
       </div>
     </section>

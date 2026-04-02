@@ -1,7 +1,8 @@
 .create-student-container {
-  max-width: 100%;
+  max-width: 1100px;
   margin: 0 auto;
   padding: 1rem;
+  box-sizing: border-box;
 }
 
 .create-student-header {
@@ -329,6 +330,8 @@
   border-radius: 12px;
   padding: 2rem;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  width: 100%;
+  box-sizing: border-box;
 }
 
 /* Account type toggle */
@@ -413,10 +416,17 @@
   border: 1px solid #dee2e6;
 }
 
+/* Same visual footprint for Student / Teacher table areas */
+.batch-table-panel {
+  min-height: 280px;
+  background: #fff;
+}
+
 .batch-table {
   width: 100%;
   border-collapse: collapse;
   background: white;
+  table-layout: fixed;
 }
 
 .batch-table thead {
@@ -459,58 +469,50 @@
   vertical-align: middle;
 }
 
-/* Column widths - Student table */
+/* Column widths - shared base (Student & Teacher 對齊) */
 .col-index {
-  width: 40px;
+  width: 48px;
+  min-width: 48px;
   text-align: center;
   color: #868e96;
   font-size: 0.85rem;
-}
-
-.col-student-id {
-  width: 110px;
-}
-
-.col-preview {
-  width: 170px;
-}
-
-.col-name {
-  width: 140px;
-}
-
-.col-email {
-  width: 200px;
-}
-
-.col-major {
-  width: 130px;
 }
 
 .col-action {
-  width: 50px;
+  width: 48px;
+  min-width: 48px;
   text-align: center;
 }
 
-/* Column widths - Teacher table */
-.teacher-table .col-index {
-  width: 40px;
-  text-align: center;
-  color: #868e96;
-  font-size: 0.85rem;
+/* Student table */
+.batch-table-student .col-student-id {
+  width: 130px;
+  min-width: 130px;
 }
 
-.teacher-table .col-teacher-name {
+.batch-table-student .col-preview {
+  width: 190px;
+  min-width: 170px;
+}
+
+.batch-table-student .col-name {
   width: 200px;
+  min-width: 160px;
 }
 
-.teacher-table .col-teacher-email {
-  width: 280px;
+.batch-table-student .col-major {
+  width: 180px;
+  min-width: 150px;
 }
 
-.teacher-table .col-action {
-  width: 50px;
-  text-align: center;
+/* Teacher table */
+.batch-table-teacher .col-teacher-name {
+  width: 240px;
+  min-width: 200px;
+}
+
+.batch-table-teacher .col-teacher-email {
+  width: auto;
 }
 
 /* Table inputs */
@@ -563,6 +565,13 @@
   color: #27ae60;
   font-size: 0.8rem;
   font-family: monospace;
+  word-break: break-all;
+}
+
+.email-preview-placeholder {
+  color: #adb5bd;
+  font-size: 0.85rem;
+  font-style: italic;
 }
 
 /* Remove button */

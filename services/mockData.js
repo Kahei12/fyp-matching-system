@@ -93,7 +93,7 @@ const mockData = {
     
     students: [
         {
-            id: "S001",
+            id: "13700797",
             name: "Chan Tai Man",
             email: "student@hkmu.edu.hk",
             gpa: "3.45",
