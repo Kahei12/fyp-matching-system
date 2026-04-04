@@ -1,6 +1,24 @@
 import React, { useState, useEffect, useRef } from 'react';
 
-function Proposal({ preferences, onSwitchSection, studentId, isAssigned = false, assignmentType = null, currentSection = 'proposal' }) {
+const DEFAULT_SYSTEM_DEADLINES = {
+  proposal: '2025-03-20T23:59:00',
+  preference: '2025-04-15T22:59:00',
+  results: '2025-05-30T23:59:00',
+};
+
+function fmtDaysLeft(days) {
+  return days < 0 ? 'Overdue' : `${days} days left`;
+}
+
+function Proposal({
+  preferences,
+  onSwitchSection,
+  studentId,
+  isAssigned = false,
+  assignmentType = null,
+  currentSection = 'proposal',
+  systemDeadlines = DEFAULT_SYSTEM_DEADLINES,
+}) {
   const preferencesCount = preferences?.length || 0;
   const proposalTableRef = useRef(null);
   
@@ -172,14 +190,25 @@ function Proposal({ preferences, onSwitchSection, studentId, isAssigned = false,
   // Check if student is assigned via matching algorithm (not via proposal)
   const isMatchedViaAlgorithm = isAssigned && assignmentType === 'matching';
 
-  // 计算 deadlines
   const now = new Date();
-  const proposalDeadline = new Date('2025-03-20T23:59:00');
-  const preferenceDeadline = new Date('2025-04-15T22:59:00');
-  
+  const proposalDeadline = new Date(systemDeadlines.proposal || DEFAULT_SYSTEM_DEADLINES.proposal);
+  const preferenceDeadline = new Date(systemDeadlines.preference || DEFAULT_SYSTEM_DEADLINES.preference);
+
   const proposalDaysLeft = Math.ceil((proposalDeadline - now) / (1000 * 60 * 60 * 24));
   const preferenceDaysLeft = Math.ceil((preferenceDeadline - now) / (1000 * 60 * 60 * 24));
-  const formattedProposalDate = proposalDeadline.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  const formattedProposalDate = proposalDeadline.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  });
+  const fmtDeadlineLine = (d) =>
+    d.toLocaleString(undefined, {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
 
   if (loading) {
     return (
@@ -201,7 +230,7 @@ function Proposal({ preferences, onSwitchSection, studentId, isAssigned = false,
       <div className="section-header">
         <div className="section-title-with-deadline">
           <h1>Proposal</h1>
-          <span className="deadline-hint">⏰ Deadline: {formattedProposalDate} ({proposalDaysLeft} days left)</span>
+          <span className="deadline-hint">⏰ Deadline: {formattedProposalDate} ({fmtDaysLeft(proposalDaysLeft)})</span>
         </div>
         <div className="phase-indicator">
           Current Stage: <strong>Stage 1 — Proposal</strong>
@@ -239,7 +268,7 @@ function Proposal({ preferences, onSwitchSection, studentId, isAssigned = false,
           <span className="stage-badge stage-1">Stage 1 (Proposal)</span>
           <div className="status-icon">✍</div>
           <div className="status-content">
-            <h3>Self-proposal</h3>
+            <h3>Student Self-proposal</h3>
             <p>Propose your own project</p>
             <button 
               className="action-btn"
@@ -275,7 +304,7 @@ function Proposal({ preferences, onSwitchSection, studentId, isAssigned = false,
           <span className="stage-badge stage-2">Stage 2 (Matching)</span>
           <div className="status-icon">★</div>
           <div className="status-content">
-            <h3>Project List</h3>
+            <h3>Teacher Project List</h3>
             <p>View the project list and manage your project preferences</p>
             <button 
               className="action-btn"
@@ -367,13 +396,13 @@ function Proposal({ preferences, onSwitchSection, studentId, isAssigned = false,
           <div className="deadline-list">
             <div className="deadline-item">
               <span className="deadline-name">Proposal Submission</span>
-              <span className="deadline-date">2025-03-20 23:59</span>
-              <span className="deadline-days">{proposalDaysLeft} days left</span>
+              <span className="deadline-date">{fmtDeadlineLine(proposalDeadline)}</span>
+              <span className="deadline-days">{fmtDaysLeft(proposalDaysLeft)}</span>
             </div>
             <div className="deadline-item">
               <span className="deadline-name">Preference Selection</span>
-              <span className="deadline-date">2025-04-15 22:59</span>
-              <span className="deadline-days">{preferenceDaysLeft} days left</span>
+              <span className="deadline-date">{fmtDeadlineLine(preferenceDeadline)}</span>
+              <span className="deadline-days">{fmtDaysLeft(preferenceDaysLeft)}</span>
             </div>
           </div>
         </div>

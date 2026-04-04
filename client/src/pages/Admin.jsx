@@ -2,15 +2,16 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import './Admin.css';
 import Sidebar from '../components/Admin/Sidebar';
-import ProjectReview from '../components/Admin/ProjectReview';
 import MatchingControl from '../components/Admin/MatchingControl';
 import FinalAssignment from '../components/Admin/FinalAssignment';
 import DeadlineManagement from '../components/Admin/DeadlineManagement';
 import DataExport from '../components/Admin/DataExport';
 import CreateStudentAccount from '../components/Admin/CreateStudentAccount';
+import AppModal from '../components/common/AppModal';
 
 function Admin() {
-  const [currentSection, setCurrentSection] = useState('project-review');
+  const [currentSection, setCurrentSection] = useState('matching-control');
+  const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -25,11 +26,14 @@ function Admin() {
   }, [navigate]);
 
   const handleLogout = () => {
-    if (window.confirm('Are you sure you want to logout?')) {
-      sessionStorage.clear();
-      localStorage.clear();
-      navigate('/');
-    }
+    setLogoutConfirmOpen(true);
+  };
+
+  const confirmLogout = () => {
+    setLogoutConfirmOpen(false);
+    sessionStorage.clear();
+    localStorage.clear();
+    navigate('/');
   };
 
   const showNotification = (message, type) => {
@@ -74,8 +78,6 @@ function Admin() {
 
   const renderSection = () => {
     switch (currentSection) {
-      case 'project-review':
-        return <ProjectReview showNotification={showNotification} />;
       case 'matching-control':
         return <MatchingControl showNotification={showNotification} />;
       case 'final-assignment':
@@ -87,7 +89,7 @@ function Admin() {
       case 'deadline-management':
         return <DeadlineManagement showNotification={showNotification} />;
       default:
-        return <ProjectReview showNotification={showNotification} />;
+        return <MatchingControl showNotification={showNotification} />;
     }
   };
 
@@ -108,7 +110,7 @@ function Admin() {
         <div className="breadcrumb">
           <span 
             className="breadcrumb-link" 
-            onClick={() => setCurrentSection('project-review')}
+            onClick={() => setCurrentSection('matching-control')}
             style={{ cursor: 'pointer' }}
           >
             Home
@@ -119,6 +121,19 @@ function Admin() {
 
         {renderSection()}
       </main>
+
+      <AppModal
+        open={logoutConfirmOpen}
+        title="Logout"
+        onClose={() => setLogoutConfirmOpen(false)}
+        footer="actions"
+        primaryLabel="Logout"
+        secondaryLabel="Cancel"
+        onPrimary={confirmLogout}
+        onSecondary={() => {}}
+      >
+        <p>Are you sure you want to logout?</p>
+      </AppModal>
     </div>
   );
 }
@@ -126,14 +141,13 @@ function Admin() {
 
 function getSectionTitle(sectionId) {
   const titles = {
-    'project-review': 'Project Review',
     'matching-control': 'Matching Control',
     'final-assignment': 'Final Assignment',
     'create-student-account': 'Create Student Account',
     'data-export': 'Data Export',
     'deadline-management': 'Deadline Management'
   };
-  return titles[sectionId] || 'Project Review';
+  return titles[sectionId] || 'Matching Control';
 }
 
 export default Admin;

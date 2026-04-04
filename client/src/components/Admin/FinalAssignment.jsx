@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import AppModal from '../common/AppModal';
 
 const STUDENTS_PER_PAGE = 10;
 /** Scroll area height aligned with ~10 student table rows (see Admin.css) */
@@ -16,6 +17,7 @@ function FinalAssignment({ showNotification }) {
   const [editingStudent, setEditingStudent] = useState(null);
   const [showProjectModal, setShowProjectModal] = useState(false);
   const [allProjectsForEdit, setAllProjectsForEdit] = useState([]);
+  const [confirmDialog, setConfirmDialog] = useState(null);
 
   // Pagination state
   const [unmatchedPage, setUnmatchedPage] = useState(1);
@@ -140,35 +142,46 @@ function FinalAssignment({ showNotification }) {
     setShowProjectModal(true);
   };
 
-  const handleAutoAssign = async () => {
+  const runAutoAssign = async () => {
+    try {
+      const response = await fetch('/api/admin/auto-assign', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ studentIds: Array.from(selectedUnmatched) }),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        showNotification(data.message, 'success');
+        setSelectedUnmatched(new Set());
+        setSelectAllUnmatched(false);
+        fetchData();
+      } else {
+        showNotification(data.message, 'error');
+      }
+    } catch (error) {
+      console.error('Auto-assign error:', error);
+      showNotification('Failed to auto-assign students', 'error');
+    }
+  };
+
+  const handleAutoAssign = () => {
     if (selectedUnmatched.size === 0) {
       showNotification('Please select at least one student', 'error');
       return;
     }
-    
-    if (window.confirm(`Auto-assign ${selectedUnmatched.size} selected students to available projects?`)) {
-      try {
-        const response = await fetch('/api/admin/auto-assign', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ studentIds: Array.from(selectedUnmatched) })
-        });
-        
-        const data = await response.json();
-        
-        if (data.success) {
-          showNotification(data.message, 'success');
-          setSelectedUnmatched(new Set());
-          setSelectAllUnmatched(false);
-          fetchData();
-        } else {
-          showNotification(data.message, 'error');
-        }
-      } catch (error) {
-        console.error('Auto-assign error:', error);
-        showNotification('Failed to auto-assign students', 'error');
-      }
-    }
+
+    const n = selectedUnmatched.size;
+    setConfirmDialog({
+      title: 'Auto-assign students',
+      message: `Auto-assign ${n} selected students to available projects?`,
+      primaryLabel: 'Auto-assign',
+      onConfirm: () => {
+        setConfirmDialog(null);
+        runAutoAssign();
+      },
+    });
   };
 
   const handleConfirmAssign = async (studentId, projectId) => {
@@ -195,30 +208,40 @@ function FinalAssignment({ showNotification }) {
     }
   };
 
-  const handleClearAssignment = async (studentId) => {
-    if (window.confirm('Clear this student\'s project assignment?')) {
-      try {
-        const response = await fetch('/api/admin/clear-assignment', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ studentId })
-        });
-        
-        const data = await response.json();
-        
-        if (data.success) {
-          showNotification(data.message, 'success');
-          setShowProjectModal(false);
-          setEditingStudent(null);
-          fetchData();
-        } else {
-          showNotification(data.message, 'error');
-        }
-      } catch (error) {
-        console.error('Clear assignment error:', error);
-        showNotification('Failed to clear assignment', 'error');
+  const runClearAssignment = async (studentId) => {
+    try {
+      const response = await fetch('/api/admin/clear-assignment', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ studentId }),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        showNotification(data.message, 'success');
+        setShowProjectModal(false);
+        setEditingStudent(null);
+        fetchData();
+      } else {
+        showNotification(data.message, 'error');
       }
+    } catch (error) {
+      console.error('Clear assignment error:', error);
+      showNotification('Failed to clear assignment', 'error');
     }
+  };
+
+  const handleClearAssignment = (studentId) => {
+    setConfirmDialog({
+      title: 'Clear assignment',
+      message: "Clear this student's project assignment?",
+      primaryLabel: 'Clear',
+      onConfirm: () => {
+        setConfirmDialog(null);
+        runClearAssignment(studentId);
+      },
+    });
   };
 
   const handleUpdateAssignment = async (studentId, newProjectId) => {
@@ -609,6 +632,18 @@ function FinalAssignment({ showNotification }) {
           </div>
         </div>
       )}
+
+      <AppModal
+        open={!!confirmDialog}
+        title={confirmDialog?.title || ''}
+        onClose={() => setConfirmDialog(null)}
+        footer="actions"
+        primaryLabel={confirmDialog?.primaryLabel || 'Confirm'}
+        onPrimary={() => confirmDialog?.onConfirm?.()}
+        onSecondary={() => {}}
+      >
+        <p>{confirmDialog?.message}</p>
+      </AppModal>
 
       <style>{`
         .loading-state, .empty-state {

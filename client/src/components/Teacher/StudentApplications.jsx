@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
+import AppModal from '../common/AppModal';
 
 function StudentApplications({ showNotification, onStatsChange }) {
   const [loading, setLoading] = useState(true);
   const [proposals, setProposals] = useState([]);
+  const [confirmDialog, setConfirmDialog] = useState(null);
   const userEmail = sessionStorage.getItem('userEmail') || 'teacher@hkmu.edu.hk';
   const userName = sessionStorage.getItem('userName') || 'Teacher';
 
@@ -31,9 +33,7 @@ function StudentApplications({ showNotification, onStatsChange }) {
     }
   };
 
-  const handleApproveProposal = async (proposalId) => {
-    if (!window.confirm('Are you sure you want to approve this proposal? You will become the supervisor of this project.')) return;
-    
+  const runApproveProposal = async (proposalId) => {
     try {
       const response = await fetch(`/api/proposals/${proposalId}/status`, {
         method: 'PUT',
@@ -42,15 +42,15 @@ function StudentApplications({ showNotification, onStatsChange }) {
           status: 'approve',
           supervisorEmail: userEmail,
           supervisorName: userName,
-          teacherId: userEmail
-        })
+          teacherId: userEmail,
+        }),
       });
-      
+
       const data = await response.json();
       if (data.success) {
         showNotification('Proposal approved! You are now the supervisor of this project.', 'success');
-        fetchProposals(); // Refresh proposals
-        if (onStatsChange) onStatsChange(); // Refresh stats
+        fetchProposals();
+        if (onStatsChange) onStatsChange();
       } else {
         showNotification(data.message || 'Failed to approve proposal', 'error');
       }
@@ -60,24 +60,35 @@ function StudentApplications({ showNotification, onStatsChange }) {
     }
   };
 
-  const handleRejectProposal = async (proposalId) => {
-    if (!window.confirm('Are you sure you want to reject this proposal? The student will be notified.')) return;
-    
+  const handleApproveProposal = (proposalId) => {
+    setConfirmDialog({
+      title: 'Approve proposal',
+      message:
+        'Are you sure you want to approve this proposal? You will become the supervisor of this project.',
+      primaryLabel: 'Approve',
+      onConfirm: () => {
+        setConfirmDialog(null);
+        runApproveProposal(proposalId);
+      },
+    });
+  };
+
+  const runRejectProposal = async (proposalId) => {
     try {
       const response = await fetch(`/api/proposals/${proposalId}/status`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           status: 'reject',
-          teacherId: userEmail
-        })
+          teacherId: userEmail,
+        }),
       });
-      
+
       const data = await response.json();
       if (data.success) {
         showNotification('Proposal rejected.', 'info');
-        fetchProposals(); // Refresh proposals
-        if (onStatsChange) onStatsChange(); // Refresh stats
+        fetchProposals();
+        if (onStatsChange) onStatsChange();
       } else {
         showNotification(data.message || 'Failed to reject proposal', 'error');
       }
@@ -85,6 +96,19 @@ function StudentApplications({ showNotification, onStatsChange }) {
       console.error('Error rejecting proposal:', error);
       showNotification('Failed to reject proposal', 'error');
     }
+  };
+
+  const handleRejectProposal = (proposalId) => {
+    setConfirmDialog({
+      title: 'Reject proposal',
+      message:
+        'Are you sure you want to reject this proposal? The student will be notified.',
+      primaryLabel: 'Reject',
+      onConfirm: () => {
+        setConfirmDialog(null);
+        runRejectProposal(proposalId);
+      },
+    });
   };
 
   if (loading) {
@@ -209,6 +233,18 @@ function StudentApplications({ showNotification, onStatsChange }) {
             </div>
           )}
         </div>
+
+      <AppModal
+        open={!!confirmDialog}
+        title={confirmDialog?.title || ''}
+        onClose={() => setConfirmDialog(null)}
+        footer="actions"
+        primaryLabel={confirmDialog?.primaryLabel || 'Confirm'}
+        onPrimary={() => confirmDialog?.onConfirm?.()}
+        onSecondary={() => {}}
+      >
+        <p>{confirmDialog?.message}</p>
+      </AppModal>
     </section>
   );
 }

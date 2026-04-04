@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import AppModal from '../common/AppModal';
 
 function ProjectBrowse({ projects, preferences, onAddPreference, isAssigned = false }) {
   const [searchKeyword, setSearchKeyword] = useState('');
@@ -190,18 +191,9 @@ function ProjectBrowse({ projects, preferences, onAddPreference, isAssigned = fa
 }
 
 function ProjectCard({ project, isInPreferences, onAddPreference, isAssigned = false }) {
-  const handleViewDetails = () => {
-    const details = `
-Project: ${project.title}
-Supervisor: ${project.supervisor}
-Description: ${project.description}
-Required Skills: ${Array.isArray(project.skills) ? project.skills.join(', ') : project.skills}
-Popularity: ${project.popularity} selections
-Capacity: ${project.capacity} students
-Status: ${project.status}
-    `;
-    alert(details);
-  };
+  const [detailOpen, setDetailOpen] = useState(false);
+
+  const skillsList = Array.isArray(project.skills) ? project.skills : project.skills ? [project.skills] : [];
 
   return (
     <div className="project-card">
@@ -235,10 +227,48 @@ Status: ${project.status}
         >
           {isAssigned ? '✘ Already Assigned' : isInPreferences ? '✔ Already Added' : '★ Add to Preferences'}
         </button>
-        <button className="btn-secondary" onClick={handleViewDetails}>
+        <button type="button" className="btn-secondary" onClick={() => setDetailOpen(true)}>
           ℹ View Details
         </button>
       </div>
+
+      <AppModal
+        open={detailOpen}
+        title="Project details"
+        onClose={() => setDetailOpen(false)}
+        size="lg"
+        footer="ok"
+        okLabel="OK"
+      >
+        <dl className="app-modal-dl">
+          <dt>Project</dt>
+          <dd>{project.title}</dd>
+          <dt>Supervisor</dt>
+          <dd>{project.supervisor}</dd>
+          <dt>Description</dt>
+          <dd>{project.description}</dd>
+          <dt>Required skills</dt>
+          <dd>
+            {skillsList.length > 0 ? (
+              <div className="app-modal-skill-tags">
+                {skillsList.map((skill) => (
+                  <span key={skill} className="app-modal-skill-tag">
+                    {skill}
+                  </span>
+                ))}
+              </div>
+            ) : (
+              <span style={{ color: '#6c757d' }}>None specified</span>
+            )}
+          </dd>
+          <dt>Popularity</dt>
+          <dd>{project.popularity} selections</dd>
+          <dt>Capacity</dt>
+          <dd>{project.capacity} students</dd>
+          <dt>Status</dt>
+          <dd>{project.status}</dd>
+        </dl>
+      </AppModal>
     </div>
   );
 }

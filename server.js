@@ -494,6 +494,26 @@ try {
         }
     });
 
+    app.get('/api/admin/deadlines', (req, res) => {
+        try {
+            const deadlines = studentService.getDeadlines();
+            res.json({ success: true, deadlines });
+        } catch (error) {
+            console.error('❌ 獲取截止日期錯誤:', error);
+            res.status(500).json({ success: false, message: 'Failed to load deadlines' });
+        }
+    });
+
+    app.put('/api/admin/deadlines', (req, res) => {
+        try {
+            const result = studentService.updateDeadlines(req.body || {});
+            res.json(result);
+        } catch (error) {
+            console.error('❌ 更新截止日期錯誤:', error);
+            res.status(500).json({ success: false, message: 'Failed to update deadlines' });
+        }
+    });
+
     // 匯出 API
     app.get('/api/export/matching-results', async (req, res) => {
         console.log('📊 導出配對結果');

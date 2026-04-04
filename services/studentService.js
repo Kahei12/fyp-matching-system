@@ -352,6 +352,26 @@ const studentService = {
     getSystemStatus: () => {
         return mockData.system;
     },
+
+    getDeadlines: () => {
+        return { ...(mockData.system.deadlines || {}) };
+    },
+
+    updateDeadlines: (partial) => {
+        if (!mockData.system.deadlines) mockData.system.deadlines = {};
+        const allowed = ['proposal', 'preference', 'results'];
+        for (const key of allowed) {
+            if (partial && Object.prototype.hasOwnProperty.call(partial, key)) {
+                const val = partial[key];
+                if (val == null || val === '') continue;
+                const d = new Date(val);
+                if (!isNaN(d.getTime())) {
+                    mockData.system.deadlines[key] = d.toISOString();
+                }
+            }
+        }
+        return { success: true, deadlines: { ...mockData.system.deadlines } };
+    },
     
     // Run matching using student-proposing Gale–Shapley with GPA tie-breaker and project capacities
     runMatching: async () => {

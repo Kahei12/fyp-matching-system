@@ -1,0 +1,181 @@
+.app-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10050;
+  padding: 1rem;
+}
+
+.app-modal-content {
+  background: #fff;
+  border-radius: 12px;
+  padding: 1.5rem;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+  width: 95%;
+}
+
+.app-modal-size-md {
+  max-width: 520px;
+}
+
+.app-modal-size-lg {
+  max-width: 700px;
+}
+
+.app-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+}
+
+.app-modal-header h2 {
+  margin: 0;
+  color: #2c3e50;
+  font-size: 1.35rem;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.app-modal-close {
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  cursor: pointer;
+  color: #6c757d;
+  padding: 0.25rem 0.5rem;
+  line-height: 1;
+}
+
+.app-modal-close:hover {
+  color: #2c3e50;
+}
+
+.app-modal-body {
+  color: #495057;
+  font-size: 0.95rem;
+  line-height: 1.55;
+}
+
+.app-modal-body p {
+  margin: 0 0 0.75rem;
+}
+
+.app-modal-body p:last-child {
+  margin-bottom: 0;
+}
+
+.app-modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 1rem;
+  padding-top: 1.25rem;
+  margin-top: 1.25rem;
+  border-top: 1px solid #e9ecef;
+}
+
+.app-modal-footer-single {
+  justify-content: flex-end;
+}
+
+.app-modal-btn {
+  padding: 0.65rem 1.25rem;
+  border-radius: 8px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  transition: background 0.2s ease, border-color 0.2s ease;
+}
+
+.app-modal-btn-primary {
+  background: #3498db;
+  color: #fff;
+}
+
+.app-modal-btn-primary:hover {
+  background: #2980b9;
+}
+
+.app-modal-btn-cancel {
+  background: #fff;
+  color: #495057;
+  border: 1px solid #ced4da;
+}
+
+.app-modal-btn-cancel:hover {
+  border-color: #adb5bd;
+  background: #f8f9fa;
+}
+
+/* 專題詳情等資訊列 */
+.app-modal-dl {
+  margin: 0;
+}
+
+.app-modal-dl dt {
+  font-weight: 600;
+  color: #2c3e50;
+  margin-top: 0.85rem;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.app-modal-dl dt:first-child {
+  margin-top: 0;
+}
+
+.app-modal-dl dd {
+  margin: 0.25rem 0 0;
+}
+
+.app-modal-skill-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-top: 0.35rem;
+}
+
+.app-modal-skill-tag {
+  background: #ecf0f1;
+  color: #2c3e50;
+  padding: 0.2rem 0.55rem;
+  border-radius: 6px;
+  font-size: 0.85rem;
+}
+
+.app-modal-form-label {
+  display: block;
+  font-weight: 600;
+  color: #495057;
+  margin-bottom: 0.5rem;
+  font-size: 0.9rem;
+}
+
+.app-modal-form-label .required {
+  color: #e74c3c;
+}
+
+.app-modal-input {
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid #ced4da;
+  border-radius: 6px;
+  font-size: 0.95rem;
+  box-sizing: border-box;
+}
+
+.app-modal-input:focus {
+  outline: none;
+  border-color: #3498db;
+  box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.12);
+}

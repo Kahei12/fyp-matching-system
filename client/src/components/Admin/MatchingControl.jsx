@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
+import AppModal from '../common/AppModal';
 
 function MatchingControl({ showNotification }) {
   const [status, setStatus] = useState('Ready');
   const [totalProjects, setTotalProjects] = useState(0);
   const [matchedProjects, setMatchedProjects] = useState(0);
+  const [confirmDialog, setConfirmDialog] = useState(null);
 
   // 從數據庫獲取真實統計數據
   const fetchStats = async () => {
@@ -32,9 +34,7 @@ function MatchingControl({ showNotification }) {
     fetchStats();
   }, []);
 
-  const startMatching = async () => {
-    if (!window.confirm('Start matching algorithm? This will assign students to projects based on preferences and GPA.')) return;
-
+  const runStartMatching = async () => {
     try {
       showNotification('Start Matching...', 'info');
       setStatus('Running');
@@ -45,7 +45,6 @@ function MatchingControl({ showNotification }) {
         throw new Error(runResult && runResult.message ? runResult.message : 'Match run failed');
       }
 
-      // fetch results to compute stats
       await fetchStats();
       setStatus('Completed');
 
@@ -57,8 +56,20 @@ function MatchingControl({ showNotification }) {
     }
   };
 
-  const resetServer = async () => {
-    if (!window.confirm('Reset server state? This will clear all preferences and assignments.')) return;
+  const startMatching = () => {
+    setConfirmDialog({
+      title: 'Start matching',
+      message:
+        'Start matching algorithm? This will assign students to projects based on preferences and GPA.',
+      primaryLabel: 'Start',
+      onConfirm: () => {
+        setConfirmDialog(null);
+        runStartMatching();
+      },
+    });
+  };
+
+  const runResetServer = async () => {
     try {
       showNotification('Resetting server state...', 'info');
       setStatus('Running');
@@ -66,7 +77,6 @@ function MatchingControl({ showNotification }) {
       const json = await resp.json();
       if (!resp.ok) throw new Error(json && json.message ? json.message : 'Reset failed');
 
-      // refresh results/stats
       await fetchStats();
       setStatus('Ready');
       showNotification(json.message || 'Server reset completed', 'success');
@@ -75,6 +85,19 @@ function MatchingControl({ showNotification }) {
       setStatus('Error');
       showNotification(`Reset failed: ${err.message || err}`, 'error');
     }
+  };
+
+  const resetServer = () => {
+    setConfirmDialog({
+      title: 'Reset server state',
+      message:
+        'Reset server state? This will clear all preferences and assignments.',
+      primaryLabel: 'Reset',
+      onConfirm: () => {
+        setConfirmDialog(null);
+        runResetServer();
+      },
+    });
   };
 
   return (
@@ -119,6 +142,18 @@ function MatchingControl({ showNotification }) {
           </div>
         </div>
       </div>
+
+      <AppModal
+        open={!!confirmDialog}
+        title={confirmDialog?.title || ''}
+        onClose={() => setConfirmDialog(null)}
+        footer="actions"
+        primaryLabel={confirmDialog?.primaryLabel || 'Confirm'}
+        onPrimary={() => confirmDialog?.onConfirm?.()}
+        onSecondary={() => {}}
+      >
+        <p>{confirmDialog?.message}</p>
+      </AppModal>
     </section>
   );
 }

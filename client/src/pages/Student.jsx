@@ -7,6 +7,18 @@ import ProjectBrowse from '../components/Student/ProjectBrowse';
 import MyPreferences from '../components/Student/MyPreferences';
 import Results from '../components/Student/Results';
 import Profile from '../components/Student/Profile';
+import AppModal from '../components/common/AppModal';
+
+const DEFAULT_SYSTEM_DEADLINES = {
+  proposal: '2025-03-20T23:59:00',
+  preference: '2025-04-15T22:59:00',
+  results: '2025-05-30T23:59:00',
+};
+
+/** Return 'N days left' or 'Overdue' (no negative numbers) */
+function fmtDaysLeft(days) {
+  return days < 0 ? 'Overdue' : `${days} days left`;
+}
 
 function Student() {
   const [currentSection, setCurrentSection] = useState('proposal');
@@ -23,6 +35,8 @@ function Student() {
   const [matchingCompleted, setMatchingCompleted] = useState(false);
   const [isAssigned, setIsAssigned] = useState(false);
   const [assignmentType, setAssignmentType] = useState(null);
+  const [systemDeadlines, setSystemDeadlines] = useState(DEFAULT_SYSTEM_DEADLINES);
+  const [confirmDialog, setConfirmDialog] = useState(null);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -41,6 +55,20 @@ function Student() {
     loadMatchingStatus();
     loadAssignmentStatus();
   }, [navigate]);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const r = await fetch('/api/system/status');
+        const d = await r.json();
+        if (d.success && d.deadlines) {
+          setSystemDeadlines((prev) => ({ ...prev, ...d.deadlines }));
+        }
+      } catch (_) {
+        /* keep defaults */
+      }
+    })();
+  }, []);
 
   const loadMatchingStatus = async () => {
     try {
@@ -232,10 +260,16 @@ function Student() {
   ];
 
   const handleLogout = () => {
-    if (window.confirm('Are you sure you want to logout?')) {
-      sessionStorage.clear();
-      navigate('/');
-    }
+    setConfirmDialog({
+      title: 'Logout',
+      message: 'Are you sure you want to logout?',
+      primaryLabel: 'Logout',
+      onConfirm: () => {
+        setConfirmDialog(null);
+        sessionStorage.clear();
+        navigate('/');
+      },
+    });
   };
 
   const handleAddPreference = async (projectId) => {
@@ -320,48 +354,50 @@ function Student() {
     }
   };
 
-  const handleSubmitPreferences = async () => {
+  const runSubmitPreferences = async () => {
     const currentStudentId = studentData.studentId || sessionStorage.getItem('studentId') || '13700797';
-    
+    try {
+      console.log('Submitting preferences to server:', currentStudentId);
+      const prefIds = preferences.map((p) => p.id);
+      const response = await fetch(`/api/student/${currentStudentId}/preferences/set`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ preferences: prefIds }),
+      });
+
+      const result = await response.json();
+      console.log('Set preferences response:', result);
+
+      if (response.ok && result.success) {
+        setStudentData((prev) => ({ ...prev, proposalSubmitted: true }));
+        sessionStorage.setItem('proposalSubmitted', 'true');
+        await loadPreferences(currentStudentId);
+        localStorage.removeItem(`studentPreferences_${currentStudentId}`);
+        showNotification(result.message || 'Preferences submitted successfully!', 'success');
+      } else {
+        showNotification(result.message || 'Failed to submit preferences', 'error');
+      }
+    } catch (error) {
+      console.error('Submit preferences error:', error);
+      showNotification('Failed to submit preferences. Please try again.', 'error');
+    }
+  };
+
+  const handleSubmitPreferences = () => {
     if (preferences.length === 0) {
       showNotification('Please add at least one project!', 'error');
       return;
     }
 
-    if (window.confirm(`Submit ${preferences.length} project preferences? This action cannot be undone.`)) {
-      try {
-        console.log('Submitting preferences to server:', currentStudentId);
-        // send full preferences array to server
-        const prefIds = preferences.map(p => p.id);
-        const response = await fetch(`/api/student/${currentStudentId}/preferences/set`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ preferences: prefIds })
-        });
-
-        const result = await response.json();
-        console.log('Set preferences response:', result);
-
-        if (response.ok && result.success) {
-          // 先更新狀態
-          setStudentData(prev => ({ ...prev, proposalSubmitted: true }));
-          sessionStorage.setItem('proposalSubmitted', 'true');
-          
-          // 然後重新載入 preferences 從服務器
-          await loadPreferences(currentStudentId);
-          
-          // 清除本地存儲的 preferences（因為已經提交到服務器）
-          localStorage.removeItem(`studentPreferences_${currentStudentId}`);
-          
-          showNotification(result.message || 'Preferences submitted successfully!', 'success');
-        } else {
-          showNotification(result.message || 'Failed to submit preferences', 'error');
-        }
-      } catch (error) {
-        console.error('Submit preferences error:', error);
-        showNotification('Failed to submit preferences. Please try again.', 'error');
-      }
-    }
+    setConfirmDialog({
+      title: 'Submit preferences',
+      message: `Submit ${preferences.length} project preferences? This action cannot be undone.`,
+      primaryLabel: 'Submit',
+      onConfirm: () => {
+        setConfirmDialog(null);
+        runSubmitPreferences();
+      },
+    });
   };
 
   const handleClearPreferences = () => {
@@ -381,12 +417,18 @@ function Student() {
       return;
     }
 
-    if (window.confirm('Clear all project preferences? This action cannot be undone.')) {
-      console.log('Clear preferences:', currentStudentId);
-      setPreferences([]);
-      localStorage.removeItem(`studentPreferences_${currentStudentId}`);
-      showNotification('All preferences cleared!', 'success');
-    }
+    setConfirmDialog({
+      title: 'Clear preferences',
+      message: 'Clear all project preferences? This action cannot be undone.',
+      primaryLabel: 'Clear all',
+      onConfirm: () => {
+        setConfirmDialog(null);
+        console.log('Clear preferences:', currentStudentId);
+        setPreferences([]);
+        localStorage.removeItem(`studentPreferences_${currentStudentId}`);
+        showNotification('All preferences cleared!', 'success');
+      },
+    });
   };
 
   const handleMovePreference = async (projectId, direction) => {
@@ -524,10 +566,13 @@ function Student() {
 
   // 渲染主标题和 deadline 提示
   const renderPageTitleWithDeadline = (section) => {
-    const preferenceDeadline = new Date('2025-04-15T22:59:00');
+    const preferenceDeadline = new Date(
+      systemDeadlines.preference || DEFAULT_SYSTEM_DEADLINES.preference
+    );
     const now = new Date();
-    const daysLeft = Math.ceil((preferenceDeadline - now) / (1000 * 60 * 60 * 24));
-    const formattedDate = preferenceDeadline.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  const daysLeft = Math.ceil((preferenceDeadline - now) / (1000 * 60 * 60 * 24));
+  const formattedDate = preferenceDeadline.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  const deadlineLabel = fmtDaysLeft(daysLeft);
 
     const titles = {
       'proposal': 'Proposal',
@@ -546,7 +591,7 @@ function Student() {
         <div className="section-title-with-deadline">
           <h1>{title}</h1>
           {section !== 'results' && (
-            <span className="deadline-hint">⏰ Deadline: {formattedDate} ({daysLeft} days left)</span>
+            <span className="deadline-hint">⏰ Deadline: {formattedDate} ({deadlineLabel})</span>
           )}
         </div>
         {phaseInfo && (
@@ -567,6 +612,7 @@ function Student() {
           isAssigned={isAssigned}
           assignmentType={assignmentType}
           currentSection={currentSection}
+          systemDeadlines={systemDeadlines}
         />;
       case 'project-browse':
         return <ProjectBrowse 
@@ -592,7 +638,7 @@ function Student() {
       case 'profile':
         return <Profile studentData={studentData} />;
       default:
-        return <Proposal preferences={preferences} onSwitchSection={setCurrentSection} studentId={studentData.studentId} isAssigned={isAssigned} assignmentType={assignmentType} />;
+        return <Proposal preferences={preferences} onSwitchSection={setCurrentSection} studentId={studentData.studentId} isAssigned={isAssigned} assignmentType={assignmentType} systemDeadlines={systemDeadlines} />;
     }
   };
 
@@ -633,6 +679,18 @@ function Student() {
         
         {renderSection()}
       </main>
+
+      <AppModal
+        open={!!confirmDialog}
+        title={confirmDialog?.title || ''}
+        onClose={() => setConfirmDialog(null)}
+        footer="actions"
+        primaryLabel={confirmDialog?.primaryLabel || 'Confirm'}
+        onPrimary={() => confirmDialog?.onConfirm?.()}
+        onSecondary={() => {}}
+      >
+        <p>{confirmDialog?.message}</p>
+      </AppModal>
     </div>
   );
 }
@@ -661,7 +719,7 @@ function StageOverview({ currentSection, onStageChange, preferencesCount }) {
     {
       id: 'proposal',
       badgeLabel: 'Stage 1 (Proposal)',
-      title: 'Self-proposal',
+      title: 'Student Self-proposal',
       description: 'Propose your own project',
       icon: '✍',
       stageClass: 'stage-1',
@@ -672,7 +730,7 @@ function StageOverview({ currentSection, onStageChange, preferencesCount }) {
     {
       id: 'project-browse',
       badgeLabel: 'Stage 2 (Matching)',
-      title: 'Project List',
+      title: 'Teacher Project List',
       description: 'View the project list and manage your project preferences',
       icon: '★',
       stageClass: 'stage-2',

@@ -2,7 +2,6 @@ import React from 'react';
 
 function Sidebar({ currentSection, onSwitchSection, userName, onLogout }) {
   const menuItems = [
-    { id: 'project-review', label: 'Project Review' },
     { id: 'matching-control', label: 'Matching Control' },
     { id: 'final-assignment', label: 'Final Assignment' },
     { id: 'create-student-account', label: 'Create Account' },

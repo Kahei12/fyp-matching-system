@@ -7,10 +7,22 @@ import ProjectManagement from '../components/Teacher/ProjectManagement';
 import StudentApplications from '../components/Teacher/StudentApplications';
 import SupervisionList from '../components/Teacher/SupervisionList';
 import MatchingResults from '../components/Teacher/MatchingResults';
+import AppModal from '../components/common/AppModal';
+
+const DEFAULT_TEACHER_DEADLINES = {
+  preference: '2025-04-15T23:59:00',
+  results: '2025-05-30T23:59:00',
+};
+
+function fmtDaysLeft(days) {
+  return days < 0 ? 'Overdue' : `${days} days left`;
+}
 
 function Teacher() {
   const [currentSection, setCurrentSection] = useState('student-applications');
   const [projectStats, setProjectStats] = useState({ total: 0, approved: 0, underReview: 0 });
+  const [systemDeadlines, setSystemDeadlines] = useState(DEFAULT_TEACHER_DEADLINES);
+  const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -24,11 +36,28 @@ function Teacher() {
     }
   }, [navigate]);
 
+  useEffect(() => {
+    (async () => {
+      try {
+        const r = await fetch('/api/system/status');
+        const d = await r.json();
+        if (d.success && d.deadlines) {
+          setSystemDeadlines((prev) => ({ ...prev, ...d.deadlines }));
+        }
+      } catch (_) {
+        /* defaults */
+      }
+    })();
+  }, []);
+
   const handleLogout = () => {
-    if (window.confirm('Are you sure you want to logout?')) {
-      sessionStorage.clear();
-      navigate('/');
-    }
+    setLogoutConfirmOpen(true);
+  };
+
+  const confirmLogout = () => {
+    setLogoutConfirmOpen(false);
+    sessionStorage.clear();
+    navigate('/');
   };
 
   const showNotification = (message, type) => {
@@ -121,11 +150,23 @@ function Teacher() {
     }
   };
   const now = new Date();
-  const applicationDeadline = new Date('2025-04-15T23:59:00');
-  const projectUpdateDeadline = new Date('2025-05-30T23:59:00');
-  
+  const applicationDeadline = new Date(
+    systemDeadlines.preference || DEFAULT_TEACHER_DEADLINES.preference
+  );
+  const projectUpdateDeadline = new Date(
+    systemDeadlines.results || DEFAULT_TEACHER_DEADLINES.results
+  );
+
   const applicationDaysLeft = Math.ceil((applicationDeadline - now) / (1000 * 60 * 60 * 24));
   const projectUpdateDaysLeft = Math.ceil((projectUpdateDeadline - now) / (1000 * 60 * 60 * 24));
+  const fmtLine = (d) =>
+    d.toLocaleString(undefined, {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
 
   // 获取phase信息
   const getPhaseInfo = (section) => {
@@ -139,9 +180,12 @@ function Teacher() {
 
   // 渲染主标题和 deadline 提示
   const renderPageTitleWithDeadline = (section) => {
-    const applicationDeadlineDate = new Date('2025-04-15T23:59:00');
-    const projectDeadlineDate = new Date('2025-05-30T23:59:00');
-    const resultDeadlineDate = new Date('2025-06-15T23:59:00');
+    const applicationDeadlineDate = new Date(
+      systemDeadlines.preference || DEFAULT_TEACHER_DEADLINES.preference
+    );
+    const projectDeadlineDate = new Date(
+      systemDeadlines.results || DEFAULT_TEACHER_DEADLINES.results
+    );
     const now = new Date();
 
     const titles = {
@@ -160,7 +204,7 @@ function Teacher() {
         label: 'Teacher Proposal Updates & Reviews'
       },
       'results': {
-        date: resultDeadlineDate,
+        date: projectDeadlineDate,
         label: 'Matching Result'
       }
     };
@@ -186,12 +230,13 @@ function Teacher() {
 
     const daysLeft = Math.ceil((deadline.date - now) / (1000 * 60 * 60 * 24));
     const formattedDate = deadline.date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    const deadlineLabel = fmtDaysLeft(daysLeft);
 
     return (
       <div className="section-header" style={{ marginBottom: '1.5rem' }}>
         <div className="section-title-with-deadline">
           <h1>{title}</h1>
-          <span className="deadline-hint">⏰ Deadline: {formattedDate} ({daysLeft} days left)</span>
+          <span className="deadline-hint">⏰ Deadline: {formattedDate} ({deadlineLabel})</span>
         </div>
         {phaseInfo && (
           <div className="phase-indicator">
@@ -262,13 +307,13 @@ function Teacher() {
               <div className="deadline-list">
                 <div className="deadline-item">
                   <span className="deadline-name">Student Proposal Review</span>
-                  <span className="deadline-date">2025-04-15 23:59</span>
-                  <span className="deadline-days">{applicationDaysLeft} days left</span>
+                  <span className="deadline-date">{fmtLine(applicationDeadline)}</span>
+                  <span className="deadline-days">{fmtDaysLeft(applicationDaysLeft)}</span>
                 </div>
                 <div className="deadline-item">
                   <span className="deadline-name">Teacher Proposal Updates & Reviews</span>
-                  <span className="deadline-date">2025-05-30 23:59</span>
-                  <span className="deadline-days">{projectUpdateDaysLeft} days left</span>
+                  <span className="deadline-date">{fmtLine(projectUpdateDeadline)}</span>
+                  <span className="deadline-days">{fmtDaysLeft(projectUpdateDaysLeft)}</span>
                 </div>
               </div>
             </div>
@@ -299,6 +344,19 @@ function Teacher() {
 
         {renderSection()}
       </main>
+
+      <AppModal
+        open={logoutConfirmOpen}
+        title="Logout"
+        onClose={() => setLogoutConfirmOpen(false)}
+        footer="actions"
+        primaryLabel="Logout"
+        secondaryLabel="Cancel"
+        onPrimary={confirmLogout}
+        onSecondary={() => {}}
+      >
+        <p>Are you sure you want to logout?</p>
+      </AppModal>
     </div>
   );
 }

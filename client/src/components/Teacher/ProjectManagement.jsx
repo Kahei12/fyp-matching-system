@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import AppModal from '../common/AppModal';
 
 function ProjectManagement({ showNotification }) {
   const [projects, setProjects] = useState([]);
@@ -17,6 +18,7 @@ function ProjectManagement({ showNotification }) {
     department: 'Computer Science',
     category: 'General'
   });
+  const [deleteConfirm, setDeleteConfirm] = useState(null);
 
   const userEmail = sessionStorage.getItem('userEmail') || 'teacher@hkmu.edu.hk';
   const userEmailLower = userEmail.toLowerCase();
@@ -160,29 +162,32 @@ function ProjectManagement({ showNotification }) {
     }
   };
 
-  const handleDeleteProject = async (projectId) => {
-    const project = projects.find(p => (p._id || p.id) === projectId);
-    if (project && window.confirm(`Are you sure you want to delete "${project.title}"?`)) {
-      try {
-        const response = await fetch(`/api/teacher/projects/${projectId}`, {
-          method: 'DELETE',
-          headers: {
-            'x-teacher-email': userEmail
-          }
-        });
+  const runDeleteProject = async (projectId) => {
+    try {
+      const response = await fetch(`/api/teacher/projects/${projectId}`, {
+        method: 'DELETE',
+        headers: {
+          'x-teacher-email': userEmail,
+        },
+      });
 
-        const data = await response.json();
-        if (data.success) {
-          showNotification('Project deleted successfully!', 'success');
-          fetchProjects();
-        } else {
-          showNotification(data.message || 'Failed to delete project', 'error');
-        }
-      } catch (error) {
-        console.error('Error deleting project:', error);
-        showNotification('Failed to delete project', 'error');
+      const data = await response.json();
+      if (data.success) {
+        showNotification('Project deleted successfully!', 'success');
+        fetchProjects();
+      } else {
+        showNotification(data.message || 'Failed to delete project', 'error');
       }
+    } catch (error) {
+      console.error('Error deleting project:', error);
+      showNotification('Failed to delete project', 'error');
     }
+  };
+
+  const handleDeleteProject = (projectId) => {
+    const project = projects.find((p) => (p._id || p.id) === projectId);
+    if (!project) return;
+    setDeleteConfirm({ projectId, title: project.title });
   };
 
   // 計算 Student Proposals 分頁中已審核的提案數量（用於括號 badge）
@@ -552,6 +557,27 @@ function ProjectManagement({ showNotification }) {
           </div>
         </div>
       )}
+
+      <AppModal
+        open={!!deleteConfirm}
+        title="Delete project"
+        onClose={() => setDeleteConfirm(null)}
+        footer="actions"
+        primaryLabel="Delete"
+        secondaryLabel="Cancel"
+        onPrimary={() => {
+          if (deleteConfirm) {
+            const id = deleteConfirm.projectId;
+            setDeleteConfirm(null);
+            runDeleteProject(id);
+          }
+        }}
+        onSecondary={() => {}}
+      >
+        <p>
+          Are you sure you want to delete &quot;{deleteConfirm?.title}&quot;?
+        </p>
+      </AppModal>
     </section>
   );
 }
