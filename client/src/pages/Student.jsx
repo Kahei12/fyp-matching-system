@@ -8,11 +8,15 @@ import MyPreferences from '../components/Student/MyPreferences';
 import Results from '../components/Student/Results';
 import Profile from '../components/Student/Profile';
 import AppModal from '../components/common/AppModal';
+import OverdueNotice from '../components/common/OverdueNotice';
+import { StageGlyph } from '../components/common/StageGlyphs';
+import { formatDateTime24 } from '../utils/formatDateTime24';
 
 const DEFAULT_SYSTEM_DEADLINES = {
-  proposal: '2025-03-20T23:59:00',
+  studentSelfProposal: '2025-03-20T23:59:00',
   preference: '2025-04-15T22:59:00',
-  results: '2025-05-30T23:59:00',
+  teacherProposalReview: '2025-04-15T23:59:00',
+  teacherSelfProposal: '2025-05-30T23:59:00',
 };
 
 /** Return 'N days left' or 'Overdue' (no negative numbers) */
@@ -23,11 +27,11 @@ function fmtDaysLeft(days) {
 function Student() {
   const [currentSection, setCurrentSection] = useState('proposal');
   const [studentData, setStudentData] = useState({
-    name: 'Chan Tai Man',
-    studentId: sessionStorage.getItem('studentId') || '13700797',
-    gpa: '3.45',
-    email: '',
-    major: 'Computer Science',
+    name: sessionStorage.getItem('userName') || '',
+    studentId: sessionStorage.getItem('studentId') || 's001',
+    gpa: sessionStorage.getItem('userGPA') || '',
+    email: sessionStorage.getItem('userEmail') || '',
+    major: sessionStorage.getItem('userMajor') || '',
     year: 'Year 4'
   });
   const [preferences, setPreferences] = useState([]);
@@ -36,6 +40,7 @@ function Student() {
   const [isAssigned, setIsAssigned] = useState(false);
   const [assignmentType, setAssignmentType] = useState(null);
   const [systemDeadlines, setSystemDeadlines] = useState(DEFAULT_SYSTEM_DEADLINES);
+  const [expiredDeadlineKeys, setExpiredDeadlineKeys] = useState(new Set());
   const [confirmDialog, setConfirmDialog] = useState(null);
   const navigate = useNavigate();
 
@@ -49,11 +54,12 @@ function Student() {
       return;
     }
 
-    // 載入學生數據
-    loadStudentData();
-    loadProjects();
-    loadMatchingStatus();
-    loadAssignmentStatus();
+    (async () => {
+      await loadStudentData();
+      loadProjects();
+      loadMatchingStatus();
+      loadAssignmentStatus();
+    })();
   }, [navigate]);
 
   useEffect(() => {
@@ -69,6 +75,18 @@ function Student() {
       }
     })();
   }, []);
+
+  // Recompute expired deadlines whenever deadlines change
+  useEffect(() => {
+    const now = new Date();
+    const expired = new Set();
+    Object.entries(systemDeadlines).forEach(([key, iso]) => {
+      if (iso && new Date(iso) < now) {
+        expired.add(key);
+      }
+    });
+    setExpiredDeadlineKeys(expired);
+  }, [systemDeadlines]);
 
   const loadMatchingStatus = async () => {
     try {
@@ -87,7 +105,7 @@ function Student() {
 
   const loadAssignmentStatus = async () => {
     try {
-      const studentId = sessionStorage.getItem('studentId') || '13700797';
+      const studentId = sessionStorage.getItem('studentId') || 's001';
       const resp = await fetch(`/api/student/${studentId}/assignment-status`);
       const data = await resp.json();
       
@@ -106,7 +124,7 @@ function Student() {
   };
 
   const loadStudentData = async () => {
-    const studentId = sessionStorage.getItem('studentId') || '13700797';
+    const studentId = sessionStorage.getItem('studentId') || 's001';
     const userEmail = sessionStorage.getItem('userEmail') || '';
     
     console.log('[SEARCH] 載入學生數據，studentId:', studentId);
@@ -128,6 +146,10 @@ function Student() {
       if (result.success) {
         const s = result.student || {};
         const resolvedId = s.studentId || s.id || studentId;
+        const gpaStr = s.gpa != null ? String(s.gpa) : '';
+        if (s.major) sessionStorage.setItem('userMajor', s.major);
+        if (gpaStr) sessionStorage.setItem('userGPA', gpaStr);
+        sessionStorage.setItem('studentId', resolvedId);
         setStudentData({
           ...s,
           studentId: resolvedId,
@@ -135,7 +157,7 @@ function Student() {
         });
         
         // 載入偏好
-        await loadPreferences(studentId);
+        await loadPreferences(resolvedId);
       } else {
         // API 失敗，使用 sessionStorage 數據
         console.log('API returned failure, using local data');
@@ -149,21 +171,21 @@ function Student() {
   };
 
   const loadProjects = async () => {
-    console.log('[DEBUG] loadProjects called');
+    const studentMajor = sessionStorage.getItem('userMajor') || '';
+    console.log('[loadProjects] studentMajor from session:', studentMajor);
     try {
-      const response = await fetch('/api/student/projects');
-      console.log('[DEBUG] fetch completed, status:', response.status);
+      const queryParam = studentMajor ? `?major=${encodeURIComponent(studentMajor)}` : '';
+      const response = await fetch(`/api/student/projects${queryParam}`);
       const result = await response.json();
-      console.log('[DEBUG] result.success:', result.success, 'projects count:', result.projects ? result.projects.length : 0);
-      
-      if (result.success) {
+      console.log('[loadProjects] success:', result.success, '| projects count:', result.projects?.length ?? 0);
+      if (result.success && result.projects) {
         setProjects(result.projects);
-        console.log('[DEBUG] projects state updated with', result.projects.length, 'items');
+      } else {
+        setProjects([]);
       }
     } catch (error) {
-      console.error('載入項目錯誤:', error);
-      // 使用後備數據
-      setProjects(getFallbackProjects());
+      console.error('[loadProjects] error:', error);
+      setProjects([]);
     }
   };
 
@@ -206,59 +228,6 @@ function Student() {
     };
   };
 
-  const getFallbackProjects = () => [
-    {
-      id: 1,
-      title: 'AI-based Learning System',
-      supervisor: 'Dr. Bell Liu',
-      description: 'Develop an intelligent learning platform that adapts to student learning patterns using machine learning algorithms.',
-      skills: ['Python', 'Machine Learning', 'Web Development'],
-      popularity: 15,
-      capacity: 3,
-      status: 'active'
-    },
-    {
-      id: 2,
-      title: 'IoT Smart Campus',
-      supervisor: 'Prof. Zhang Wei',
-      description: 'Build an IoT system to monitor and optimize campus resource usage.',
-      skills: ['IoT', 'Embedded Systems', 'Python'],
-      popularity: 8,
-      capacity: 2,
-      status: 'active'
-    },
-    {
-      id: 3,
-      title: 'Blockchain Security Analysis',
-      supervisor: 'Dr. Sarah Chen',
-      description: 'Analyze security vulnerabilities in blockchain systems.',
-      skills: ['Blockchain', 'Cryptography', 'Security'],
-      popularity: 12,
-      capacity: 2,
-      status: 'active'
-    },
-    {
-      id: 4,
-      title: 'Mobile Health App',
-      supervisor: 'Prof. David Wong',
-      description: 'Create a mobile application for health monitoring.',
-      skills: ['Mobile Development', 'Healthcare', 'Data Analysis'],
-      popularity: 6,
-      capacity: 3,
-      status: 'active'
-    },
-    {
-      id: 5,
-      title: 'Data Visualization Platform',
-      supervisor: 'Dr. Emily Zhao',
-      description: 'Develop an interactive platform for visualizing complex datasets.',
-      skills: ['Data Visualization', 'JavaScript', 'D3.js'],
-      popularity: 9,
-      capacity: 2,
-      status: 'active'
-    }
-  ];
-
   const handleLogout = () => {
     setConfirmDialog({
       title: 'Logout',
@@ -274,7 +243,7 @@ function Student() {
 
   const handleAddPreference = async (projectId) => {
     // Buffer preference locally; only submit to server on Submit Preferences
-    const currentStudentId = studentData.studentId || sessionStorage.getItem('studentId') || '13700797';
+    const currentStudentId = studentData.studentId || sessionStorage.getItem('studentId') || 's001';
 
     // 檢查是否已提交或匹配已完成
     const submittedFlag = studentData.proposalSubmitted || sessionStorage.getItem('proposalSubmitted') === 'true';
@@ -315,7 +284,7 @@ function Student() {
   };
 
   const handleRemovePreference = async (projectId) => {
-    const currentStudentId = studentData.studentId || sessionStorage.getItem('studentId') || '13700797';
+    const currentStudentId = studentData.studentId || sessionStorage.getItem('studentId') || 's001';
     
     console.log('Removing preference:', { projectId, currentStudentId });
     
@@ -355,7 +324,7 @@ function Student() {
   };
 
   const runSubmitPreferences = async () => {
-    const currentStudentId = studentData.studentId || sessionStorage.getItem('studentId') || '13700797';
+    const currentStudentId = studentData.studentId || sessionStorage.getItem('studentId') || 's001';
     try {
       console.log('Submitting preferences to server:', currentStudentId);
       const prefIds = preferences.map((p) => p.id);
@@ -401,7 +370,7 @@ function Student() {
   };
 
   const handleClearPreferences = () => {
-    const currentStudentId = studentData.studentId || sessionStorage.getItem('studentId') || '13700797';
+    const currentStudentId = studentData.studentId || sessionStorage.getItem('studentId') || 's001';
     
     // 檢查是否已提交
     const submittedFlag = studentData.proposalSubmitted || sessionStorage.getItem('proposalSubmitted') === 'true';
@@ -432,7 +401,7 @@ function Student() {
   };
 
   const handleMovePreference = async (projectId, direction) => {
-    const currentStudentId = studentData.studentId || sessionStorage.getItem('studentId') || '13700797';
+    const currentStudentId = studentData.studentId || sessionStorage.getItem('studentId') || 's001';
     
     console.log('[MOVE] Moving preference:', { projectId, direction, currentStudentId });
 
@@ -479,7 +448,7 @@ function Student() {
   };
 
   const handleReorderPreferences = async (newPreferences) => {
-    const currentStudentId = studentData.studentId || sessionStorage.getItem('studentId') || '13700797';
+    const currentStudentId = studentData.studentId || sessionStorage.getItem('studentId') || 's001';
     
     console.log('[REORDER] Reordering preferences via drag-drop:', { currentStudentId });
     
@@ -566,13 +535,18 @@ function Student() {
 
   // 渲染主标题和 deadline 提示
   const renderPageTitleWithDeadline = (section) => {
-    const preferenceDeadline = new Date(
-      systemDeadlines.preference || DEFAULT_SYSTEM_DEADLINES.preference
-    );
+    // Per-section deadline mapping
+    const sectionDeadlineKey = {
+      proposal: 'studentSelfProposal',
+      'project-browse': 'preference',
+      'my-preferences': 'preference',
+    }[section];
+    const deadlineKey = sectionDeadlineKey || 'preference';
+    const deadlineDate = new Date(systemDeadlines[deadlineKey] || DEFAULT_SYSTEM_DEADLINES[deadlineKey]);
     const now = new Date();
-  const daysLeft = Math.ceil((preferenceDeadline - now) / (1000 * 60 * 60 * 24));
-  const formattedDate = preferenceDeadline.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-  const deadlineLabel = fmtDaysLeft(daysLeft);
+    const daysLeft = Math.ceil((deadlineDate - now) / (1000 * 60 * 60 * 24));
+    const formattedDate = formatDateTime24(deadlineDate);
+    const deadlineLabel = fmtDaysLeft(daysLeft);
 
     const titles = {
       'proposal': 'Proposal',
@@ -591,7 +565,7 @@ function Student() {
         <div className="section-title-with-deadline">
           <h1>{title}</h1>
           {section !== 'results' && (
-            <span className="deadline-hint">⏰ Deadline: {formattedDate} ({deadlineLabel})</span>
+            <span className="deadline-hint">Deadline: {formattedDate} ({deadlineLabel})</span>
           )}
         </div>
         {phaseInfo && (
@@ -613,16 +587,19 @@ function Student() {
           assignmentType={assignmentType}
           currentSection={currentSection}
           systemDeadlines={systemDeadlines}
+          expiredDeadlineKeys={expiredDeadlineKeys}
+          proposalSubmitted={studentData.proposalSubmitted}
         />;
       case 'project-browse':
-        return <ProjectBrowse 
+        return <ProjectBrowse
           projects={projects}
           preferences={preferences}
           onAddPreference={handleAddPreference}
           isAssigned={isAssigned}
+          expiredDeadlineKeys={expiredDeadlineKeys}
         />;
       case 'my-preferences':
-        return <MyPreferences 
+        return <MyPreferences
           preferences={preferences}
           onRemovePreference={handleRemovePreference}
           onSubmitPreferences={handleSubmitPreferences}
@@ -638,7 +615,18 @@ function Student() {
       case 'profile':
         return <Profile studentData={studentData} />;
       default:
-        return <Proposal preferences={preferences} onSwitchSection={setCurrentSection} studentId={studentData.studentId} isAssigned={isAssigned} assignmentType={assignmentType} systemDeadlines={systemDeadlines} />;
+        return (
+          <Proposal
+            preferences={preferences}
+            onSwitchSection={setCurrentSection}
+            studentId={studentData.studentId}
+            isAssigned={isAssigned}
+            assignmentType={assignmentType}
+            systemDeadlines={systemDeadlines}
+            expiredDeadlineKeys={expiredDeadlineKeys}
+            proposalSubmitted={studentData.proposalSubmitted}
+          />
+        );
     }
   };
 
@@ -669,11 +657,20 @@ function Student() {
           <div className="page-overview">
             {/* 主标题和 deadline 提示 */}
             {renderPageTitleWithDeadline(currentSection)}
-            <StageOverview 
-              currentSection={currentSection} 
+            <StageOverview
+              currentSection={currentSection}
               onStageChange={setCurrentSection}
               preferencesCount={preferences.length}
+              expiredDeadlineKeys={expiredDeadlineKeys}
+              isAssigned={isAssigned}
             />
+            {(currentSection === 'project-browse' || currentSection === 'my-preferences') &&
+              expiredDeadlineKeys.has('preference') && (
+                <OverdueNotice title="Project Preference Selection deadline has passed">
+                  The Project Preference Selection deadline has passed. You can no longer add or change project
+                  preferences in Browse Projects or My Preferences.
+                </OverdueNotice>
+              )}
           </div>
         )}
         
@@ -695,16 +692,28 @@ function Student() {
   );
 }
 
-function StageOverview({ currentSection, onStageChange, preferencesCount }) {
+function StageOverview({ currentSection, onStageChange, preferencesCount, expiredDeadlineKeys = new Set(), isAssigned = false }) {
+  // Map stage IDs to deadline keys
+  const stageDeadlineMap = {
+    proposal: 'studentSelfProposal',
+    'project-browse': 'preference',
+  };
+
+  // Disabled if: already assigned OR the corresponding deadline has passed
+  const isStageDisabled = (stageId) => {
+    if (isAssigned) return true;
+    const dk = stageDeadlineMap[stageId];
+    return dk ? expiredDeadlineKeys.has(dk) : false;
+  };
+
   // 決定哪個 tag 應該處於 active 狀態
-  // My Preferences 頁面時，Project List tag 要浮起
   const getActiveStageId = () => {
     if (currentSection === 'my-preferences') {
       return 'project-browse';
     }
     return currentSection;
   };
-  
+
   // 根據當前頁面決定按鈕文字
   const getButtonText = (stage) => {
     if (stage.id === 'project-browse' && currentSection === 'my-preferences') {
@@ -712,80 +721,97 @@ function StageOverview({ currentSection, onStageChange, preferencesCount }) {
     }
     return stage.buttonText;
   };
-  
+
   const activeStageId = getActiveStageId();
-  
+
   const stages = [
     {
       id: 'proposal',
       badgeLabel: 'Stage 1 (Proposal)',
       title: 'Student Self-proposal',
       description: 'Propose your own project',
-      icon: '✍',
+      glyph: 'pencil',
       stageClass: 'stage-1',
       cardClass: 'status-card-stage-1',
       buttonText: 'Submit Proposal',
-      targetSection: 'proposal'
+      targetSection: 'proposal',
     },
     {
       id: 'project-browse',
       badgeLabel: 'Stage 2 (Matching)',
       title: 'Teacher Project List',
       description: 'View the project list and manage your project preferences',
-      icon: '★',
+      glyph: 'star',
       stageClass: 'stage-2',
       cardClass: 'status-card-stage-2',
       buttonText: 'Go to My Preference',
-      targetSection: 'my-preferences'
+      targetSection: 'my-preferences',
     },
     {
       id: 'results',
       badgeLabel: 'Stage 3 (Clearing)',
       title: 'Result',
       description: 'View your project assignment and matching results',
-      icon: '☰',
+      glyph: 'list',
       stageClass: 'stage-3',
       cardClass: 'status-card-stage-3',
       buttonText: 'Go to Result',
-      targetSection: 'results'
-    }
+      targetSection: 'results',
+    },
   ];
 
   return (
     <div className="status-cards stage-status-cards">
-      {stages.map(stage => (
-        <div
-          key={stage.id}
-          className={`status-card ${stage.cardClass} ${activeStageId === stage.id ? 'active' : ''}`}
-          onClick={() => onStageChange(stage.id)}
-          role="button"
-          tabIndex={0}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' || e.key === ' ') {
-              e.preventDefault();
-              onStageChange(stage.id);
-            }
-          }}
-        >
-          <span className={`stage-badge ${stage.stageClass}`}>
-            {stage.badgeLabel}
-          </span>
-          <div className="status-icon">{stage.icon}</div>
-          <div className="status-content">
-            <h3>{stage.title}</h3>
-            <p>{stage.description}</p>
-            <button
-              className="action-btn"
-              onClick={(e) => {
-                e.stopPropagation();
-                onStageChange(stage.targetSection);
-              }}
-            >
-              {getButtonText(stage)}
-            </button>
+      {stages.map((stage) => {
+        const disabled = isStageDisabled(stage.id);
+        return (
+          <div
+            key={stage.id}
+            className={[
+              'status-card',
+              stage.cardClass,
+              activeStageId === stage.id ? 'active' : '',
+              disabled ? 'stage-disabled' : '',
+            ]
+              .filter(Boolean)
+              .join(' ')}
+            onClick={() => !disabled && onStageChange(stage.id)}
+            role="button"
+            tabIndex={disabled ? -1 : 0}
+            onKeyDown={(e) => {
+              if (!disabled && (e.key === 'Enter' || e.key === ' ')) {
+                e.preventDefault();
+                onStageChange(stage.id);
+              }
+            }}
+            style={disabled ? { opacity: 0.55, cursor: 'not-allowed' } : {}}
+          >
+            <span className={`stage-badge ${stage.stageClass}`}>
+              {stage.badgeLabel}
+            </span>
+            {disabled && stage.id !== 'results' && (
+              <span className="stage-overdue-tag">Overdue</span>
+            )}
+            <div className="status-icon" aria-hidden>
+              <StageGlyph name={stage.glyph} />
+            </div>
+            <div className="status-content">
+              <h3>{stage.title}</h3>
+              <p>{stage.description}</p>
+              <button
+                className="action-btn"
+                disabled={disabled}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (!disabled) onStageChange(stage.targetSection);
+                }}
+              >
+                {disabled ? (stage.id === 'proposal' ? 'Closed' : 'Closed') : getButtonText(stage)}
+              </button>
+            </div>
           </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }

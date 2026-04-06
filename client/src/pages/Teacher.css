@@ -41,8 +41,23 @@
 }
 
 .sidebar-header p {
-  font-size: 0.9rem;
-  color: #bdc3c7;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #fff;
+  background: #95a5a6;
+  padding: 0.4rem 0.8rem;
+  border-radius: 6px;
+  display: inline-block;
+  margin-top: 0.5rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.sidebar-header p .major-tag {
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+  opacity: 0.9;
 }
 
 .sidebar-menu {
@@ -204,6 +219,52 @@
   color: #6c757d;
 }
 
+/* Project Requirements Hint */
+.project-requirements-hint {
+  background: #f8f9fa;
+  border: 1px solid #e9ecef;
+  border-radius: 8px;
+  padding: 1rem 1.25rem;
+  margin-bottom: 1.5rem;
+}
+
+.project-requirements-hint h4 {
+  font-size: 0.9rem;
+  color: #495057;
+  margin: 0 0 0.5rem 0;
+  font-weight: 600;
+}
+
+.requirements-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.requirement-item {
+  font-size: 0.9rem;
+  margin: 0;
+}
+
+.requirement-item.ece .requirement-major {
+  color: #3498db;
+  font-weight: 600;
+}
+
+.requirement-item.ccs .requirement-major {
+  color: #9b59b6;
+  font-weight: 600;
+}
+
+.requirement-item.neutral .requirement-major {
+  color: #95a5a6;
+  font-weight: 600;
+}
+
+.current-count {
+  color: #27ae60;
+}
+
 /* Deadline Notification */
 .deadline-notification {
   background: #ffe5e5;
@@ -264,7 +325,7 @@
 }
 
 .deadline-reminder h3 {
-  color: #856404;
+  color: #c62828;
   margin-bottom: 1rem;
 }
 
@@ -301,6 +362,16 @@
   border-radius: 12px;
   font-size: 0.8rem;
   font-weight: 500;
+}
+
+.deadline-item-overdue {
+  border-color: #e74c3c;
+  background: #fff8f8;
+}
+
+.deadline-days-overdue {
+  background: #e74c3c;
+  color: white;
 }
 
 .stage-status-cards {
@@ -344,6 +415,17 @@
   font-size: 2.5rem;
   width: 60px;
   text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #2c3e50;
+}
+
+.stage-glyph-svg {
+  width: 2.35rem;
+  height: 2.35rem;
+  flex-shrink: 0;
+  display: block;
 }
 
 .stage-status-cards .status-content h3 {
@@ -393,6 +475,25 @@
 
 .stage-3 {
   background: #198754;
+}
+
+/* Disabled / overdue stage cards */
+.stage-disabled {
+  border-left-color: #adb5bd !important;
+  opacity: 0.6;
+}
+
+.stage-overdue-tag {
+  position: absolute;
+  top: 2.5rem; /* below the stage badge (top: 10px) */
+  right: 0.75rem;
+  background: #e74c3c;
+  color: #fff;
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 0.15rem 0.5rem;
+  border-radius: 4px;
+  letter-spacing: 0.04em;
 }
 
 /* Project Management Styles */
@@ -1284,11 +1385,44 @@
   align-items: flex-start;
   gap: 1rem;
   margin-bottom: 1rem;
+  flex-wrap: wrap;
+}
+
+.matching-card-header > div {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
 }
 
 .matching-card-header h3 {
-  margin-bottom: 0.25rem;
+  margin-bottom: 0;
   color: #2c3e50;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.project-source-tag {
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.source-teacher {
+  background: #d4edda;
+  color: #155724;
+  border: 1px solid #c3e6cb;
+}
+
+.source-student {
+  background: #d1ecf1;
+  color: #0c5460;
+  border: 1px solid #bee5eb;
 }
 
 .matching-card-header p {
@@ -2060,4 +2194,25 @@
   padding: 2rem;
   color: #95a5a6;
   font-style: italic;
+}
+
+/* Empty project grid (e.g. All Projects) */
+.no-results {
+  text-align: center;
+  padding: 3rem;
+  color: #6c757d;
+  grid-column: 1 / -1;
+}
+
+.no-results-icon {
+  margin-bottom: 1rem;
+  line-height: 0;
+  display: flex;
+  justify-content: center;
+  color: #adb5bd;
+}
+
+.no-results-icon .stage-glyph-svg {
+  width: 3rem;
+  height: 3rem;
 }

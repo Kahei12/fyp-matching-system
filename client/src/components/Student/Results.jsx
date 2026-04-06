@@ -1,4 +1,10 @@
 import React, { useEffect, useState } from 'react';
+import {
+  BellOutlineGlyph,
+  CheckCircleGlyph,
+  ClockOutlineGlyph,
+} from '../common/StageGlyphs';
+import { formatDateTime24 } from '../../utils/formatDateTime24';
 
 function Results() {
   const [assignment, setAssignment] = useState(null);
@@ -10,7 +16,7 @@ function Results() {
   useEffect(() => {
     const fetchAssignment = async () => {
       try {
-        const studentId = sessionStorage.getItem('studentId') || '13700797';
+        const studentId = sessionStorage.getItem('studentId') || 's001';
         
         // Fetch from matching results API
         const resp = await fetch('/api/match/results');
@@ -136,7 +142,9 @@ function Results() {
       {/* Update notification banner */}
       {showUpdateBanner && notificationMessage && (
         <div className="update-banner">
-          <div className="update-banner-icon">🔔</div>
+          <div className="update-banner-icon" aria-hidden>
+            <BellOutlineGlyph className="stage-glyph-svg result-banner-glyph" />
+          </div>
           <div className="update-banner-content">
             <strong>Update Notice</strong>
             <p>{notificationMessage}</p>
@@ -148,7 +156,9 @@ function Results() {
       <div className="assignment-result">
         {assignment ? (
           <div className="result-card assigned">
-            <div className="result-icon">✅</div>
+            <div className="result-icon" aria-hidden>
+              <CheckCircleGlyph className="stage-glyph-svg result-card-glyph" />
+            </div>
             <div className="result-content">
               <h3>Assigned: {assignment.title}</h3>
               {assignment.projectCode && (
@@ -157,12 +167,14 @@ function Results() {
               <p>Supervisor: {assignment.supervisor}</p>
               <p>Student ID: {assignment.studentId}</p>
               <p>GPA: {assignment.studentGpa || 'N/A'}</p>
-              <p className="result-date">Assigned at: {assignment.assignedAt ? new Date(assignment.assignedAt).toLocaleString() : 'N/A'}</p>
+              <p className="result-date">Assigned at: {assignment.assignedAt ? formatDateTime24(new Date(assignment.assignedAt)) : 'N/A'}</p>
             </div>
           </div>
         ) : (
           <div className="result-card pending">
-            <div className="result-icon">⌛</div>
+            <div className="result-icon" aria-hidden>
+              <ClockOutlineGlyph className="stage-glyph-svg result-card-glyph" />
+            </div>
             <div className="result-content">
               <h3>Assignment Pending</h3>
               <p>Your project assignment will be announced after the matching phase completes.</p>
@@ -210,10 +222,6 @@ function Results() {
             opacity: 1;
             transform: translateY(0);
           }
-        }
-        
-        .update-banner-icon {
-          font-size: 1.5rem;
         }
         
         .update-banner-content {
@@ -269,8 +277,36 @@ function Results() {
         }
         
         .result-icon {
-          font-size: 3rem;
-          line-height: 1;
+          flex-shrink: 0;
+          line-height: 0;
+          color: #2c3e50;
+        }
+
+        .result-card-glyph {
+          width: 3rem;
+          height: 3rem;
+        }
+
+        .result-card.assigned .result-icon {
+          color: #27ae60;
+        }
+
+        .result-card.pending .result-icon {
+          color: #f39c12;
+        }
+
+        .update-banner-icon {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          line-height: 0;
+          flex-shrink: 0;
+          color: rgba(255, 255, 255, 0.95);
+        }
+
+        .result-banner-glyph {
+          width: 2rem;
+          height: 2rem;
         }
         
         .result-content h3 {

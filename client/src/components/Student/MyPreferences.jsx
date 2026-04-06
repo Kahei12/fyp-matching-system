@@ -1,4 +1,10 @@
 import React, { useState } from 'react';
+import {
+  ChevronDownGlyph,
+  ChevronUpGlyph,
+  GripVerticalGlyph,
+  StarOutlineGlyph,
+} from '../common/StageGlyphs';
 
 function MyPreferences({ 
   preferences, 
@@ -63,14 +69,16 @@ function MyPreferences({
     <section className="content-section active">
       <div className="section-header">
         <div className="preferences-info">
-          <p>☼ Drag to reorder your project preferences, or use up/down buttons (1 = highest preference)</p>
+          <p>Drag to reorder your project preferences, or use up/down buttons (1 = highest preference)</p>
         </div>
       </div>
 
       <div className="preferences-list">
         {preferences.length === 0 ? (
           <div className="no-results">
-            <div className="no-results-icon">★</div>
+            <div className="no-results-icon" aria-hidden>
+              <StarOutlineGlyph className="stage-glyph-svg" />
+            </div>
             <h3>No preferences yet</h3>
             <p>Browse projects and add them to your preferences list</p>
             <button className="btn-primary" onClick={() => onSwitchSection('project-browse')}>
@@ -89,30 +97,34 @@ function MyPreferences({
               onDragLeave={handleDragLeave}
               onDrop={(e) => { if (!locked) handleDrop(e, index); }}
             >
-              <div className="drag-handle" title="Drag to reorder">
-                ⋮⋮
+              <div className="drag-handle" title="Drag to reorder" aria-hidden>
+                <GripVerticalGlyph />
               </div>
               <div className="preference-rank">{index + 1}</div>
               <div className="preference-content">
                 <h4>{preference.title}</h4>
-                <p>{preference.supervisor} · ▲ {preference.popularity} selections</p>
+                <p>{preference.supervisor} · {preference.popularity} selections</p>
               </div>
               <div className="preference-actions">
                 <button 
+                  type="button"
                   className="btn-move" 
                   onClick={() => onMovePreference(preference.id, 'up')}
                   disabled={index === 0 || locked}
                   title="Move Up"
+                  aria-label="Move up"
                 >
-                  ▲
+                  <ChevronUpGlyph />
                 </button>
                 <button 
+                  type="button"
                   className="btn-move" 
                   onClick={() => onMovePreference(preference.id, 'down')}
                   disabled={index === preferences.length - 1 || locked}
                   title="Move Down"
+                  aria-label="Move down"
                 >
-                  ▼
+                  <ChevronDownGlyph />
                 </button>
                 <button 
                   className="btn-remove" 

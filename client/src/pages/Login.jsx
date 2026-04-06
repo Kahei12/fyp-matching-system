@@ -79,22 +79,26 @@ function Login() {
 
       if (result.success) {
         // 顯示成功訊息
-        showMessage('✔ Login successful! Redirecting...', 'success');
+        showMessage('Login successful! Redirecting...', 'success');
         console.log('[ROLE] 用戶角色:', result.user.role);
         
         // 儲存登入狀態
         sessionStorage.setItem('isLoggedIn', 'true');
-        sessionStorage.setItem('userEmail', email);
+        sessionStorage.setItem('userEmail', String(email || '').trim().toLowerCase());
         sessionStorage.setItem('userRole', result.user.role);
         sessionStorage.setItem('userName', result.user.name);
         sessionStorage.setItem('mustChangePassword', String(!!result.user.mustChangePassword));
         
         // 根據角色存儲特定信息
         if (result.user.role === 'student') {
-          const sid = result.user.studentId || result.user.id
-            || (email.toLowerCase() === 'student@hkmu.edu.hk' ? '13700797' : '');
+          const sid = result.user.studentId || result.user.id || '';
           sessionStorage.setItem('studentId', sid);
           sessionStorage.setItem('userGPA', result.user.gpa || '');
+          sessionStorage.setItem('userMajor', result.user.major || '');
+        }
+        
+        // 儲存老師的 major
+        if (result.user.role === 'teacher') {
           sessionStorage.setItem('userMajor', result.user.major || '');
         }
         
@@ -120,12 +124,12 @@ function Login() {
         }, 1500); // 1.5秒後跳轉
         
       } else {
-        showMessage('✖ Login failed: ' + result.message, 'error');
+        showMessage('Login failed: ' + result.message, 'error');
         setIsLoading(false);
       }
     } catch (error) {
-      console.error('✸ 發生錯誤:', error);
-      showMessage('⚠ Network error, please try again later', 'error');
+      console.error('Login error:', error);
+      showMessage('Network error, please try again later', 'error');
       setIsLoading(false);
     }
   };

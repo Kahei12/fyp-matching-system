@@ -1,6 +1,39 @@
-const mockData = require('./mockData');
+const { majorToFilterCode } = require('./majorMapping');
+const path = require('path');
+const fs = require('fs');
+
 let ProjectModel = null;
 let StudentModel = null;
+let SystemSettingsModel = null;
+
+const DEADLINES_FILE = path.join(__dirname, '..', 'data', 'deadlines.json');
+
+function loadDeadlinesFromFile() {
+    try {
+        if (fs.existsSync(DEADLINES_FILE)) {
+            const raw = fs.readFileSync(DEADLINES_FILE, 'utf8');
+            const parsed = JSON.parse(raw);
+            console.log('[deadlines] Loaded from file:', JSON.stringify(parsed));
+            return parsed;
+        }
+    } catch (e) {
+        console.error('[deadlines] Failed to load file:', e.message);
+    }
+    return null;
+}
+
+function saveDeadlinesToFile(deadlines) {
+    try {
+        const dir = path.dirname(DEADLINES_FILE);
+        if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+        fs.writeFileSync(DEADLINES_FILE, JSON.stringify(deadlines, null, 2), 'utf8');
+        console.log('[deadlines] Saved to file:', JSON.stringify(deadlines));
+        return true;
+    } catch (e) {
+        console.error('[deadlines] Failed to save file:', e.message);
+        return false;
+    }
+}
 
 // 同步檢查數據庫連接狀態 - 每次都重新檢查
 function checkDBConnection() {
@@ -12,6 +45,7 @@ function checkDBConnection() {
             if (!ProjectModel) {
                 ProjectModel = require('../models/Project');
                 StudentModel = require('../models/Student');
+                SystemSettingsModel = require('../models/SystemSettings');
             }
         }
         return isConnected;
@@ -21,38 +55,60 @@ function checkDBConnection() {
 }
 
 const studentService = {
-    // 獲取所有可用項目（DB-backed if available）
-    getAvailableProjects: async () => {
+    // 獲取所有可用項目（DB-backed）
+    // major 過濾是首選；若符合的項目為 0，則顯示全部老師項目（不做 major 過濾）
+    getAvailableProjects: async (studentMajor) => {
         try {
-            checkDBConnection();
-            if (checkDBConnection() && ProjectModel) {
-                const allDocs = await ProjectModel.find({}).lean().exec();
-
-                const docs = allDocs.filter(doc => {
-                    if (doc.type === 'student') return false;
-                    if (doc.supervisor === 'TBD' || doc.supervisor === '') return false;
-                    const validStatuses = ['Active', 'Approved', 'Under Review', 'active', 'approved', 'under review'];
-                    if (!validStatuses.includes(doc.status)) return false;
-                    return true;
-                });
-
-                return docs.map(p => ({
-                    ...p,
-                    id: (p.id !== undefined && p.id !== null) ? p.id : (p.code || String(p._id)),
-                    skills: Array.isArray(p.skills) ? p.skills : (p.skills ? [p.skills] : []),
-                    popularity: typeof p.popularity === 'number' ? p.popularity : (parseInt(p.popularity) || 0)
-                }));
+            if (!checkDBConnection() || !ProjectModel) {
+                console.warn('[getAvailableProjects] MongoDB not connected — returning no projects');
+                return [];
             }
-            // Mock mode - 過濾 student-proposed 和 supervisor 為 TBD 的項目
-            return mockData.projects.filter(project =>
-                project.type !== 'student' && project.supervisor !== 'TBD' && project.supervisor !== ''
-            );
+
+            const allDocs = await ProjectModel.find({}).lean().exec();
+            console.log(`[getAvailableProjects] Total docs in DB: ${allDocs.length}`);
+
+            // 第一層過濾：只要是老師提出、有 supervisor、狀態合理的項目
+            const teacherProjects = allDocs.filter(doc => {
+                if (doc.type === 'student') return false;
+                if (!doc.supervisor || doc.supervisor === 'TBD') return false;
+                // status 為空或缺失也算有效（向後兼容）
+                const s = String(doc.status || '').toLowerCase();
+                const ok = !s || s === 'active' || s === 'approved' || s === 'under review' || s === 'approved';
+                return ok;
+            });
+
+            console.log(`[getAvailableProjects] Teacher projects (no major filter): ${teacherProjects.length}`);
+
+            // 第二層：套用 major 過濾
+            let filtered = teacherProjects;
+            if (studentMajor) {
+                const sm = majorToFilterCode(studentMajor);
+                console.log(`[getAvailableProjects] Applying major filter: ${sm} (from: ${studentMajor})`);
+                if (sm) {
+                    filtered = teacherProjects.filter(doc => {
+                        const pm = majorToFilterCode(doc.major) || 'ECE';
+                        if (pm === 'ECE+CCS') return true; // Both 老師的項目所有學生都能看
+                        return pm === sm;
+                    });
+                    console.log(`[getAvailableProjects] After major filter: ${filtered.length}`);
+                }
+            }
+
+            // 若 major 過濾後為 0，退回顯示全部（不做 major 過濾）
+            if (filtered.length === 0 && studentMajor) {
+                console.log('[getAvailableProjects] Major filter returned 0, showing all teacher projects');
+                filtered = teacherProjects;
+            }
+
+            return filtered.map(p => ({
+                ...p,
+                id: (p.id != null) ? p.id : (p.code || String(p._id)),
+                skills: Array.isArray(p.skills) ? p.skills : (p.skills ? [p.skills] : []),
+                popularity: typeof p.popularity === 'number' ? p.popularity : (parseInt(p.popularity) || 0)
+            }));
         } catch (err) {
             console.error('❌ getAvailableProjects error:', err.message);
-            // 錯誤處理時也使用相同的過濾邏輯
-            return mockData.projects.filter(project =>
-                project.type !== 'student' && project.supervisor !== 'TBD' && project.supervisor !== ''
-            );
+            return [];
         }
     },
     
@@ -74,9 +130,7 @@ const studentService = {
                 assignedProject: doc.assignedProject || null
             };
         }
-        const s = mockData.students.find(student => student.id === studentId);
-        if (!s) return null;
-        return { ...s, studentId: s.studentId || s.id };
+        return null;
     },
     
     // 獲取學生的偏好列表
@@ -132,13 +186,7 @@ const studentService = {
             
             return resolved.map((proj, idx) => ({ ...proj, rank: idx + 1 }));
         }
-        const student = mockData.students.find(s => s.id === studentId);
-        if (!student) return [];
-        
-        return student.preferences.map(projectId => {
-            const project = mockData.projects.find(p => p.id === projectId);
-            return project ? { ...project, rank: student.preferences.indexOf(projectId) + 1 } : null;
-        }).filter(Boolean);
+        return [];
     },
     
     // 添加項目到偏好
@@ -169,16 +217,7 @@ const studentService = {
             } catch (e) {}
             return { success: true, message: "Project added to preferences", currentPreferences: student.preferences.length };
         }
-        // fallback mock
-        const student = mockData.students.find(s => s.id === studentId);
-        if (!student) return { success: false, message: "Student not found" };
-        if (student.preferences.includes(numericProjectId)) return { success: false, message: "Project already in preferences" };
-        if (student.preferences.length >= 10) return { success: false, message: "Maximum 10 preferences allowed" };
-        const project = mockData.projects.find(p => p.id === numericProjectId);
-        if (!project) return { success: false, message: "Project not found" };
-        student.preferences.push(numericProjectId);
-        project.popularity += 1;
-        return { success: true, message: "Project added to preferences", currentPreferences: student.preferences.length };
+        return { success: false, message: "Database unavailable" };
     },
     
     // 從偏好中移除項目
@@ -209,15 +248,7 @@ const studentService = {
             }
             return { success: true, message: "Project removed from preferences", currentPreferences: student.preferences.length };
         }
-        // fallback
-        const student = mockData.students.find(s => s.id === studentId);
-        if (!student) return { success: false, message: "Student not found" };
-        const index = student.preferences.indexOf(numericProjectId);
-        if (index === -1) return { success: false, message: "Project not in preferences" };
-        student.preferences.splice(index, 1);
-        const project = mockData.projects.find(p => p.id === numericProjectId);
-        if (project && project.popularity > 0) project.popularity -= 1;
-        return { success: true, message: "Project removed from preferences", currentPreferences: student.preferences.length };
+        return { success: false, message: "Database unavailable" };
     },
     
     // Move preference position
@@ -239,17 +270,7 @@ const studentService = {
             await student.save();
             return { success: true, message: "Preference order updated", newPosition: targetIndex + 1 };
         }
-        // fallback
-        const student = mockData.students.find(s => s.id === studentId);
-        if (!student) return { success: false, message: "Student not found" };
-        const currentIndex = student.preferences.indexOf(numericProjectId);
-        if (currentIndex === -1) return { success: false, message: "Project not in preferences" };
-        const targetIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
-        if (targetIndex < 0 || targetIndex >= student.preferences.length) return { success: false, message: "Cannot move in that direction" };
-        const temp = student.preferences[currentIndex];
-        student.preferences[currentIndex] = student.preferences[targetIndex];
-        student.preferences[targetIndex] = temp;
-        return { success: true, message: "Preference order updated", newPosition: targetIndex + 1 };
+        return { success: false, message: "Database unavailable" };
     },
     
     // Reorder preferences (用於拖曳排序)
@@ -266,17 +287,7 @@ const studentService = {
             await student.save();
             return { success: true, message: "Preferences reordered successfully", newOrder: student.preferences };
         }
-        // fallback
-        const student = mockData.students.find(s => s.id === studentId);
-        if (!student) return { success: false, message: "Student not found" };
-        const validIds = newOrder.every(id => {
-            const numericId = typeof id === 'number' ? id : parseInt(id);
-            return student.preferences.includes(numericId);
-        });
-        if (!validIds) return { success: false, message: "Invalid project IDs in new order" };
-        if (newOrder.length !== student.preferences.length) return { success: false, message: "Order length mismatch" };
-        student.preferences = newOrder.map(id => typeof id === 'number' ? id : parseInt(id));
-        return { success: true, message: "Preferences reordered successfully", newOrder: student.preferences };
+        return { success: false, message: "Database unavailable" };
     },
     
     // 提交最終偏好
@@ -289,11 +300,7 @@ const studentService = {
             await student.save();
             return { success: true, message: "Preferences submitted successfully", preferencesCount: student.preferences.length, submittedAt: new Date().toISOString() };
         }
-        const student = mockData.students.find(s => s.id === studentId);
-        if (!student) return { success: false, message: "Student not found" };
-        if (student.preferences.length === 0) return { success: false, message: "No preferences to submit" };
-        student.proposalSubmitted = true;
-        return { success: true, message: "Preferences submitted successfully", preferencesCount: student.preferences.length, submittedAt: new Date().toISOString() };
+        return { success: false, message: "Database unavailable" };
     },
     
     // 直接設定學生的 preferences（由 Student UI 的 Submit 發起）
@@ -341,36 +348,124 @@ const studentService = {
                 preferencesCount: student.preferences.length 
             };
         }
-        const student = mockData.students.find(s => s.id === studentId);
-        if (!student) return { success: false, message: "Student not found" };
-        student.preferences = (preferencesArray || []).map(id => typeof id === 'number' ? id : parseInt(id));
-        student.proposalSubmitted = true;
-        return { success: true, message: "Preferences saved", preferencesCount: student.preferences.length };
+        return { success: false, message: "Database unavailable" };
     },
     
-    // 獲取系統狀態和截止日期
-    getSystemStatus: () => {
-        return mockData.system;
-    },
-
-    getDeadlines: () => {
-        return { ...(mockData.system.deadlines || {}) };
-    },
-
-    updateDeadlines: (partial) => {
-        if (!mockData.system.deadlines) mockData.system.deadlines = {};
-        const allowed = ['proposal', 'preference', 'results'];
-        for (const key of allowed) {
-            if (partial && Object.prototype.hasOwnProperty.call(partial, key)) {
-                const val = partial[key];
-                if (val == null || val === '') continue;
-                const d = new Date(val);
-                if (!isNaN(d.getTime())) {
-                    mockData.system.deadlines[key] = d.toISOString();
-                }
+    getSystemStatus: async function () {
+        const deadlines = await this.getDeadlines();
+        if (checkDBConnection() && SystemSettingsModel) {
+            try {
+                const settings = await SystemSettingsModel.findOne({ key: 'system' }).lean().exec();
+                return {
+                    currentPhase: settings?.currentPhase || 'preference',
+                    deadlines: deadlines || {},
+                    matchingCompleted: settings?.matchingCompleted ?? false
+                };
+            } catch (err) {
+                console.error('[getSystemStatus] MongoDB error:', err.message);
             }
         }
-        return { success: true, deadlines: { ...mockData.system.deadlines } };
+        return {
+            currentPhase: 'preference',
+            deadlines: deadlines || {},
+            matchingCompleted: false
+        };
+    },
+
+    getDeadlines: async () => {
+        if (checkDBConnection() && SystemSettingsModel) {
+            try {
+                const settings = await SystemSettingsModel.findOne({ key: 'system' }).lean().exec();
+                console.log('[getDeadlines] settings found:', settings ? 'yes' : 'no', '| deadlines:', JSON.stringify(settings?.deadlines));
+                if (settings && settings.deadlines) {
+                    return {
+                        studentSelfProposal: settings.deadlines.studentSelfProposal ? settings.deadlines.studentSelfProposal.toISOString() : null,
+                        preference: settings.deadlines.preference ? settings.deadlines.preference.toISOString() : null,
+                        teacherProposalReview: settings.deadlines.teacherProposalReview ? settings.deadlines.teacherProposalReview.toISOString() : null,
+                        teacherSelfProposal: settings.deadlines.teacherSelfProposal ? settings.deadlines.teacherSelfProposal.toISOString() : null
+                    };
+                }
+                console.log('[getDeadlines] No settings found — returning empty deadlines');
+            } catch (err) {
+                console.error('[getDeadlines] MongoDB error:', err.message);
+            }
+        } else {
+            console.log('[getDeadlines] DB not connected — trying local file fallback');
+            const fileDeadlines = loadDeadlinesFromFile();
+            if (fileDeadlines) return fileDeadlines;
+            console.log('[getDeadlines] No local file fallback — returning empty deadlines');
+        }
+        return {};
+    },
+
+    updateDeadlines: async (partial) => {
+        const allowed = [
+            'studentSelfProposal',
+            'preference',
+            'teacherProposalReview',
+            'teacherSelfProposal',
+        ];
+
+        if (checkDBConnection() && SystemSettingsModel) {
+            try {
+                const updateObj = {};
+                for (const key of allowed) {
+                    if (partial && Object.prototype.hasOwnProperty.call(partial, key)) {
+                        const val = partial[key];
+                        if (val == null || val === '') continue;
+                        const d = new Date(val);
+                        if (!isNaN(d.getTime())) {
+                            updateObj[`deadlines.${key}`] = d;
+                        }
+                    }
+                }
+
+                if (Object.keys(updateObj).length > 0) {
+                    await SystemSettingsModel.findOneAndUpdate(
+                        { key: 'system' },
+                        {
+                            $set: {
+                                ...updateObj,
+                                updatedAt: new Date()
+                            },
+                            $setOnInsert: { key: 'system' }
+                        },
+                        { upsert: true, new: true }
+                    ).exec();
+                }
+
+                const settings = await SystemSettingsModel.findOne({ key: 'system' }).lean().exec();
+                const dl = settings?.deadlines;
+                const deadlines = {
+                    studentSelfProposal: dl?.studentSelfProposal ? dl.studentSelfProposal.toISOString() : null,
+                    preference: dl?.preference ? dl.preference.toISOString() : null,
+                    teacherProposalReview: dl?.teacherProposalReview ? dl.teacherProposalReview.toISOString() : null,
+                    teacherSelfProposal: dl?.teacherSelfProposal ? dl.teacherSelfProposal.toISOString() : null
+                };
+                // Also persist to local file so it survives restarts without DB
+                saveDeadlinesToFile(deadlines);
+                return { success: true, deadlines };
+            } catch (err) {
+                console.error('[updateDeadlines] MongoDB error:', err.message);
+            }
+        } else {
+            console.log('[updateDeadlines] DB not connected — saving to local file');
+            // Build updated deadlines from existing file + incoming partial
+            const existing = loadDeadlinesFromFile() || {};
+            const updated = { ...existing };
+            for (const key of allowed) {
+                if (partial && Object.prototype.hasOwnProperty.call(partial, key)) {
+                    const val = partial[key];
+                    if (val != null && val !== '') {
+                        updated[key] = val; // already ISO string
+                    }
+                }
+            }
+            if (saveDeadlinesToFile(updated)) {
+                return { success: true, deadlines: updated };
+            }
+            return { success: false, message: 'Database unavailable — cannot update deadlines' };
+        }
     },
     
     // Run matching using student-proposing Gale–Shapley with GPA tie-breaker and project capacities
@@ -507,87 +602,7 @@ const studentService = {
             };
         }
 
-        // fallback to mockData behaviour
-        mockData.assignments = [];
-        mockData.students.forEach(s => { s.assignedProject = null; });
-
-        const studentsWithPrefs = mockData.students
-            .filter(s => Array.isArray(s.preferences) && s.preferences.length > 0 && s.proposalSubmitted)
-            .map(s => ({
-                id: s.id,
-                preferences: [...s.preferences],
-                nextIndex: 0,
-                numericGpa: parseFloat(s.gpa) || 0
-            }));
-
-        const studentMap = {};
-        studentsWithPrefs.forEach(s => { studentMap[s.id] = s; });
-
-        const projectsMap = {};
-        mockData.projects.forEach(p => {
-            projectsMap[p.id] = {
-                capacity: p.capacity || 1,
-                accepted: []
-            };
-        });
-
-        const freeQueue = studentsWithPrefs.map(s => s.id);
-        while (freeQueue.length > 0) {
-            const studentId = freeQueue.shift();
-            const student = studentMap[studentId];
-            if (!student) continue;
-            if (student.nextIndex >= student.preferences.length) continue;
-            const projectId = student.preferences[student.nextIndex];
-            student.nextIndex += 1;
-            const proj = projectsMap[projectId];
-            if (!proj) {
-                if (student.nextIndex < student.preferences.length) freeQueue.push(studentId);
-                continue;
-            }
-            proj.accepted.push(studentId);
-            proj.accepted.sort((aId, bId) => {
-                const a = studentMap[aId] || mockData.students.find(s => s.id === aId);
-                const b = studentMap[bId] || mockData.students.find(s => s.id === bId);
-                const aG = a ? (a.numericGpa || parseFloat(a.gpa) || 0) : 0;
-                const bG = b ? (b.numericGpa || parseFloat(b.gpa) || 0) : 0;
-                if (bG !== aG) return bG - aG;
-                return (aId || '').localeCompare(bId || '');
-            });
-            if (proj.accepted.length > proj.capacity) {
-                const removedId = proj.accepted.pop();
-                if (removedId && removedId !== studentId) {
-                    const removedStudent = studentMap[removedId];
-                    if (removedStudent && removedStudent.nextIndex < removedStudent.preferences.length) {
-                        freeQueue.push(removedId);
-                    }
-                } else if (removedId === studentId) {
-                    if (student.nextIndex < student.preferences.length) {
-                        freeQueue.push(studentId);
-                    }
-                }
-            }
-        }
-
-        Object.keys(projectsMap).forEach(pid => {
-            const proj = projectsMap[pid];
-            proj.accepted.forEach(sid => {
-                const student = mockData.students.find(s => s.id === sid);
-                if (student) {
-                    student.assignedProject = parseInt(pid);
-                    mockData.assignments.push({
-                        studentId: student.id,
-                        projectId: parseInt(pid),
-                        assignedAt: new Date().toISOString()
-                    });
-                }
-            });
-        });
-
-        mockData.system.matchingCompleted = true;
-        return {
-            success: true,
-            assignments: mockData.assignments
-        };
+        return { success: false, message: 'Database unavailable — cannot run matching' };
     },
     
     // Return current matching results (based on assignments if available)
@@ -595,77 +610,32 @@ const studentService = {
         if (checkDBConnection() && StudentModel && ProjectModel) {
             const projects = await ProjectModel.find({}).lean().exec();
             const students = await StudentModel.find({ assignedProject: { $ne: null } }).lean().exec();
-            
+
             // 檢查是否有任何分配（用於判斷 matching 是否已完成）
             const matchingCompleted = students.length > 0;
-            
+
             const results = [];
             for (const project of projects) {
                 const assigned = students.find(s => String(s.assignedProject) === String(project._id));
-                if (assigned) {
-                    results.push({
-                        projectId: String(project._id),
-                        projectCode: project.code || null,
-                        title: project.title,
-                        supervisor: project.supervisor,
-                        studentId: assigned.id || null,
-                        studentName: assigned.name || null,
-                        studentGpa: assigned.gpa || null,
-                        matchRank: 1,
-                        assignedAt: assigned.updatedAt || null
-                    });
-                } else {
-                    results.push({
-                        projectId: String(project._id),
-                        projectCode: project.code || null,
-                        title: project.title,
-                        supervisor: project.supervisor,
-                        studentId: null,
-                        studentName: null,
-                        studentGpa: null,
-                        matchRank: null,
-                        assignedAt: null
-                    });
-                }
+                results.push({
+                    projectId: String(project._id),
+                    projectCode: project.code || null,
+                    title: project.title,
+                    supervisor: project.supervisor,
+                    projectType: project.type === 'student' ? 'student' : 'teacher',
+                    studentId: assigned ? (assigned.id || null) : null,
+                    studentName: assigned ? (assigned.name || null) : null,
+                    studentGpa: assigned ? (assigned.gpa || null) : null,
+                    matchRank: assigned ? 1 : null,
+                    assignedAt: assigned ? (assigned.updatedAt ? assigned.updatedAt.toISOString() : null) : null
+                });
             }
-            
+
             // 返回結果和匹配完成標誌
             return { results, matchingCompleted };
         }
 
-        const results = [];
-        const assignments = Array.isArray(mockData.assignments) ? mockData.assignments : [];
-        const matchingCompleted = mockData.system.matchingCompleted || assignments.length > 0;
-
-        mockData.projects.forEach(project => {
-            const assignment = assignments.find(a => a.projectId === project.id);
-            if (assignment) {
-                const student = mockData.students.find(s => s.id === assignment.studentId);
-                results.push({
-                    projectId: project.id,
-                    title: project.title,
-                    supervisor: project.supervisor,
-                    studentId: student ? student.id : assignment.studentId,
-                    studentName: student ? student.name : null,
-                    studentGpa: student ? student.gpa : null,
-                    matchRank: 1,
-                    assignedAt: assignment.assignedAt
-                });
-            } else {
-                results.push({
-                    projectId: project.id,
-                    title: project.title,
-                    supervisor: project.supervisor,
-                    studentId: null,
-                    studentName: null,
-                    studentGpa: null,
-                    matchRank: null,
-                    assignedAt: null
-                });
-            }
-        });
-
-        return { results, matchingCompleted };
+        return { results: [], matchingCompleted: false };
     },
 
     // 獲取所有學生列表（DB-backed if available）
@@ -684,10 +654,7 @@ const studentService = {
                 assignedProject: d.assignedProject || null
             }));
         }
-        return mockData.students.map(student => ({
-            ...student,
-            assignedProject: student.assignedProject || null
-        }));
+        return [];
     },
     
     // Reset state to initial test state (clear assignments and student submissions)
@@ -734,28 +701,25 @@ const studentService = {
             }
         }
         
-        // Fallback to mockData reset
-        mockData.assignments = [];
-        mockData.students.forEach(s => {
-            s.preferences = [];
-            s.proposalSubmitted = false;
-            s.assignedProject = null;
-            s.proposalStatus = 'none';
-            s.proposedProject = null;
-            s.proposalApproved = false;
-        });
-        mockData.system.matchingCompleted = false;
-        return { success: true, message: 'Mock data reset completed. All students can now submit preferences and proposals again.' };
+        return { success: false, message: 'Database unavailable' };
     },
-    // 更新學生個人資料
-    updateStudentProfile: (studentId, updates) => {
-        const student = mockData.students.find(s => s.id === studentId);
-        if (!student) {
-            return { success: false, message: "Student not found" };
+    updateStudentProfile: async (studentId, updates) => {
+        if (!checkDBConnection() || !StudentModel) {
+            return { success: false, message: 'Database unavailable' };
         }
-        
-        Object.assign(student, updates);
-        return { success: true, message: "Profile updated successfully" };
+        const allowed = ['name', 'year', 'gpa', 'major'];
+        const patch = {};
+        if (updates && typeof updates === 'object') {
+            for (const k of allowed) {
+                if (Object.prototype.hasOwnProperty.call(updates, k)) patch[k] = updates[k];
+            }
+        }
+        if (Object.keys(patch).length === 0) {
+            return { success: false, message: 'No valid fields to update' };
+        }
+        const student = await StudentModel.findOneAndUpdate({ id: studentId }, { $set: patch }, { new: true }).exec();
+        if (!student) return { success: false, message: 'Student not found' };
+        return { success: true, message: 'Profile updated successfully' };
     }
 };
 

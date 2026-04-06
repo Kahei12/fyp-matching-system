@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { formatDateTime24 } from '../../utils/formatDateTime24';
 
 function MatchingResults({ showNotification }) {
   const [lastUpdated, setLastUpdated] = useState(null);
@@ -6,10 +7,10 @@ function MatchingResults({ showNotification }) {
   const [results, setResults] = useState([]);
   const [summary, setSummary] = useState({
     totalMatched: 0,
-    awaitingConfirmation: 0,
-    unmatched: 0
+    available: 0
   });
   const userEmail = sessionStorage.getItem('userEmail') || 'teacher@hkmu.edu.hk';
+  const userName = sessionStorage.getItem('userName') || '';
 
   useEffect(() => {
     fetchMatchingResults();
@@ -24,74 +25,26 @@ function MatchingResults({ showNotification }) {
         }
       });
       const data = await response.json();
-      
+
       if (data.success && data.results) {
         setResults(data.results);
-        
-        // Calculate summary
+
         const matched = data.results.filter(r => r.assignedStudent).length;
-        const totalCapacity = data.results.reduce((sum, r) => sum + (r.capacity || 0), 0);
-        
+        const available = data.results.filter(r => !r.assignedStudent).length;
+
         setSummary({
           totalMatched: matched,
-          awaitingConfirmation: 0,
-          unmatched: Math.max(0, totalCapacity - matched)
+          available: available
         });
-        
-        // Set last updated time
+
         const matchedWithDate = data.results.find(r => r.assignedStudent?.assignedAt);
         if (matchedWithDate) {
-          setLastUpdated(new Date(matchedWithDate.assignedStudent.assignedAt).toLocaleString());
+          setLastUpdated(formatDateTime24(new Date(matchedWithDate.assignedStudent.assignedAt)));
         }
       }
     } catch (error) {
       console.error('Error fetching matching results:', error);
-      // Fallback to mock data
-      setResults([
-        {
-          projectId: '1',
-          projectCode: 'L12',
-          projectTitle: 'FYP Matching System',
-          capacity: 3,
-          assignedStudent: {
-            id: 'S001',
-            name: 'John Chen',
-            email: 'john.chen@student.hkmu.edu.hk',
-            gpa: 3.85,
-            major: 'Computer Science'
-          },
-          status: 'Matched'
-        },
-        {
-          projectId: '2',
-          projectCode: 'L13',
-          projectTitle: 'Mobile App Development',
-          capacity: 2,
-          assignedStudent: {
-            id: 'S002',
-            name: 'Emily Zhang',
-            email: 'emily.zhang@student.hkmu.edu.hk',
-            gpa: 3.91,
-            major: 'Software Engineering'
-          },
-          status: 'Matched'
-        },
-        {
-          projectId: '3',
-          projectCode: 'L14',
-          projectTitle: 'Network Security',
-          capacity: 2,
-          assignedStudent: null,
-          status: 'Available'
-        }
-      ]);
-      
-      setSummary({
-        totalMatched: 2,
-        awaitingConfirmation: 0,
-        unmatched: 1
-      });
-      setLastUpdated('2025-06-15 14:30');
+      setResults([]);
     } finally {
       setLoading(false);
     }
@@ -99,41 +52,62 @@ function MatchingResults({ showNotification }) {
 
   const statusClass = (status) => {
     switch (status?.toLowerCase()) {
-      case 'matched':
-        return 'status-matched';
-      case 'available':
-        return 'status-available';
-      case 'pending':
-        return 'status-pending';
-      default:
-        return 'status-draft';
+      case 'matched': return 'status-matched';
+      case 'available': return 'status-available';
+      case 'pending': return 'status-pending';
+      default: return 'status-draft';
     }
   };
 
-  const handlePublishResults = () => {
-    showNotification('Matching result published to students!', 'success');
-    setLastUpdated(new Date().toLocaleString());
-  };
+  const sourceTagClass = (type) => type === 'student' ? 'source-student' : 'source-teacher';
+  const sourceTagLabel = (type) => type === 'student' ? 'Student Proposed' : 'Teacher';
+  const sourceTagTitle = (type) => type === 'student' ? 'Proposed by a student' : 'Proposed by teacher';
 
   const handleDownloadReport = async () => {
     try {
       showNotification('Generating result report...', 'info');
-      const resultsResponse = await fetch('/api/export/matching-results');
-      if (resultsResponse.ok) {
-        const blob = await resultsResponse.blob();
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = 'matching_results.csv';
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        window.URL.revokeObjectURL(url);
+
+      const response = await fetch(`/api/teacher/matching-results?email=${encodeURIComponent(userEmail)}`, {
+        headers: { 'x-teacher-email': userEmail }
+      });
+      const data = await response.json();
+
+      if (!data.success || !data.results) {
+        showNotification('Failed to fetch results', 'error');
+        return;
       }
-      showNotification('Reports downloaded successfully!', 'success');
+
+      const rows = data.results.map((r, i) => {
+        const a = r.assignedStudent;
+        return [
+          r.projectCode || '',
+          r.projectTitle || '',
+          r.capacity || 1,
+          sourceTagLabel(r.projectType),
+          a ? a.id || '' : 'Unassigned',
+          a ? a.name || '' : 'Unassigned',
+          a ? a.email || '' : 'Unassigned',
+          a ? (a.gpa || 'N/A') : 'Unassigned',
+          r.status || 'Available'
+        ].join(',');
+      });
+
+      const header = 'Project Code,Project Title,Capacity,Source,Student ID,Student Name,Student Email,Student GPA,Status';
+      const csv = [header, ...rows].join('\n');
+
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `matching_results_${userName.replace(/\s+/g, '_') || 'teacher'}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+      showNotification('Report downloaded successfully!', 'success');
     } catch (error) {
       console.error('Download error:', error);
-      showNotification('Failed to download reports', 'error');
+      showNotification('Failed to download report', 'error');
     }
   };
 
@@ -149,8 +123,11 @@ function MatchingResults({ showNotification }) {
     <section className="content-section active">
       <div className="section-header">
         <div className="results-status">
-          Last updated: <strong>{lastUpdated || 'Never'}</strong>
+          {lastUpdated ? `Last updated: ${lastUpdated}` : 'No matching results yet'}
         </div>
+        <button className="btn-secondary" onClick={handleDownloadReport} disabled={results.length === 0}>
+          Download Report
+        </button>
       </div>
 
       <div className="results-summary-grid">
@@ -160,71 +137,73 @@ function MatchingResults({ showNotification }) {
           <span className="summary-helper">students assigned</span>
         </div>
         <div className="results-summary-card">
-          <span className="summary-label">Awaiting Confirmation</span>
-          <span className="summary-value">{summary.awaitingConfirmation}</span>
-          <span className="summary-helper">students pending reply</span>
-        </div>
-        <div className="results-summary-card">
           <span className="summary-label">Available</span>
-          <span className="summary-value">{summary.unmatched}</span>
-          <span className="summary-helper">spots still open</span>
+          <span className="summary-value">{summary.available}</span>
+          <span className="summary-helper">slots still open</span>
         </div>
-      </div>
-
-      <div className="results-actions">
-        <button className="btn-primary" onClick={handlePublishResults}>
-          Publish Result
-        </button>
-        <button className="btn-secondary" onClick={handleDownloadReport}>
-          Download Report
-        </button>
       </div>
 
       <div className="matching-results-list">
         {results.length === 0 ? (
           <div className="empty-state">
             <p>No matching results available yet.</p>
-            <p>Results will appear after the matching process is completed.</p>
+            <p>Results will appear after the matching process is completed by the admin.</p>
           </div>
         ) : (
-          results.map(project => (
-            <div key={project.projectId} className="matching-card">
-              <div className="matching-card-header">
-                <div>
-                  <h3>
-                    {project.projectCode && <span className="project-code-badge">{project.projectCode}</span>}
-                    {project.projectTitle}
-                  </h3>
+          results.map((project, idx) => {
+            const a = project.assignedStudent;
+            return (
+              <div key={project.projectId || idx} className="matching-card">
+                <div className="matching-card-header">
+                  <div>
+                    <h3>
+                      {project.projectCode && (
+                        <span className="project-code-badge">{project.projectCode}</span>
+                      )}
+                      {project.projectTitle}
+                      {project.projectType && (
+                        <span
+                          className={`project-source-tag ${sourceTagClass(project.projectType)}`}
+                          title={sourceTagTitle(project.projectType)}
+                        >
+                          {sourceTagLabel(project.projectType)}
+                        </span>
+                      )}
+                    </h3>
+                  </div>
+                  <span className={`matching-status ${statusClass(project.status)}`}>
+                    {project.status || 'Available'}
+                  </span>
                 </div>
-                <span className={`matching-status ${statusClass(project.status)}`}>
-                  {project.status || 'Available'}
-                </span>
-              </div>
-              <div className="matching-card-body">
-                <div className="matching-meta">
-                  <span>Capacity: {project.capacity}</span>
-                  <span>Status: {project.assignedStudent ? 'Filled' : 'Open'}</span>
-                </div>
-                {project.assignedStudent ? (
-                  <div className="matched-students">
-                    <div className="matched-student">
-                      <div className="matched-index">#1</div>
-                      <div className="matched-info">
-                        <strong>{project.assignedStudent.name}</strong>
-                        <span>ID: {project.assignedStudent.id}</span>
-                        <span>Email: {project.assignedStudent.email}</span>
+                <div className="matching-card-body">
+                  <div className="matching-meta">
+                    <span>Capacity: {project.capacity || 1}</span>
+                    <span>{a ? 'Filled' : 'Open'}</span>
+                  </div>
+                  {a ? (
+                    <div className="matched-students">
+                      <div className="matched-student">
+                        <div className="matched-index">#1</div>
+                        <div className="matched-info">
+                          <strong>{a.name || 'Unknown'}</strong>
+                          <span>ID: {a.id || 'N/A'}</span>
+                          <span>Email: {a.email || 'N/A'}</span>
+                          {a.major && <span>Major: {a.major}</span>}
+                        </div>
+                        <div className="matched-gpa">
+                          {a.gpa != null ? `GPA ${a.gpa}` : ''}
+                        </div>
                       </div>
-                      <div className="matched-gpa">GPA {project.assignedStudent.gpa}</div>
                     </div>
-                  </div>
-                ) : (
-                  <div className="no-matched-students">
-                    No students assigned yet.
-                  </div>
-                )}
+                  ) : (
+                    <div className="no-matched-students">
+                      No students assigned yet.
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
-          ))
+            );
+          })
         )}
       </div>
     </section>

@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import AppModal from '../common/AppModal';
+import { majorToFilterCode } from '../../utils/majorMapping';
 
-function ProjectManagement({ showNotification }) {
+function ProjectManagement({ showNotification, expiredDeadlineKeys = new Set() }) {
   const [projects, setProjects] = useState([]);
   const [proposals, setProposals] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -20,6 +21,20 @@ function ProjectManagement({ showNotification }) {
   });
   const [deleteConfirm, setDeleteConfirm] = useState(null);
 
+  // Major-related stats
+  const [teacherMajor, setTeacherMajor] = useState('');
+  const [projectStats, setProjectStats] = useState({
+    eceNeeded: 0,
+    ccsNeeded: 0,
+    eceCreated: 0,
+    ccsCreated: 0,
+    eceTeachers: 0,
+    ccsTeachers: 0,
+    bothTeachers: 0,
+  });
+
+  const isSelfProposalExpired = expiredDeadlineKeys.has('teacherSelfProposal');
+
   const userEmail = sessionStorage.getItem('userEmail') || 'teacher@hkmu.edu.hk';
   const userEmailLower = userEmail.toLowerCase();
 
@@ -27,27 +42,50 @@ function ProjectManagement({ showNotification }) {
     proposal.teacherReviews?.find((r) => r.teacherEmail?.toLowerCase() === userEmailLower);
 
   useEffect(() => {
+    fetchTeacherMajor();
     fetchProjects();
     fetchProposals();
   }, []);
 
+  const fetchTeacherMajor = async () => {
+    try {
+      const response = await fetch(`/api/teachers/${encodeURIComponent(userEmail)}`);
+      const data = await response.json();
+      if (data.success && data.teacher) {
+        setTeacherMajor(data.teacher.major || '');
+      }
+    } catch (error) {
+      console.error('Error fetching teacher major:', error);
+    }
+  };
+
   const fetchProjects = async () => {
     try {
       setLoading(true);
-      console.log('🔍 Fetching projects for email:', userEmail);
-      const response = await fetch(`/api/teacher/projects?email=${encodeURIComponent(userEmail)}`, {
-        headers: {
-          'x-teacher-email': userEmail
-        }
-      });
-      const data = await response.json();
-      console.log('📥 Projects API response:', data);
-      if (data.success && data.projects) {
-        console.log('✅ Found projects:', data.projects.length);
-        setProjects(data.projects);
+      console.log('[ProjectManagement] Fetching projects for email:', userEmail);
+
+      // Fetch teacher's own projects and global project stats in parallel
+      const [projRes, statsRes] = await Promise.all([
+        fetch(`/api/teacher/projects?email=${encodeURIComponent(userEmail)}`, {
+          headers: { 'x-teacher-email': userEmail }
+        }),
+        fetch('/api/admin/project-stats')
+      ]);
+
+      const projData = await projRes.json();
+      const statsData = await statsRes.json();
+      const globalStats = statsData.success ? (statsData.stats || {}) : {};
+
+      console.log('[ProjectManagement] Projects API response:', projData);
+      if (projData.success && projData.projects) {
+        console.log('[ProjectManagement] Found projects:', projData.projects.length);
+        setProjects(projData.projects);
+        // Calculate own ECE/CCS counts + merge global student/project deficit counts
+        calculateProjectStats(projData.projects, globalStats);
       } else {
-        console.log('⚠️ No projects found or API error:', data.message);
+        console.log('[ProjectManagement] No projects or API error:', projData.message);
         setProjects([]);
+        calculateProjectStats([], globalStats);
       }
     } catch (error) {
       console.error('Error fetching projects:', error);
@@ -55,6 +93,28 @@ function ProjectManagement({ showNotification }) {
     } finally {
       setLoading(false);
     }
+  };
+
+  // Calculate project stats per major — uses p.major (not p.department) to align with DB schema
+  const calculateProjectStats = (myProjects, globalStats) => {
+    const stats = globalStats || {};
+    const myEceProjects = myProjects.filter((p) => {
+      const c = majorToFilterCode(p.major);
+      return c === 'ECE' || c === 'ECE+CCS';
+    }).length;
+    const myCcsProjects = myProjects.filter((p) => {
+      const c = majorToFilterCode(p.major);
+      return c === 'CCS' || c === 'ECE+CCS';
+    }).length;
+    setProjectStats({
+      eceNeeded: Math.max(0, (stats.eceStudents || 0) - (stats.eceProjects || 0)),
+      ccsNeeded: Math.max(0, (stats.ccsStudents || 0) - (stats.ccsProjects || 0)),
+      eceCreated: myEceProjects,
+      ccsCreated: myCcsProjects,
+      eceTeachers: stats.eceTeachers || 0,
+      ccsTeachers: stats.ccsTeachers || 0,
+      bothTeachers: stats.bothTeachers || 0,
+    });
   };
 
   const fetchProposals = async () => {
@@ -65,7 +125,7 @@ function ProjectManagement({ showNotification }) {
         }
       });
       const data = await response.json();
-      console.log('📋 Fetched student proposals:', data);
+      console.log('[ProjectManagement] Fetched student proposals:', data);
       if (data.success && data.proposals) {
         setProposals(data.proposals);
       }
@@ -209,13 +269,13 @@ function ProjectManagement({ showNotification }) {
           className={`tab-button ${activeTab === 'my-projects' ? 'active' : ''}`}
           onClick={() => setActiveTab('my-projects')}
         >
-          📋 My Projects
+          My Projects
         </button>
         <button 
           className={`tab-button ${activeTab === 'student-proposals' ? 'active' : ''}`}
           onClick={() => setActiveTab('student-proposals')}
         >
-          📝 Student Proposals
+          Student Proposals
           {reviewedProposalsCount > 0 && (
             <span className="tab-badge">({reviewedProposalsCount})</span>
           )}
@@ -227,10 +287,52 @@ function ProjectManagement({ showNotification }) {
         <>
           <div className="section-header">
             <h2>My Projects (Teacher-Proposed)</h2>
-            <button className="btn-create-project" onClick={() => setShowCreateModal(true)}>
-              <span>+</span> Create New Project
-            </button>
+            {!isSelfProposalExpired && (
+              <button className="btn-create-project" onClick={() => setShowCreateModal(true)}>
+                <span>+</span> Create New Project
+              </button>
+            )}
           </div>
+
+          {/* Project Requirements Hint */}
+          {!isSelfProposalExpired && (() => {
+            const tm = majorToFilterCode(teacherMajor);
+            const eceDenom = Math.max(1, projectStats.eceTeachers + projectStats.bothTeachers);
+            const ccsDenom = Math.max(1, projectStats.ccsTeachers + projectStats.bothTeachers);
+            const eceShare = Math.ceil(projectStats.eceNeeded / eceDenom);
+            const ccsShare = Math.ceil(projectStats.ccsNeeded / ccsDenom);
+            const stillEce = Math.max(0, eceShare - projectStats.eceCreated);
+            const stillCcs = Math.max(0, ccsShare - projectStats.ccsCreated);
+            const showEce = tm === 'ECE' || tm === 'ECE+CCS' || !tm;
+            const showCcs = tm === 'CCS' || tm === 'ECE+CCS' || !tm;
+            return (
+            <div className="project-requirements-hint">
+              <h4>Topic pool reminder</h4>
+              <p className="requirements-intro">
+                Shortfall = students in that programme minus topics in the pool (each ECE+CCS topic counts toward both).
+                Suggested extra for you ≈ ceil(shortfall ÷ supervisors in that programme, including dual-programme staff) minus your listed topics.
+              </p>
+              <div className="requirements-list">
+                {showCcs && (
+                  <p className="requirement-item ccs">
+                    <span className="requirement-major">CCS:</span> Pool still needs{' '}
+                    <strong>{projectStats.ccsNeeded}</strong> topic(s). With <strong>{ccsDenom}</strong> supervisor(s), rough share ≈{' '}
+                    <strong>{ccsShare}</strong> each. You have <strong>{projectStats.ccsCreated}</strong> CCS-capable topic(s) here —{' '}
+                    suggest about <strong>{stillCcs}</strong> more if split evenly.
+                  </p>
+                )}
+                {showEce && (
+                  <p className="requirement-item ece">
+                    <span className="requirement-major">ECE:</span> Pool still needs{' '}
+                    <strong>{projectStats.eceNeeded}</strong> topic(s). With <strong>{eceDenom}</strong> supervisor(s), rough share ≈{' '}
+                    <strong>{eceShare}</strong> each. You have <strong>{projectStats.eceCreated}</strong> ECE-capable topic(s) here —{' '}
+                    suggest about <strong>{stillEce}</strong> more if split evenly.
+                  </p>
+                )}
+              </div>
+            </div>
+            );
+          })()}
 
           <div className="projects-section">
             <div className="project-list">
@@ -268,16 +370,18 @@ function ProjectManagement({ showNotification }) {
                       )}
                     </div>
                     <div className="project-actions">
-                      <button 
-                        className="btn-edit" 
-                        onClick={() => setEditingProject(project)}
+                      <button
+                        className="btn-edit"
+                        disabled={isSelfProposalExpired}
+                        onClick={() => !isSelfProposalExpired && setEditingProject(project)}
                         title="Edit"
                       >
                         ✎ Edit
                       </button>
-                      <button 
-                        className="btn-delete" 
-                        onClick={() => handleDeleteProject(project._id || project.id)}
+                      <button
+                        className="btn-delete"
+                        disabled={isSelfProposalExpired}
+                        onClick={() => !isSelfProposalExpired && handleDeleteProject(project._id || project.id)}
                         title="Delete"
                       >
                         ⊗ Delete
@@ -458,17 +562,26 @@ function ProjectManagement({ showNotification }) {
               </div>
               <div className="form-row">
                 <div className="form-group">
-                  <label className="form-label">Department</label>
+                  <label className="form-label">Major (ECE/CCS) <span className="required">*</span></label>
                   <select
                     className="form-select"
                     value={newProject.department}
                     onChange={e => setNewProject({ ...newProject, department: e.target.value })}
                   >
-                    <option value="Computer Science">Computer Science</option>
-                    <option value="Electronic Engineering">Electronic Engineering</option>
-                    <option value="Data Science">Data Science</option>
-                    <option value="Information Technology">Information Technology</option>
+                    {(teacherMajor === 'ECE' || teacherMajor === 'ECE+CCS') && (
+                      <option value="ECE">ECE</option>
+                    )}
+                    {(teacherMajor === 'CCS' || teacherMajor === 'ECE+CCS') && (
+                      <option value="CCS">CCS</option>
+                    )}
+                    {!teacherMajor && (
+                      <>
+                        <option value="ECE">ECE</option>
+                        <option value="CCS">CCS</option>
+                      </>
+                    )}
                   </select>
+                  <small className="form-hint">Select based on your teaching major</small>
                 </div>
                 <div className="form-group">
                   <label className="form-label">Category</label>

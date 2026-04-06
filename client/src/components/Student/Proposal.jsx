@@ -1,9 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { PencilGlyph, StarOutlineGlyph, ListGlyph } from '../common/StageGlyphs';
+import OverdueNotice from '../common/OverdueNotice';
+import { formatDateTime24 } from '../../utils/formatDateTime24';
 
 const DEFAULT_SYSTEM_DEADLINES = {
-  proposal: '2025-03-20T23:59:00',
+  studentSelfProposal: '2025-03-20T23:59:00',
   preference: '2025-04-15T22:59:00',
-  results: '2025-05-30T23:59:00',
+  teacherProposalReview: '2025-04-15T23:59:00',
+  teacherSelfProposal: '2025-05-30T23:59:00',
 };
 
 function fmtDaysLeft(days) {
@@ -18,6 +22,8 @@ function Proposal({
   assignmentType = null,
   currentSection = 'proposal',
   systemDeadlines = DEFAULT_SYSTEM_DEADLINES,
+  expiredDeadlineKeys = new Set(),
+  proposalSubmitted = false,
 }) {
   const preferencesCount = preferences?.length || 0;
   const proposalTableRef = useRef(null);
@@ -36,7 +42,7 @@ function Proposal({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [notification, setNotification] = useState(null);
 
-  const currentStudentId = studentId || sessionStorage.getItem('studentId') || '13700797';
+  const currentStudentId = studentId || sessionStorage.getItem('studentId') || 's001';
 
   useEffect(() => {
     loadProposal();
@@ -186,29 +192,25 @@ function Proposal({
   };
 
   const isProposalApproved = proposal && proposal.proposalStatus === 'approved';
-  
+
   // Check if student is assigned via matching algorithm (not via proposal)
   const isMatchedViaAlgorithm = isAssigned && assignmentType === 'matching';
 
+  // Deadline expired flag
+  const isSelfProposalExpired = expiredDeadlineKeys.has('studentSelfProposal');
+  const isPreferenceExpired = expiredDeadlineKeys.has('preference');
+
   const now = new Date();
-  const proposalDeadline = new Date(systemDeadlines.proposal || DEFAULT_SYSTEM_DEADLINES.proposal);
+  const proposalDeadline = new Date(systemDeadlines.studentSelfProposal || DEFAULT_SYSTEM_DEADLINES.studentSelfProposal);
   const preferenceDeadline = new Date(systemDeadlines.preference || DEFAULT_SYSTEM_DEADLINES.preference);
 
   const proposalDaysLeft = Math.ceil((proposalDeadline - now) / (1000 * 60 * 60 * 24));
   const preferenceDaysLeft = Math.ceil((preferenceDeadline - now) / (1000 * 60 * 60 * 24));
-  const formattedProposalDate = proposalDeadline.toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  });
-  const fmtDeadlineLine = (d) =>
-    d.toLocaleString(undefined, {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
+  const formattedProposalDate = formatDateTime24(proposalDeadline);
+  const fmtDeadlineLine = (d) => formatDateTime24(d);
+
+  // Effective submission lock: already submitted, assigned, or deadline passed
+  const isFormLocked = proposalSubmitted || isProposalApproved || isSelfProposalExpired || isAssigned;
 
   if (loading) {
     return (
@@ -230,7 +232,7 @@ function Proposal({
       <div className="section-header">
         <div className="section-title-with-deadline">
           <h1>Proposal</h1>
-          <span className="deadline-hint">⏰ Deadline: {formattedProposalDate} ({fmtDaysLeft(proposalDaysLeft)})</span>
+          <span className="deadline-hint">Deadline: {formattedProposalDate} ({fmtDaysLeft(proposalDaysLeft)})</span>
         </div>
         <div className="phase-indicator">
           Current Stage: <strong>Stage 1 — Proposal</strong>
@@ -241,80 +243,93 @@ function Proposal({
       <div className="status-cards stage-status-cards">
         {/* Tag 1: Self-proposal */}
         <div
-          className={`status-card status-card-stage-1 ${currentSection === 'proposal' ? 'active' : ''}`}
+          className={`status-card status-card-stage-1 ${currentSection === 'proposal' ? 'active' : ''}${isSelfProposalExpired || isProposalApproved || isAssigned ? ' stage-disabled' : ''}`}
           onClick={() => {
-            // Scroll to the proposal form section
+            if (isSelfProposalExpired || isProposalApproved || isAssigned) return;
             if (proposalTableRef.current) {
-              proposalTableRef.current.scrollIntoView({ 
-                behavior: 'smooth', 
-                block: 'start' 
+              proposalTableRef.current.scrollIntoView({
+                behavior: 'smooth',
+                block: 'start'
               });
             }
           }}
           role="button"
-          tabIndex={0}
+          tabIndex={isSelfProposalExpired || isProposalApproved || isAssigned ? -1 : 0}
           onKeyDown={(e) => {
+            if (isSelfProposalExpired || isProposalApproved || isAssigned) return;
             if (e.key === 'Enter' || e.key === ' ') {
               e.preventDefault();
               if (proposalTableRef.current) {
-                proposalTableRef.current.scrollIntoView({ 
-                  behavior: 'smooth', 
-                  block: 'start' 
+                proposalTableRef.current.scrollIntoView({
+                  behavior: 'smooth',
+                  block: 'start'
                 });
               }
             }
           }}
+          style={isSelfProposalExpired || isProposalApproved || isAssigned ? { opacity: 0.55, cursor: 'not-allowed' } : {}}
         >
           <span className="stage-badge stage-1">Stage 1 (Proposal)</span>
-          <div className="status-icon">✍</div>
+          {isSelfProposalExpired && <span className="stage-overdue-tag">Overdue</span>}
+          <div className="status-icon" aria-hidden>
+            <PencilGlyph />
+          </div>
           <div className="status-content">
             <h3>Student Self-proposal</h3>
             <p>Propose your own project</p>
-            <button 
+            <button
               className="action-btn"
               onClick={(e) => {
                 e.stopPropagation();
+                if (isSelfProposalExpired || isProposalApproved || isAssigned) return;
                 if (proposalTableRef.current) {
-                  proposalTableRef.current.scrollIntoView({ 
-                    behavior: 'smooth', 
-                    block: 'start' 
+                  proposalTableRef.current.scrollIntoView({
+                    behavior: 'smooth',
+                    block: 'start'
                   });
                 }
               }}
-              disabled={isProposalApproved}
+              disabled={isSelfProposalExpired || isProposalApproved || isAssigned}
             >
-              {isProposalApproved ? 'Proposal Approved' : 'Submit Proposal'}
+              {isProposalApproved ? 'Proposal Approved' : isSelfProposalExpired ? 'Closed' : 'Submit Proposal'}
             </button>
           </div>
         </div>
-        
+
         {/* Tag 2: Project List */}
         <div
-          className={`status-card status-card-stage-2 ${currentSection === 'project-browse' || currentSection === 'my-preferences' ? 'active' : ''}`}
-          onClick={() => onSwitchSection('project-browse')}
+          className={`status-card status-card-stage-2 ${currentSection === 'project-browse' || currentSection === 'my-preferences' ? 'active' : ''}${isPreferenceExpired || isProposalApproved || isAssigned ? ' stage-disabled' : ''}`}
+          onClick={() => !(isPreferenceExpired || isProposalApproved || isAssigned) && onSwitchSection('project-browse')}
           role="button"
-          tabIndex={0}
+          tabIndex={isPreferenceExpired || isProposalApproved || isAssigned ? -1 : 0}
           onKeyDown={(e) => {
+            if (isPreferenceExpired || isProposalApproved || isAssigned) return;
             if (e.key === 'Enter' || e.key === ' ') {
               e.preventDefault();
               onSwitchSection('project-browse');
             }
           }}
+          style={isPreferenceExpired || isProposalApproved || isAssigned ? { opacity: 0.55, cursor: 'not-allowed' } : {}}
         >
           <span className="stage-badge stage-2">Stage 2 (Matching)</span>
-          <div className="status-icon">★</div>
+          {isPreferenceExpired && <span className="stage-overdue-tag">Overdue</span>}
+          <div className="status-icon" aria-hidden>
+            <StarOutlineGlyph />
+          </div>
           <div className="status-content">
             <h3>Teacher Project List</h3>
             <p>View the project list and manage your project preferences</p>
-            <button 
+            <button
               className="action-btn"
               onClick={(e) => {
                 e.stopPropagation();
-                onSwitchSection('project-browse');
+                if (!(isPreferenceExpired || isProposalApproved || isAssigned)) {
+                  onSwitchSection('project-browse');
+                }
               }}
-              disabled={isProposalApproved}
+              disabled={isPreferenceExpired || isProposalApproved || isAssigned}
             >
-              {isProposalApproved ? 'Auto-Matched' : 'Browse Projects'}
+              {isProposalApproved ? 'Auto-Matched' : isPreferenceExpired ? 'Closed' : 'Browse Projects'}
             </button>
           </div>
         </div>
@@ -333,7 +348,9 @@ function Proposal({
           }}
         >
           <span className="stage-badge stage-3">Stage 3 (Clearing)</span>
-          <div className="status-icon">☰</div>
+          <div className="status-icon" aria-hidden>
+            <ListGlyph />
+          </div>
           <div className="status-content">
             <h3>Result</h3>
             <p>View your project assignment and matching results</p>
@@ -389,31 +406,62 @@ function Proposal({
         </div>
       )}
 
-      {/* Deadline Reminder */}
+      {/* All Deadlines */}
       {!isProposalApproved && !isMatchedViaAlgorithm && (
         <div className="deadline-reminder">
-          <h3>⏰ Upcoming Deadlines</h3>
+          <h3>All Deadlines</h3>
           <div className="deadline-list">
-            <div className="deadline-item">
-              <span className="deadline-name">Proposal Submission</span>
+            <div className={`deadline-item${isSelfProposalExpired ? ' deadline-item-overdue' : ''}`}>
+              <span className="deadline-name">Student Self-proposal</span>
               <span className="deadline-date">{fmtDeadlineLine(proposalDeadline)}</span>
-              <span className="deadline-days">{fmtDaysLeft(proposalDaysLeft)}</span>
+              <span className={`deadline-days${isSelfProposalExpired ? ' deadline-days-overdue' : ''}`}>
+                {fmtDaysLeft(proposalDaysLeft)}
+              </span>
             </div>
-            <div className="deadline-item">
-              <span className="deadline-name">Preference Selection</span>
+            <div className={`deadline-item${isPreferenceExpired ? ' deadline-item-overdue' : ''}`}>
+              <span className="deadline-name">Project Preference Selection</span>
               <span className="deadline-date">{fmtDeadlineLine(preferenceDeadline)}</span>
-              <span className="deadline-days">{fmtDaysLeft(preferenceDaysLeft)}</span>
+              <span className={`deadline-days${isPreferenceExpired ? ' deadline-days-overdue' : ''}`}>
+                {fmtDaysLeft(preferenceDaysLeft)}
+              </span>
             </div>
           </div>
         </div>
       )}
+
+      {!isProposalApproved &&
+        !isMatchedViaAlgorithm &&
+        (isSelfProposalExpired || isPreferenceExpired) && (
+          <OverdueNotice
+            title={
+              isSelfProposalExpired && isPreferenceExpired
+                ? 'Deadlines have passed'
+                : isSelfProposalExpired
+                  ? 'Student Self-proposal deadline has passed'
+                  : 'Project Preference Selection deadline has passed'
+            }
+          >
+            {isSelfProposalExpired && isPreferenceExpired
+              ? 'The Student Self-proposal and Project Preference Selection deadlines have passed. This section is now closed.'
+              : isSelfProposalExpired
+                ? 'The Student Self-proposal deadline has passed. You can no longer submit a new proposal in this stage.'
+                : 'The Project Preference Selection deadline has passed. You can no longer change project preferences from this page.'}
+          </OverdueNotice>
+        )}
 
       {/* Proposal Status Form Section - hide if already assigned */}
       {!isProposalApproved && !isMatchedViaAlgorithm && (
         <div ref={proposalTableRef} className="proposal-status-section">
           <div className="proposal-section-header">
             <h2>Submit Proposal</h2>
-            <p className="proposal-section-subtitle">Fill in the details below to submit your proposal</p>
+            {isSelfProposalExpired && (
+              <p className="proposal-section-subtitle" style={{ color: '#e74c3c' }}>
+                This deadline has passed. You can no longer submit a proposal.
+              </p>
+            )}
+            {!isSelfProposalExpired && (
+              <p className="proposal-section-subtitle">Fill in the details below to submit your proposal</p>
+            )}
           </div>
 
           <div className="proposal-form-container">
@@ -430,7 +478,7 @@ function Proposal({
                   onChange={handleInputChange}
                   className={`form-input ${formErrors.title ? 'input-error' : ''}`}
                   placeholder="Enter your proposal title"
-                  disabled={proposal?.proposalStatus === 'pending'}
+                  disabled={isFormLocked}
                 />
                 {formErrors.title && (
                   <span className="error-message">{formErrors.title}</span>
@@ -449,7 +497,7 @@ function Proposal({
                   className={`form-textarea ${formErrors.description ? 'input-error' : ''}`}
                   placeholder="Describe your proposal in detail (minimum 50 characters)"
                   rows="6"
-                  disabled={proposal?.proposalStatus === 'pending'}
+                  disabled={isFormLocked}
                 />
                 <div className="char-count">
                   {formData.description.length} characters
@@ -480,37 +528,37 @@ function Proposal({
                               setFormData({ ...formData, requiredSkills: formData.requiredSkills.filter(s => s !== skill) });
                             }
                           }}
-                          disabled={proposal?.proposalStatus === 'pending'}
-                        />
-                        <span>{skill}</span>
-                      </label>
-                    ))}
-                    <label className="skill-checkbox">
-                      <input
-                        type="checkbox"
-                        checked={formData.requiredSkills.includes('Other')}
-                        onChange={(e) => {
-                          if (e.target.checked) {
-                            setFormData({ ...formData, requiredSkills: [...formData.requiredSkills, 'Other'] });
-                          } else {
-                            setFormData({ ...formData, requiredSkills: formData.requiredSkills.filter(s => s !== 'Other') });
-                          }
-                        }}
-                        disabled={proposal?.proposalStatus === 'pending'}
+                        disabled={isFormLocked}
                       />
-                      <span>Other</span>
+                      <span>{skill}</span>
                     </label>
-                  </div>
-                  {formData.requiredSkills.includes('Other') && (
+                  ))}
+                  <label className="skill-checkbox">
                     <input
-                      type="text"
-                      className="form-input other-skills-input"
-                      placeholder="Please specify other skills"
-                      value={formData.otherSkills || ''}
-                      onChange={(e) => setFormData({ ...formData, otherSkills: e.target.value })}
-                      disabled={proposal?.proposalStatus === 'pending'}
+                      type="checkbox"
+                      checked={formData.requiredSkills.includes('Other')}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setFormData({ ...formData, requiredSkills: [...formData.requiredSkills, 'Other'] });
+                        } else {
+                          setFormData({ ...formData, requiredSkills: formData.requiredSkills.filter(s => s !== 'Other') });
+                        }
+                      }}
+                      disabled={isFormLocked}
                     />
-                  )}
+                    <span>Other</span>
+                  </label>
+                </div>
+                {formData.requiredSkills.includes('Other') && (
+                  <input
+                    type="text"
+                    className="form-input other-skills-input"
+                    placeholder="Please specify other skills"
+                    value={formData.otherSkills || ''}
+                    onChange={(e) => setFormData({ ...formData, otherSkills: e.target.value })}
+                    disabled={isFormLocked}
+                  />
+                )}
                 </div>
                 {formErrors.requiredSkills && (
                   <span className="error-message">{formErrors.requiredSkills}</span>
@@ -521,9 +569,9 @@ function Proposal({
                 <button
                   type="submit"
                   className="btn-primary"
-                  disabled={isSubmitting || proposal?.proposalStatus === 'pending'}
+                  disabled={isSubmitting || isFormLocked}
                 >
-                  {isSubmitting ? 'Submitting...' : 'Submit Proposal'}
+                  {isSubmitting ? 'Submitting...' : isSelfProposalExpired ? 'Deadline passed' : 'Submit Proposal'}
                 </button>
                 <button
                   type="button"
@@ -532,7 +580,7 @@ function Proposal({
                     setFormData({ title: '', description: '', requiredSkills: [], otherSkills: '' });
                     setFormErrors({});
                   }}
-                  disabled={isSubmitting || proposal?.proposalStatus === 'pending'}
+                  disabled={isFormLocked}
                 >
                   Clear Form
                 </button>

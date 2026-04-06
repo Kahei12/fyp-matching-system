@@ -1,5 +1,15 @@
 import React from 'react';
 
+// Helper function to format major display name
+const formatMajor = (major) => {
+  if (!major) return '—';
+  if (major === 'CCS') return 'Computer and Cyber Security';
+  if (major === 'ECE') return 'Electronics and Computer Engineering';
+  if (major === 'ECE+CCS' || major === 'Computer and Cyber Security + Electronics and Computer Engineering') return 'Computer and Cyber Security + Electronics and Computer Engineering';
+  if (String(major).toLowerCase().includes('computer science')) return 'Computer and Cyber Security';
+  return major;
+};
+
 function Profile({ studentData }) {
   return (
     <section className="content-section active">
@@ -27,7 +37,7 @@ function Profile({ studentData }) {
           </div>
           <div className="detail-group">
             <label>Major:</label>
-            <span>{studentData.major}</span>
+            <span>{formatMajor(studentData.major)}</span>
           </div>
           <div className="detail-group">
             <label>GPA:</label>

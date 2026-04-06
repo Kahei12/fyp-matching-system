@@ -1,8 +1,10 @@
-import React from 'react';
+import React, { useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import './AppModal.css';
 
 /**
  * 與教師端「建立專題」一致的圓角卡片式對話框（覆蓋原生 alert / confirm）。
+ * 使用 portal 掛到 document.body，避免父層版面（如 hover）造成寬度跳動。
  */
 function AppModal({
   open,
@@ -18,6 +20,15 @@ function AppModal({
   onPrimary,
   onSecondary,
 }) {
+  useEffect(() => {
+    if (!open) return undefined;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [open]);
+
   if (!open) return null;
 
   const handleOverlay = (e) => {
@@ -34,7 +45,7 @@ function AppModal({
     onClose?.();
   };
 
-  return (
+  const node = (
     <div
       className="app-modal-overlay"
       onClick={handleOverlay}
@@ -91,6 +102,8 @@ function AppModal({
       </div>
     </div>
   );
+
+  return createPortal(node, document.body);
 }
 
 export default AppModal;

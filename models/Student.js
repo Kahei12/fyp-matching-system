@@ -1,12 +1,16 @@
 const mongoose = require('mongoose');
 
 const StudentSchema = new mongoose.Schema({
-  id: String, // student id like "12345678"
+  id: String, // student id like "s001"
   name: String,
   email: String,
   password: String, // hashed password
   gpa: Number,
-  major: String,
+  major: { 
+    type: String, 
+    enum: ['Computer and Cyber Security', 'Electronics and Computer Engineering'], 
+    default: 'Computer and Cyber Security' 
+  }, // Student major
   year: String,
   preferences: [String], // array of project ids (can be code or ObjectId string)
   proposalSubmitted: { type: Boolean, default: false },

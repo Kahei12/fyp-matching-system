@@ -1,12 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import AppModal from '../common/AppModal';
 
-function StudentApplications({ showNotification, onStatsChange }) {
+function StudentApplications({ showNotification, onStatsChange, expiredDeadlineKeys = new Set() }) {
   const [loading, setLoading] = useState(true);
   const [proposals, setProposals] = useState([]);
   const [confirmDialog, setConfirmDialog] = useState(null);
   const userEmail = sessionStorage.getItem('userEmail') || 'teacher@hkmu.edu.hk';
   const userName = sessionStorage.getItem('userName') || 'Teacher';
+
+  // Proposal review deadline has passed → block all actions
+  const isReviewExpired = expiredDeadlineKeys.has('teacherProposalReview');
 
   useEffect(() => {
     fetchProposals();
@@ -23,7 +26,7 @@ function StudentApplications({ showNotification, onStatsChange }) {
       });
       const data = await response.json();
       if (data.success && data.proposals) {
-        console.log('📋 獲取到學生提議:', data.proposals.length);
+        console.log('[StudentApplications] proposals count:', data.proposals.length);
         setProposals(data.proposals);
       }
     } catch (error) {
@@ -214,14 +217,16 @@ function StudentApplications({ showNotification, onStatsChange }) {
                   
                   {proposal.proposalStatus === 'pending' && !proposal.myDecision && (
                     <div className="proposal-actions">
-                      <button 
+                      <button
                         className="btn-approve-proposal"
+                        disabled={isReviewExpired}
                         onClick={() => handleApproveProposal(proposal._id)}
                       >
                         ✓ Approve as Supervisor
                       </button>
-                      <button 
+                      <button
                         className="btn-reject-proposal"
+                        disabled={isReviewExpired}
                         onClick={() => handleRejectProposal(proposal._id)}
                       >
                         ✗ Reject

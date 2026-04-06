@@ -1,12 +1,17 @@
 import React, { useState, useMemo } from 'react';
 import AppModal from '../common/AppModal';
+import { SearchOutlineGlyph } from '../common/StageGlyphs';
 
-function ProjectBrowse({ projects, preferences, onAddPreference, isAssigned = false }) {
+function ProjectBrowse({ projects, preferences, onAddPreference, isAssigned = false, expiredDeadlineKeys = new Set() }) {
   const [searchKeyword, setSearchKeyword] = useState('');
   const [selectedSkill, setSelectedSkill] = useState('');
   const [selectedSupervisor, setSelectedSupervisor] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [sortBy, setSortBy] = useState('popularity');
+  const [detailProject, setDetailProject] = useState(null);
+
+  const isPreferenceExpired = expiredDeadlineKeys.has('preference');
+  const isBrowseDisabled = isPreferenceExpired || isAssigned;
 
   // 獲取所有技能選項
   const allSkills = useMemo(() => {
@@ -154,9 +159,11 @@ function ProjectBrowse({ projects, preferences, onAddPreference, isAssigned = fa
         </div>
         
         <div className="filter-actions">
-          <button className="btn-secondary" onClick={clearFilters}>
-            Clear Filters
-          </button>
+          {!isBrowseDisabled && (
+            <button className="btn-secondary" onClick={clearFilters}>
+              Clear Filters
+            </button>
+          )}
           <span className="results-count">
             {filteredProjects.length} project{filteredProjects.length !== 1 ? 's' : ''} found
           </span>
@@ -167,7 +174,9 @@ function ProjectBrowse({ projects, preferences, onAddPreference, isAssigned = fa
       <div className="projects-grid">
         {filteredProjects.length === 0 ? (
           <div className="no-results">
-            <div className="no-results-icon">⌕</div>
+            <div className="no-results-icon" aria-hidden>
+              <SearchOutlineGlyph className="stage-glyph-svg" />
+            </div>
             <h3>No projects found</h3>
             <p>Try adjusting your search criteria or filters</p>
             <button className="btn-primary" onClick={clearFilters}>Clear All Filters</button>
@@ -176,30 +185,75 @@ function ProjectBrowse({ projects, preferences, onAddPreference, isAssigned = fa
           <>
             {filteredProjects.map(project => (
               <ProjectCard
-                key={project.id}
+                key={project.id ?? project._id}
                 project={project}
                 isInPreferences={Array.isArray(preferences) && preferences.some(p => p.id === project.id)}
                 onAddPreference={onAddPreference}
                 isAssigned={isAssigned}
+                isBrowseDisabled={isBrowseDisabled}
+                onOpenDetails={() => setDetailProject(project)}
               />
             ))}
           </>
         )}
       </div>
+
+      <ProjectDetailModal project={detailProject} onClose={() => setDetailProject(null)} />
     </section>
   );
 }
 
-function ProjectCard({ project, isInPreferences, onAddPreference, isAssigned = false }) {
-  const [detailOpen, setDetailOpen] = useState(false);
-
+function ProjectDetailModal({ project, onClose }) {
+  if (!project) return null;
   const skillsList = Array.isArray(project.skills) ? project.skills : project.skills ? [project.skills] : [];
 
+  return (
+    <AppModal
+      open
+      title="Project details"
+      onClose={onClose}
+      size="xl"
+      footer="ok"
+      okLabel="OK"
+    >
+      <dl className="app-modal-dl">
+        <dt>Project</dt>
+        <dd>{project.title}</dd>
+        <dt>Supervisor</dt>
+        <dd>{project.supervisor}</dd>
+        <dt>Description</dt>
+        <dd>{project.description}</dd>
+        <dt>Required skills</dt>
+        <dd>
+          {skillsList.length > 0 ? (
+            <div className="app-modal-skill-tags">
+              {skillsList.map((skill) => (
+                <span key={skill} className="app-modal-skill-tag">
+                  {skill}
+                </span>
+              ))}
+            </div>
+          ) : (
+            <span style={{ color: '#6c757d' }}>None specified</span>
+          )}
+        </dd>
+        <dt>Popularity</dt>
+        <dd>{project.popularity} selections</dd>
+        <dt>Capacity</dt>
+        <dd>{project.capacity} students</dd>
+        <dt>Status</dt>
+        <dd>{project.status}</dd>
+      </dl>
+    </AppModal>
+  );
+}
+
+function ProjectCard({ project, isInPreferences, onAddPreference, isAssigned = false, isBrowseDisabled = false, onOpenDetails }) {
   return (
     <div className="project-card">
       <div className="project-header">
         <h3>{project.title}</h3>
-        <span className="popularity-badge">▲ {project.popularity} selections</span>
+        <span className="popularity-badge">{project.popularity} selections</span>
       </div>
       <div className="project-supervisor">
         <strong>Supervisor:</strong> {project.supervisor}
@@ -220,55 +274,17 @@ function ProjectCard({ project, isInPreferences, onAddPreference, isAssigned = f
         </div>
       </div>
       <div className="project-actions">
-        <button 
-          className="btn-primary" 
+        <button
+          className="btn-primary"
           onClick={() => onAddPreference(project.id)}
-          disabled={isInPreferences || isAssigned}
+          disabled={isInPreferences || isAssigned || isBrowseDisabled}
         >
-          {isAssigned ? '✘ Already Assigned' : isInPreferences ? '✔ Already Added' : '★ Add to Preferences'}
+          {isAssigned ? 'Already Assigned' : isInPreferences ? 'Already Added' : isBrowseDisabled ? 'Closed' : 'Add to Preferences'}
         </button>
-        <button type="button" className="btn-secondary" onClick={() => setDetailOpen(true)}>
-          ℹ View Details
+        <button type="button" className="btn-secondary" onClick={() => onOpenDetails?.()}>
+          View Details
         </button>
       </div>
-
-      <AppModal
-        open={detailOpen}
-        title="Project details"
-        onClose={() => setDetailOpen(false)}
-        size="lg"
-        footer="ok"
-        okLabel="OK"
-      >
-        <dl className="app-modal-dl">
-          <dt>Project</dt>
-          <dd>{project.title}</dd>
-          <dt>Supervisor</dt>
-          <dd>{project.supervisor}</dd>
-          <dt>Description</dt>
-          <dd>{project.description}</dd>
-          <dt>Required skills</dt>
-          <dd>
-            {skillsList.length > 0 ? (
-              <div className="app-modal-skill-tags">
-                {skillsList.map((skill) => (
-                  <span key={skill} className="app-modal-skill-tag">
-                    {skill}
-                  </span>
-                ))}
-              </div>
-            ) : (
-              <span style={{ color: '#6c757d' }}>None specified</span>
-            )}
-          </dd>
-          <dt>Popularity</dt>
-          <dd>{project.popularity} selections</dd>
-          <dt>Capacity</dt>
-          <dd>{project.capacity} students</dd>
-          <dt>Status</dt>
-          <dd>{project.status}</dd>
-        </dl>
-      </AppModal>
     </div>
   );
 }

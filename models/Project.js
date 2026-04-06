@@ -18,6 +18,7 @@ const ProjectSchema = new mongoose.Schema({
   },                             // 'teacher' = teacher-proposed, 'student' = student-proposed
   category: String,               // Project category (General, AI/ML, etc.)
   department: String,
+  major: { type: String, enum: ['ECE', 'CCS', 'ECE+CCS', ''], default: '' }, // Project's major (for filtering)
   
   // Status management
   status: { 

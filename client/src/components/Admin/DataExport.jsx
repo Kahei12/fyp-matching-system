@@ -103,7 +103,7 @@ function DataExport({ showNotification }) {
       <div className="export-options">
         <div className="export-card">
           <div className="export-card-header">
-            <h3>📊 Matching Results</h3>
+            <h3>Matching Results</h3>
             <p>Export current matching results showing student-project assignments</p>
           </div>
           <button className="btn-export" onClick={handleExportMatchingResults}>
@@ -113,7 +113,7 @@ function DataExport({ showNotification }) {
 
         <div className="export-card">
           <div className="export-card-header">
-            <h3>👥 Student List</h3>
+            <h3>Student List</h3>
             <p>Export complete student information including preferences and assignments</p>
           </div>
           <button className="btn-export" onClick={handleExportStudentList}>
@@ -123,7 +123,7 @@ function DataExport({ showNotification }) {
 
         <div className="export-card">
           <div className="export-card-header">
-            <h3>📋 Project List</h3>
+            <h3>Project List</h3>
             <p>Export all available projects with details and requirements</p>
           </div>
           <button className="btn-export" onClick={handleExportProjectList}>
@@ -133,7 +133,7 @@ function DataExport({ showNotification }) {
 
         <div className="export-card export-all-card">
           <div className="export-card-header">
-            <h3>📦 Export All Data</h3>
+            <h3>Export All Data</h3>
             <p>Download all three reports at once for comprehensive data analysis</p>
           </div>
           <button className="btn-export-all" onClick={handleExportAll}>
@@ -143,7 +143,7 @@ function DataExport({ showNotification }) {
       </div>
 
       <div className="export-info">
-        <h4>📝 Export Information</h4>
+        <h4>Export Information</h4>
         <ul>
           <li>All files are exported in CSV format for easy import into Excel or other spreadsheet applications</li>
           <li>Matching results show current student-project assignments based on preferences</li>

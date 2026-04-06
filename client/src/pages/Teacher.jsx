@@ -5,13 +5,17 @@ import Sidebar from '../components/Teacher/Sidebar';
 import StageOverview from '../components/Teacher/StageOverview';
 import ProjectManagement from '../components/Teacher/ProjectManagement';
 import StudentApplications from '../components/Teacher/StudentApplications';
-import SupervisionList from '../components/Teacher/SupervisionList';
+import AllProjects from '../components/Teacher/AllProjects';
 import MatchingResults from '../components/Teacher/MatchingResults';
 import AppModal from '../components/common/AppModal';
+import OverdueNotice from '../components/common/OverdueNotice';
+import { formatDateTime24 } from '../utils/formatDateTime24';
 
 const DEFAULT_TEACHER_DEADLINES = {
-  preference: '2025-04-15T23:59:00',
-  results: '2025-05-30T23:59:00',
+  studentSelfProposal: '2025-03-20T23:59:00',
+  preference: '2025-04-15T22:59:00',
+  teacherProposalReview: '2025-04-15T23:59:00',
+  teacherSelfProposal: '2025-05-30T23:59:00',
 };
 
 function fmtDaysLeft(days) {
@@ -22,19 +26,32 @@ function Teacher() {
   const [currentSection, setCurrentSection] = useState('student-applications');
   const [projectStats, setProjectStats] = useState({ total: 0, approved: 0, underReview: 0 });
   const [systemDeadlines, setSystemDeadlines] = useState(DEFAULT_TEACHER_DEADLINES);
+  const [expiredDeadlineKeys, setExpiredDeadlineKeys] = useState(new Set());
   const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
+  const [teacherMajor, setTeacherMajor] = useState(sessionStorage.getItem('userMajor') || '');
   const navigate = useNavigate();
 
+  const userEmail = sessionStorage.getItem('userEmail') || 't001@hkmu.edu.hk';
+
   useEffect(() => {
-    // 檢查登入狀態
-    const isLoggedIn = sessionStorage.getItem('isLoggedIn');
-    const userRole = sessionStorage.getItem('userRole');
-    
-    if (!isLoggedIn || userRole !== 'teacher') {
-      navigate('/');
-      return;
-    }
-  }, [navigate]);
+    const fetchTeacherData = async () => {
+      const fromSession = sessionStorage.getItem('userMajor') || '';
+      if (fromSession) setTeacherMajor(fromSession);
+      if (!userEmail) return;
+      try {
+        const response = await fetch(`/api/teachers/${encodeURIComponent(userEmail)}`);
+        const data = await response.json();
+        if (data.success && data.teacher) {
+          const m = data.teacher.major || '';
+          setTeacherMajor(m);
+          if (m) sessionStorage.setItem('userMajor', m);
+        }
+      } catch (error) {
+        console.error('Error fetching teacher data:', error);
+      }
+    };
+    fetchTeacherData();
+  }, [userEmail]);
 
   useEffect(() => {
     (async () => {
@@ -49,6 +66,17 @@ function Teacher() {
       }
     })();
   }, []);
+
+  useEffect(() => {
+    const now = new Date();
+    const expired = new Set();
+    Object.entries(systemDeadlines).forEach(([key, iso]) => {
+      if (iso && new Date(iso) < now) {
+        expired.add(key);
+      }
+    });
+    setExpiredDeadlineKeys(expired);
+  }, [systemDeadlines]);
 
   const handleLogout = () => {
     setLogoutConfirmOpen(true);
@@ -100,8 +128,6 @@ function Teacher() {
     }, 3000);
   };
 
-  const userEmail = sessionStorage.getItem('userEmail') || 'teacher@hkmu.edu.hk';
-
   useEffect(() => {
     const isLoggedIn = sessionStorage.getItem('isLoggedIn');
     const userRole = sessionStorage.getItem('userRole');
@@ -150,23 +176,16 @@ function Teacher() {
     }
   };
   const now = new Date();
-  const applicationDeadline = new Date(
-    systemDeadlines.preference || DEFAULT_TEACHER_DEADLINES.preference
+  const proposalReviewDeadline = new Date(
+    systemDeadlines.teacherProposalReview || DEFAULT_TEACHER_DEADLINES.teacherProposalReview
   );
-  const projectUpdateDeadline = new Date(
-    systemDeadlines.results || DEFAULT_TEACHER_DEADLINES.results
+  const teacherSelfProposalDeadline = new Date(
+    systemDeadlines.teacherSelfProposal || DEFAULT_TEACHER_DEADLINES.teacherSelfProposal
   );
 
-  const applicationDaysLeft = Math.ceil((applicationDeadline - now) / (1000 * 60 * 60 * 24));
-  const projectUpdateDaysLeft = Math.ceil((projectUpdateDeadline - now) / (1000 * 60 * 60 * 24));
-  const fmtLine = (d) =>
-    d.toLocaleString(undefined, {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
+  const applicationDaysLeft = Math.ceil((proposalReviewDeadline - now) / (1000 * 60 * 60 * 24));
+  const projectUpdateDaysLeft = Math.ceil((teacherSelfProposalDeadline - now) / (1000 * 60 * 60 * 24));
+  const fmtLine = (d) => formatDateTime24(d);
 
   // 获取phase信息
   const getPhaseInfo = (section) => {
@@ -180,12 +199,14 @@ function Teacher() {
 
   // 渲染主标题和 deadline 提示
   const renderPageTitleWithDeadline = (section) => {
-    const applicationDeadlineDate = new Date(
-      systemDeadlines.preference || DEFAULT_TEACHER_DEADLINES.preference
-    );
-    const projectDeadlineDate = new Date(
-      systemDeadlines.results || DEFAULT_TEACHER_DEADLINES.results
-    );
+    const sectionDeadlineKey = {
+      'student-applications': 'teacherProposalReview',
+      'project-management': 'teacherSelfProposal',
+    }[section];
+
+    const deadlineDate = sectionDeadlineKey
+      ? new Date(systemDeadlines[sectionDeadlineKey] || DEFAULT_TEACHER_DEADLINES[sectionDeadlineKey])
+      : null;
     const now = new Date();
 
     const titles = {
@@ -194,28 +215,12 @@ function Teacher() {
       'results': 'Matching Result'
     };
 
-    const deadlines = {
-      'student-applications': {
-        date: applicationDeadlineDate,
-        label: 'Student Proposal Review'
-      },
-      'project-management': {
-        date: projectDeadlineDate,
-        label: 'Teacher Proposal Updates & Reviews'
-      },
-      'results': {
-        date: projectDeadlineDate,
-        label: 'Matching Result'
-      }
-    };
-
     const title = titles[section];
     if (!title) return null;
 
-    const deadline = deadlines[section];
     const phaseInfo = getPhaseInfo(section);
 
-    if (!deadline) return (
+    if (!deadlineDate) return (
       <div className="section-header" style={{ marginBottom: '1.5rem' }}>
         <div className="section-title-with-deadline">
           <h1>{title}</h1>
@@ -228,15 +233,15 @@ function Teacher() {
       </div>
     );
 
-    const daysLeft = Math.ceil((deadline.date - now) / (1000 * 60 * 60 * 24));
-    const formattedDate = deadline.date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    const daysLeft = Math.ceil((deadlineDate - now) / (1000 * 60 * 60 * 24));
+    const formattedDate = formatDateTime24(deadlineDate);
     const deadlineLabel = fmtDaysLeft(daysLeft);
 
     return (
       <div className="section-header" style={{ marginBottom: '1.5rem' }}>
         <div className="section-title-with-deadline">
           <h1>{title}</h1>
-          <span className="deadline-hint">⏰ Deadline: {formattedDate} ({deadlineLabel})</span>
+          <span className="deadline-hint">Deadline: {formattedDate} ({deadlineLabel})</span>
         </div>
         {phaseInfo && (
           <div className="phase-indicator">
@@ -250,13 +255,21 @@ function Teacher() {
   const renderSection = () => {
     switch (currentSection) {
       case 'student-applications':
-        return <StudentApplications showNotification={showNotification} projectStats={projectStats} onStatsChange={fetchProjectStats} />;
+        return <StudentApplications
+          showNotification={showNotification}
+          projectStats={projectStats}
+          onStatsChange={fetchProjectStats}
+          expiredDeadlineKeys={expiredDeadlineKeys}
+        />;
       case 'project-management':
-        return <ProjectManagement showNotification={showNotification} />;
+        return <ProjectManagement
+          showNotification={showNotification}
+          expiredDeadlineKeys={expiredDeadlineKeys}
+        />;
       case 'results':
         return <MatchingResults showNotification={showNotification} />;
-      case 'supervision-list':
-        return <SupervisionList showNotification={showNotification} />;
+      case 'all-projects':
+        return <AllProjects showNotification={showNotification} />;
       default:
         return <ProjectManagement showNotification={showNotification} />;
     }
@@ -271,6 +284,7 @@ function Teacher() {
         onSwitchSection={setCurrentSection}
         userName={userName}
         onLogout={handleLogout}
+        teacherMajor={teacherMajor}
       />
 
       {/* 主內容區域 */}
@@ -288,35 +302,54 @@ function Teacher() {
           <span>{getSectionTitle(currentSection)}</span>
         </div>
 
+        {currentSection !== 'all-projects' && (
         <div className="page-overview">
           {currentSection !== 'supervision-list' && (
             <>
               {/* 主标题和 deadline 提示 */}
               {renderPageTitleWithDeadline(currentSection)}
-              <StageOverview 
-                currentSection={currentSection} 
-                onStageChange={setCurrentSection} 
+              <StageOverview
+                currentSection={currentSection}
+                onStageChange={setCurrentSection}
+                expiredDeadlineKeys={expiredDeadlineKeys}
               />
             </>
           )}
 
-          {/* Upcoming Deadlines - 只在第一页显示 */}
+          {/* Deadline Summary - only on student-applications (home) page */}
           {currentSection === 'student-applications' && (
             <div className="deadline-reminder">
-              <h3>⏰ Upcoming Deadlines</h3>
+              <h3>All Deadlines</h3>
               <div className="deadline-list">
-                <div className="deadline-item">
+                <div className={`deadline-item${expiredDeadlineKeys.has('teacherProposalReview') ? ' deadline-item-overdue' : ''}`}>
                   <span className="deadline-name">Student Proposal Review</span>
-                  <span className="deadline-date">{fmtLine(applicationDeadline)}</span>
-                  <span className="deadline-days">{fmtDaysLeft(applicationDaysLeft)}</span>
+                  <span className="deadline-date">{fmtLine(proposalReviewDeadline)}</span>
+                  <span className={`deadline-days${expiredDeadlineKeys.has('teacherProposalReview') ? ' deadline-days-overdue' : ''}`}>
+                    {fmtDaysLeft(applicationDaysLeft)}
+                  </span>
                 </div>
-                <div className="deadline-item">
-                  <span className="deadline-name">Teacher Proposal Updates & Reviews</span>
-                  <span className="deadline-date">{fmtLine(projectUpdateDeadline)}</span>
-                  <span className="deadline-days">{fmtDaysLeft(projectUpdateDaysLeft)}</span>
+                <div className={`deadline-item${expiredDeadlineKeys.has('teacherSelfProposal') ? ' deadline-item-overdue' : ''}`}>
+                  <span className="deadline-name">Teacher Self-proposal</span>
+                  <span className="deadline-date">{fmtLine(teacherSelfProposalDeadline)}</span>
+                  <span className={`deadline-days${expiredDeadlineKeys.has('teacherSelfProposal') ? ' deadline-days-overdue' : ''}`}>
+                    {fmtDaysLeft(projectUpdateDaysLeft)}
+                  </span>
                 </div>
               </div>
             </div>
+          )}
+          {currentSection === 'student-applications' &&
+            expiredDeadlineKeys.has('teacherProposalReview') && (
+              <OverdueNotice title="Review deadline has passed">
+                The Student Proposal Review deadline has passed. All pending proposals have been automatically
+                rejected by the system.
+              </OverdueNotice>
+            )}
+          {currentSection === 'project-management' && expiredDeadlineKeys.has('teacherSelfProposal') && (
+            <OverdueNotice title="Teacher Self-proposal deadline has passed">
+              The Teacher Self-proposal deadline has passed. You can no longer create or change teacher-proposed
+              projects.
+            </OverdueNotice>
           )}
 
           {/* My Project Stats - 在首頁顯示 */}
@@ -341,6 +374,7 @@ function Teacher() {
             </div>
           )}
         </div>
+        )}
 
         {renderSection()}
       </main>
@@ -366,8 +400,8 @@ function getSectionTitle(sectionId) {
   const titles = {
     'student-applications': 'Student Proposals',
     'project-management': 'Teacher Proposals',
-    'results': 'Matching Result',
-    'supervision-list': 'Supervision List'
+    'all-projects': 'Other Projects',
+    'results': 'Matching Result'
   };
   return titles[sectionId] || 'Student Proposals';
 }

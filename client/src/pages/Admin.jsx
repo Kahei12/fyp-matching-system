@@ -80,14 +80,14 @@ function Admin() {
     switch (currentSection) {
       case 'matching-control':
         return <MatchingControl showNotification={showNotification} />;
-      case 'final-assignment':
-        return <FinalAssignment showNotification={showNotification} />;
       case 'create-student-account':
         return <CreateStudentAccount showNotification={showNotification} />;
-      case 'data-export':
-        return <DataExport showNotification={showNotification} />;
       case 'deadline-management':
         return <DeadlineManagement showNotification={showNotification} />;
+      case 'final-assignment':
+        return <FinalAssignment showNotification={showNotification} />;
+      case 'data-export':
+        return <DataExport showNotification={showNotification} />;
       default:
         return <MatchingControl showNotification={showNotification} />;
     }
@@ -142,10 +142,10 @@ function Admin() {
 function getSectionTitle(sectionId) {
   const titles = {
     'matching-control': 'Matching Control',
+    'create-student-account': 'Create Account',
+    'deadline-management': 'Deadline Management',
     'final-assignment': 'Final Assignment',
-    'create-student-account': 'Create Student Account',
-    'data-export': 'Data Export',
-    'deadline-management': 'Deadline Management'
+    'data-export': 'Data Export'
   };
   return titles[sectionId] || 'Matching Control';
 }

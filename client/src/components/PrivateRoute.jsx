@@ -8,12 +8,12 @@ function PrivateRoute({ children, role }) {
   console.log('[AUTH] PrivateRoute 檢查:', { isLoggedIn, userRole, requiredRole: role });
   
   if (!isLoggedIn || isLoggedIn !== 'true') {
-    console.log('✖ 未登入，重定向到登入頁');
+    console.log('[PrivateRoute] Not logged in, redirect to login');
     return <Navigate to="/" replace />;
   }
   
   if (role && role !== 'any' && userRole !== role) {
-    console.log('✖ 角色不匹配，重定向到登入頁');
+    console.log('[PrivateRoute] Role mismatch, redirect to login');
     return <Navigate to="/" replace />;
   }
   

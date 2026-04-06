@@ -1,19 +1,20 @@
 import React from 'react';
+import { majorToPortalBadge } from '../../utils/majorPortalBadge';
 
 function Sidebar({ currentSection, onSwitchSection, studentData, onLogout, isAssigned = false }) {
   const menuItems = [
-    { id: 'proposal', label: '◆ Proposal' },
-    { id: 'project-browse', label: '⌕ Browse Projects' },
-    { id: 'my-preferences', label: '★ My Preferences', disabled: isAssigned },
-    { id: 'results', label: '☰ Results' },
-    { id: 'profile', label: 'ⓘ Profile' }
+    { id: 'proposal', label: 'Proposal' },
+    { id: 'project-browse', label: 'Browse Projects' },
+    { id: 'my-preferences', label: 'My Preferences', disabled: isAssigned },
+    { id: 'results', label: 'Results' },
+    { id: 'profile', label: 'Profile' }
   ];
 
   return (
     <nav className="sidebar">
       <div className="sidebar-header">
         <h2>HKMU FYP Matching System</h2>
-        <p>Student Portal</p>
+        <p>Student Portal <span className="major-tag">({majorToPortalBadge(studentData.major)})</span></p>
       </div>
       
       <ul className="sidebar-menu">

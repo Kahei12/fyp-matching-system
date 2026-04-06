@@ -4,6 +4,14 @@ const { Parser } = require('json2csv');
 const app = express();
 const port = 3000;
 
+// GPA 生成函數：隨機生成 2.5x - 3.8x
+function generateRandomGPA() {
+    const minGPA = 2.5;
+    const maxGPA = 3.8;
+    const gpa = Math.random() * (maxGPA - minGPA) + minGPA;
+    return Math.round(gpa * 100) / 100; // 保留兩位小數
+}
+
 // 中介軟體
 app.use(express.json());
 
@@ -28,9 +36,9 @@ if (process.env.MONGO_URI) {
     mongoose.connection.on('connected', async () => {
         console.log('✅ MongoDB 連接成功');
         try {
-            await initializeTestStudent();
+            await ensureDatabaseSeeded();
         } catch (e) {
-            console.error('❌ initializeTestStudent (on connected):', e.message);
+            console.error('❌ ensureDatabaseSeeded (on connected):', e.message);
         }
     });
 
@@ -53,11 +61,51 @@ if (process.env.MONGO_URI) {
             console.log('⚠️ 將使用模擬數據運行...');
         });
 } else {
-    console.log('⚠️ MONGO_URI not set — running with mockData only');
+    console.log('⚠️ MONGO_URI not set — API needs MongoDB; seed and data features will be unavailable');
 }
 const fs = require('fs');
 const Project = require('./models/Project');
+const { ensureDatabaseSeeded } = require('./services/seedDatabase');
+const { majorsMatchForFilter, majorToFilterCode } = require('./services/majorMapping');
 const mockData = require('./services/mockData');
+const { applySupervisorsToMockProjects } = require('./services/projectCatalogSync');
+
+function escapeRegex(str) {
+    return String(str || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/** MongoDB filter: exact email, case-insensitive */
+function emailQueryInsensitive(email) {
+    const e = String(email || '').trim();
+    if (!e) return { email: '' };
+    return { email: { $regex: new RegExp(`^${escapeRegex(e)}$`, 'i') } };
+}
+
+function stripProfPrefix(s) {
+    return String(s || '').replace(/^prof\.?\s*/i, '').trim().toLowerCase();
+}
+
+/** Catalogue may show "Prof. Bell" while account is "Prof. Bell Liu" — match on substantive name tokens */
+function supervisorNameLikelyMatches(supervisor, teacherDisplayName) {
+    if (!supervisor || supervisor === 'TBD' || !teacherDisplayName) return false;
+    const sup = stripProfPrefix(supervisor);
+    const tn = stripProfPrefix(teacherDisplayName);
+    if (!sup || !tn) return false;
+    const supWords = sup.split(/\s+/).filter((w) => w.length > 1);
+    if (supWords.length === 0) return false;
+    const tnWords = new Set(tn.split(/\s+/));
+    return supWords.every((w) => tnWords.has(w));
+}
+
+/** Login email → canonical teacher doc email (password checked against canonical account) */
+const TEACHER_LOGIN_ALIASES = {
+    'teacher@hkmu.edu.hk': 't001@hkmu.edu.hk',
+};
+
+function resolveTeacherDbEmail(email) {
+    const e = String(email || '').trim().toLowerCase();
+    return TEACHER_LOGIN_ALIASES[e] || String(email || '').trim();
+}
 
 // 用戶資料（會自動初始化）
 let users = [];
@@ -65,9 +113,8 @@ let users = [];
 // 🔥 自動初始化用戶資料
 async function initializeUsers() {
     const adminPassword = await bcrypt.hash('admin123', 10);
-    const studentPassword = await bcrypt.hash('student123', 10);
-    const teacherPassword = await bcrypt.hash('teacher123', 10);
-    
+    const studentPassword = await bcrypt.hash('00000000', 10);
+
     console.log('🔑 自動生成的密碼雜湊完成');
     
     users = [
@@ -78,65 +125,67 @@ async function initializeUsers() {
             name: 'Admin Wang'
         },
         {
-            email: 'student@hkmu.edu.hk',
+            email: 's001@hkmu.edu.hk',
             password: studentPassword,
             role: 'student',
             name: 'Chan Tai Man',
-            studentId: '13700797',
+            studentId: 's001',
             gpa: '3.45',
-            major: 'Computer Science'
-        },
-        {
-            email: 'teacher@hkmu.edu.hk',
-            password: teacherPassword,
-            role: 'teacher',
-            name: 'Dr. Bell Liu',
-            department: 'Computer Science'
+            major: 'Computer and Cyber Security'
         }
     ];
     
     console.log('✅ 用戶資料初始化完成');
     console.log('📧 測試帳號:');
     console.log('   Admin: admin@hkmu.edu.hk / admin123');
-    console.log('   Student: student@hkmu.edu.hk / student123');
-    console.log('   Teacher: teacher@hkmu.edu.hk / teacher123');
+    console.log('   Student: s001@hkmu.edu.hk / 00000000');
+    console.log('   Teacher: t001–t008@hkmu.edu.hk / 00000001–00000008 (MongoDB seed)');
+    console.log('   Teacher alias: teacher@hkmu.edu.hk → t001, same password as t001');
 }
 
 // 登入 API 路由
 app.post('/login', async (req, res) => {
     console.log('📨 收到登入請求:', req.body);
     
-    const { email, password } = req.body;
+    const { email: emailRaw, password } = req.body;
+    const emailNorm = String(emailRaw || '').trim().toLowerCase();
+    const email = emailNorm; // use normalized email for DB and comparisons
     
-    // 首先檢查本地 users 數組
-    let user = users.find(u => u.email === email);
+    // 首先檢查本地 users 數組（不區分大小寫）
+    let user = users.find(u => u.email.toLowerCase() === emailNorm);
     
-    // 如果是測試學生帳號 student@hkmu.edu.hk，檢查並更新 MongoDB 中的 SID
-    if (email === 'student@hkmu.edu.hk') {
+    // 如果是測試學生帳號 s001@hkmu.edu.hk，檢查並更新 MongoDB 中的 SID
+            if (emailNorm === 's001@hkmu.edu.hk') {
         try {
             const mongoose = require('mongoose');
             const isDbConnected = mongoose.connection.readyState === 1;
             
             if (isDbConnected) {
                 const Student = require('./models/Student');
-                const student = await Student.findOne({ email: email }).exec();
+                const student = await Student.findOne(emailQueryInsensitive(emailNorm)).exec();
                 
                 if (student) {
-                    // 確保測試學生的 SID 是 13700797
-                    if (student.id !== '13700797') {
-                        console.log(`🔄 更新測試學生 SID: ${student.id} -> 13700797`);
-                        student.id = '13700797';
+                    // 確保測試學生的 SID 是 s001
+                    if (student.id !== 's001') {
+                        console.log(`🔄 更新測試學生 SID: ${student.id} -> s001`);
+                        student.id = 's001';
+                        await student.save();
+                    }
+                    // 確保 major 是 Computer and Cyber Security
+                    if (student.major !== 'Computer and Cyber Security') {
+                        console.log(`🔄 更新測試學生 Major: ${student.major} -> Computer and Cyber Security`);
+                        student.major = 'Computer and Cyber Security';
                         await student.save();
                     }
                 }
             }
         } catch (err) {
-            console.error('❌ 更新測試學生 SID 錯誤:', err);
+            console.error('❌ 更新測試學生 SID/Major 錯誤:', err);
         }
     }
     
     // 如果本地沒有找到，且是學生 email 格式，檢查 MongoDB
-    if (!user && email.includes('@hkmu.edu.hk')) {
+    if (!user && emailNorm.includes('@hkmu.edu.hk')) {
         try {
             const mongoose = require('mongoose');
             const isDbConnected = mongoose.connection.readyState === 1;
@@ -144,7 +193,7 @@ app.post('/login', async (req, res) => {
             if (isDbConnected) {
                 // 先當作學生
                 const Student = require('./models/Student');
-                const student = await Student.findOne({ email: email }).exec();
+                const student = await Student.findOne(emailQueryInsensitive(emailNorm)).exec();
 
                 console.log('🔍 Login - student from DB:', JSON.stringify(student));
 
@@ -177,27 +226,30 @@ app.post('/login', async (req, res) => {
                         };
                     }
                 } else {
-                    // 再當作老師
+                    // 再當作老師（別名帳號對應到正式教師郵箱驗證密碼）
                     const Teacher = require('./models/Teacher');
-                    const teacher = await Teacher.findOne({ email: email }).exec();
+                    const teacherLookupEmail = TEACHER_LOGIN_ALIASES[emailNorm] || emailNorm;
+                    const teacher = await Teacher.findOne(emailQueryInsensitive(teacherLookupEmail)).exec();
 
                     if (teacher) {
                         if (teacher.password && teacher.password.startsWith('$2')) {
                             const isMatch = await bcrypt.compare(password, teacher.password);
                             if (isMatch) {
                                 user = {
-                                    email: teacher.email,
+                                    email: teacher.email.toLowerCase(),
                                     role: 'teacher',
                                     name: teacher.name,
+                                    major: teacher.major,
                                     mustChangePassword: teacher.mustChangePassword,
                                     initialPassword: teacher.initialPassword
                                 };
                             }
                         } else if (teacher.password === password) {
                             user = {
-                                email: teacher.email,
+                                email: teacher.email.toLowerCase(),
                                 role: 'teacher',
                                 name: teacher.name,
+                                major: teacher.major,
                                 mustChangePassword: teacher.mustChangePassword,
                                 initialPassword: teacher.initialPassword
                             };
@@ -212,9 +264,9 @@ app.post('/login', async (req, res) => {
     
     // 如果本地找到用戶
     if (user) {
-        // 如果是本地用戶（admin/teacher），需要 bcrypt 驗證密碼
-        if (users.find(u => u.email === email)) {
-            const localUser = users.find(u => u.email === email);
+        // 如果是本地用戶（admin/teacher/student），需要 bcrypt 驗證密碼
+        const localUser = users.find(u => u.email.toLowerCase() === emailNorm);
+        if (localUser) {
             const isMatch = await bcrypt.compare(password, localUser.password);
             if (!isMatch) {
                 console.log('❌ 密碼錯誤');
@@ -223,31 +275,54 @@ app.post('/login', async (req, res) => {
         }
         
         // 測試學生：先確保 MongoDB 中 SID 是正確的，再取回作為回傳值
-        if (email.toLowerCase() === 'student@hkmu.edu.hk') {
+        if (emailNorm === 's001@hkmu.edu.hk') {
             try {
                 const mongoose = require('mongoose');
                 if (mongoose.connection.readyState === 1) {
                     const Student = require('./models/Student');
                     // find + update in one atomic op (upsert avoids "no matching document" issues)
                     const updated = await Student.findOneAndUpdate(
-                        { email: email.toLowerCase() },
-                        { $set: { id: '13700797' } },
+                        emailQueryInsensitive(emailNorm),
+                        { $set: { id: 's001', major: 'Computer and Cyber Security' } },
                         { upsert: false, new: true, lean: true }
                     ).exec();
                     if (updated && updated.id) {
                         user.studentId = updated.id;
+                        user.major = updated.major;
                     }
                 }
             } catch (e) {
-                console.error('❌ 同步測試學生 SID:', e.message);
+                console.error('❌ 同步測試學生 SID/Major:', e.message);
+            }
+        }
+
+        // 教師：以 MongoDB 的 major 為準（避免本地 users 與 DB 不一致、或舊文檔缺欄位）
+        if (user.role === 'teacher') {
+            try {
+                const mongoose = require('mongoose');
+                if (mongoose.connection.readyState === 1) {
+                    const Teacher = require('./models/Teacher');
+                    const teacherDbEmail = resolveTeacherDbEmail(emailNorm);
+                    const tdoc = await Teacher.findOne(emailQueryInsensitive(teacherDbEmail)).lean().exec();
+                    const defaultMajor = Teacher.schema.path('major').defaultValue;
+                    if (tdoc) {
+                        user.major = tdoc.major || defaultMajor || user.major;
+                        user.email = (tdoc.email || user.email || emailNorm).toLowerCase();
+                    }
+                }
+            } catch (e) {
+                console.error('❌ 同步教師 Major:', e.message);
+            }
+            if (!user.major && localUser && localUser.major) {
+                user.major = localUser.major;
             }
         }
         
         // 登入成功
-        console.log('✅ 登入成功，用戶角色:', user.role, '| studentId:', user.studentId);
+        console.log('✅ 登入成功，用戶角色:', user.role, '| studentId:', user.studentId, '| major:', user.major);
         return res.json({ 
-        success: true,
-            message: `Login successful! Welcome, ${user.role}.`,
+            success: true,
+            message: `Login successful! Welcome, ${user.name || user.role}.`,
             user: {
                 email: user.email,
                 role: user.role,
@@ -353,9 +428,11 @@ try {
     
     // 📊 Student API 路由
     app.get('/api/student/projects', async (req, res) => {
-        console.log('📋 請求項目列表');
+        console.log('📋 請求項目列表 | major query:', req.query.major);
         try {
-            const projects = await studentService.getAvailableProjects();
+            const studentMajor = req.query.major || '';
+            const projects = await studentService.getAvailableProjects(studentMajor);
+            console.log(`📋 返回 ${projects.length} 個項目`);
             res.json({ success: true, projects });
         } catch (error) {
             console.error('❌ 獲取項目錯誤:', error);
@@ -483,10 +560,10 @@ try {
         }
     });
 
-    app.get('/api/system/status', (req, res) => {
+    app.get('/api/system/status', async (req, res) => {
         console.log('⚙️ 請求系統狀態');
         try {
-            const status = studentService.getSystemStatus();
+            const status = await studentService.getSystemStatus();
             res.json({ success: true, ...status });
         } catch (error) {
             console.error('❌ 獲取系統狀態錯誤:', error);
@@ -494,9 +571,9 @@ try {
         }
     });
 
-    app.get('/api/admin/deadlines', (req, res) => {
+    app.get('/api/admin/deadlines', async (req, res) => {
         try {
-            const deadlines = studentService.getDeadlines();
+            const deadlines = await studentService.getDeadlines();
             res.json({ success: true, deadlines });
         } catch (error) {
             console.error('❌ 獲取截止日期錯誤:', error);
@@ -504,13 +581,50 @@ try {
         }
     });
 
-    app.put('/api/admin/deadlines', (req, res) => {
+    app.put('/api/admin/deadlines', async (req, res) => {
         try {
-            const result = studentService.updateDeadlines(req.body || {});
+            const result = await studentService.updateDeadlines(req.body || {});
             res.json(result);
         } catch (error) {
             console.error('❌ 更新截止日期錯誤:', error);
             res.status(500).json({ success: false, message: 'Failed to update deadlines' });
+        }
+    });
+
+    // 自動駁回所有未審批的學生提案（截止日已過）
+    app.post('/api/admin/auto-reject-proposals', async (req, res) => {
+        console.log('🔔 自動駁回過期提案請求');
+        try {
+            const deadlines = await studentService.getDeadlines();
+            const reviewDeadline = deadlines.teacherProposalReview
+                ? new Date(deadlines.teacherProposalReview)
+                : null;
+            const now = new Date();
+
+            if (!reviewDeadline || now < reviewDeadline) {
+                return res.json({ success: false, message: 'Deadline not yet passed' });
+            }
+
+            // 找出所有未處理的 pending 提案
+            const pendingProposals = await Project.find({
+                type: 'student',
+                proposalStatus: 'pending',
+            }).lean().exec();
+
+            let rejected = 0;
+            for (const p of pendingProposals) {
+                await Project.findByIdAndUpdate(p._id, {
+                    proposalStatus: 'rejected',
+                    reviewedAt: now,
+                }).exec();
+                rejected++;
+            }
+
+            console.log(`✅ 已自動駁回 ${rejected} 個過期提案`);
+            res.json({ success: true, message: `Auto-rejected ${rejected} expired proposals`, count: rejected });
+        } catch (error) {
+            console.error('❌ Auto-reject error:', error);
+            res.status(500).json({ success: false, message: 'Auto-reject failed' });
         }
     });
 
@@ -519,14 +633,15 @@ try {
         console.log('📊 導出配對結果');
         try {
             const matchingResults = await studentService.getMatchingResults();
-            const csvData = matchingResults.map(result => ({
+            const csvData = matchingResults.results.map(result => ({
                 'Project ID': result.projectId,
+                'Project Code': result.projectCode || '',
                 'Project Title': result.title,
                 'Supervisor': result.supervisor,
+                'Source': result.projectType === 'student' ? 'Student Proposed' : 'Teacher',
                 'Student ID': result.studentId || 'Unassigned',
                 'Student Name': result.studentName || 'Unassigned',
-                'Student GPA': result.studentGpa || 'N/A',
-                'Match Rank': result.matchRank || 'N/A'
+                'Student GPA': result.studentGpa || 'N/A'
             }));
 
             const parser = new Parser();
@@ -573,15 +688,16 @@ try {
         try {
             const projects = await studentService.getAvailableProjects();
             const csvData = projects.map(project => ({
-                'Project ID': project.id,
+                'Project ID': project.id || project.code || '',
+                'Project Code': project.code || '',
                 'Title': project.title,
                 'Supervisor': project.supervisor,
                 'Description': project.description,
-                'Skills Required': Array.isArray(project.skills) ? project.skills.join(', ') : project.skills,
+                'Skills Required': Array.isArray(project.skills) ? project.skills.join(', ') : (project.skills || ''),
                 'Capacity': project.capacity,
                 'Popularity': project.popularity,
-                'Status': project.status,
-                'Created Date': project.createdAt
+                'Source': project.type === 'student' ? 'Student Proposed' : 'Teacher',
+                'Status': project.status || 'Active'
             }));
 
             const parser = new Parser();
@@ -710,7 +826,8 @@ try {
                     capacity: 1,
                     type: 'student',                    // Mark as student-proposed
                     category: 'Student Proposed',
-                    department: student.major || 'Computer Science',
+                    department: student.major || 'ECE', // 設置為學生的 major
+                    major: student.major || 'ECE',       // 新增 major 字段
                     status: 'Under Review',              // 等待老師審批
                     proposalStatus: 'pending',
                     popularity: 0,
@@ -856,8 +973,7 @@ try {
                 return res.json({ success: true, proposals: enrichedProposals });
             }
             
-            // Mock mode
-            res.json({ success: true, proposals: mockData.projects.filter(p => p.type === 'student') });
+            res.json({ success: true, proposals: [], message: 'MongoDB required for proposals' });
         } catch (error) {
             console.error('❌ 獲取所有提議錯誤:', error);
             res.status(500).json({ success: false, message: 'Failed to get proposals' });
@@ -867,33 +983,44 @@ try {
     // Get proposals for specific teacher
     // 返回所有 student-proposed 項目，包括未審核的
     // 老師可以approve/reject 尚未被任何老師審核的項目
+    // 只返回與老師 major 相關的 proposals
     app.get('/api/teacher/student-proposals', async (req, res) => {
-        console.log('📋 獲取老師的學生提議（包含未審核）');
+        console.log('📋 獲取老師的學生提議（包含未審核，按major過濾）');
         try {
             const teacherEmail = req.query.email || req.headers['x-teacher-email'];
             const teacherEmailLower = teacherEmail?.toLowerCase();
             const isDbConnected = checkDbConnection();
             const Project = require('./models/Project');
             const Student = require('./models/Student');
+            const Teacher = require('./models/Teacher');
+            
+            // 獲取老師的 major
+            let teacherMajor = '';
+            if (isDbConnected && Teacher && teacherEmail) {
+                const teacher = await Teacher.findOne(emailQueryInsensitive(resolveTeacherDbEmail(teacherEmail))).lean().exec();
+                teacherMajor = teacher?.major || '';
+            }
+            console.log('👤 老師 major:', teacherMajor);
             
             if (isDbConnected && Project && Student) {
-                // 獲取所有 student-proposed 項目
                 const proposals = await Project.find({ type: 'student' }).lean().exec();
-                
-                // 過濾邏輯：
-                // - 返回所有未經過該老師審核的項目
-                // - 已經被其他老師 approve 的項目不顯示
-                const filteredProposals = proposals.filter(p => {
-                    // 檢查是否已被其他老師 approve
-                    const hasOtherApproval = p.teacherReviews?.some(r => 
+
+                const withMajor = await Promise.all(proposals.map(async (p) => {
+                    const st = await Student.findOne({ proposedProject: p._id }).lean().exec();
+                    return {
+                        proposal: p,
+                        studentMajor: st?.major || '',
+                    };
+                }));
+
+                const filteredProposals = withMajor.filter(({ proposal: p, studentMajor }) => {
+                    const hasOtherApproval = p.teacherReviews?.some(r =>
                         r.decision === 'approve' && r.teacherEmail?.toLowerCase() !== teacherEmailLower
                     );
-                    if (hasOtherApproval) {
-                        return false;
-                    }
-                    return true;
-                });
-                
+                    if (hasOtherApproval) return false;
+                    return majorsMatchForFilter(teacherMajor, studentMajor);
+                }).map((x) => x.proposal);
+
                 const enrichedProposals = await Promise.all(filteredProposals.map(async (proposal) => {
                     const reviews = proposal.teacherReviews || [];
                     const myReview = reviews.find(r => r.teacherEmail?.toLowerCase() === teacherEmailLower);
@@ -924,11 +1051,7 @@ try {
                 return res.json({ success: true, proposals: enrichedProposals });
             }
             
-            // Mock mode
-            const mockProposals = mockData.projects.filter(p => 
-                p.type === 'student' && p.supervisorEmail === teacherEmail
-            );
-            res.json({ success: true, proposals: mockProposals });
+            res.json({ success: true, proposals: [] });
         } catch (error) {
             console.error('❌ 獲取老師的學生提議錯誤:', error);
             res.status(500).json({ success: false, message: 'Failed to get teacher proposals' });
@@ -1082,6 +1205,100 @@ try {
     // Teacher API Endpoints
     // ============================================
 
+    // Get single teacher by email
+    app.get('/api/teachers/:email', async (req, res) => {
+        console.log('👤 請求教師資料:', req.params.email);
+        try {
+            const teacherEmail = decodeURIComponent(req.params.email || '').trim();
+            const emailNorm = teacherEmail.toLowerCase();
+            const isDbConnected = teacherCheckDbConnection();
+            const Teacher = require('./models/Teacher');
+            const defaultMajor = Teacher.schema.path('major').defaultValue || 'Computer and Cyber Security';
+
+            if (isDbConnected) {
+                const teacher = await Teacher.findOne(emailQueryInsensitive(resolveTeacherDbEmail(teacherEmail))).lean().exec();
+
+                if (teacher) {
+                    const major = teacher.major || defaultMajor;
+                    return res.json({
+                        success: true,
+                        teacher: {
+                            name: teacher.name,
+                            email: (teacher.email || emailNorm).toLowerCase(),
+                            major,
+                        },
+                    });
+                }
+            }
+
+            const local = users.find(
+                (u) => u.role === 'teacher' && u.email.toLowerCase() === emailNorm
+            );
+            if (local) {
+                return res.json({
+                    success: true,
+                    teacher: {
+                        name: local.name,
+                        email: local.email.toLowerCase(),
+                        major: local.major || defaultMajor,
+                    },
+                });
+            }
+
+            return res.json({
+                success: true,
+                teacher: {
+                    name: 'Teacher',
+                    email: emailNorm,
+                    major: '',
+                },
+            });
+        } catch (error) {
+            console.error('❌ Error fetching teacher:', error);
+            res.status(500).json({ success: false, message: 'Server error' });
+        }
+    });
+
+    // Get all projects (for teacher to browse other teachers' projects)
+    // Excludes projects from the specified teacher email
+    app.get('/api/projects/all', async (req, res) => {
+        console.log('📋 請求所有項目列表（排除指定老師）');
+        try {
+            const excludeTeacher = req.query.excludeTeacher || '';
+            const excludeEmailLower = excludeTeacher.toLowerCase();
+            
+            const isDbConnected = teacherCheckDbConnection();
+            const Project = require('./models/Project');
+            
+            if (isDbConnected && Project) {
+                // 只獲取 teacher-proposed 項目（排除 student-proposed）
+                const allDocs = await Project.find({ type: { $ne: 'student' } }).lean().exec();
+                
+                const filteredProjects = allDocs.filter(doc => {
+                    // 排除指定老師的項目
+                    if (doc.supervisorEmail && doc.supervisorEmail.toLowerCase() === excludeEmailLower) {
+                        return false;
+                    }
+                    return true;
+                });
+                
+                return res.json({ 
+                    success: true, 
+                    projects: filteredProjects.map(p => ({
+                        ...p,
+                        id: p.code || String(p._id)
+                    }))
+                });
+            }
+            
+            // Mock mode
+            res.json({ success: true, projects: [] });
+        } catch (error) {
+            console.error('❌ 獲取所有項目錯誤:', error);
+            res.status(500).json({ success: false, message: 'Failed to load projects' });
+        }
+    });
+
     // Teacher helper function to check database connection
     const teacherCheckDbConnection = () => {
         try {
@@ -1094,6 +1311,7 @@ try {
 
     // Get teacher's projects 
     // 包括：老師自己創建的 teacher-proposed 項目 + 老師approve的 student-proposed 項目
+    // 按老師的 major 過濾：ECE 老師只看 ECE 項目，CCS 老師只看 CCS 項目
     app.get('/api/teacher/projects', async (req, res) => {
         console.log('📋 請求導師項目列表');
         try {
@@ -1101,28 +1319,43 @@ try {
             if (!teacherEmail) {
                 return res.status(400).json({ success: false, message: 'Teacher email required' });
             }
+
+            const teacherEmailResolved = resolveTeacherDbEmail(teacherEmail);
             
             console.log('📧 教師郵箱:', teacherEmail);
             
             const isDbConnected = teacherCheckDbConnection();
             const Project = require('./models/Project');
+            const Teacher = require('./models/Teacher');
+            
+            let teacherMajor = '';
+            let teacherDbName = '';
+            let teacherDbId = '';
+            if (isDbConnected && Teacher) {
+                const tdoc = await Teacher.findOne(emailQueryInsensitive(teacherEmailResolved)).lean().exec();
+                teacherMajor = tdoc?.major || '';
+                teacherDbName = (tdoc?.name && String(tdoc.name).trim()) || '';
+                teacherDbId = (tdoc?.teacherId && String(tdoc.teacherId).trim()) || '';
+            }
+            console.log('👤 老師 major:', teacherMajor, '| name:', teacherDbName, '| id:', teacherDbId);
             
             if (isDbConnected && Project) {
-                const teacherEmailLower = teacherEmail.toLowerCase();
-                
-                // 特殊映射：測試帳號 teacher@hkmu.edu.hk 等同於 Dr. Bell Liu
+                const teacherEmailLower = teacherEmailResolved.toLowerCase();
+
+                // 特殊映射：測試帳號 teacher@hkmu.edu.hk 等同於 Bell（登入後多為 t001@）
                 const SPECIAL_TEACHER_MAP = {
-                    'teacher@hkmu.edu.hk': { name: 'Dr. Bell Liu', extract: 'bell liu' }
+                    'teacher@hkmu.edu.hk': { name: 'Prof. Bell Liu', extract: 'bell' },
                 };
-                
+
                 // 從 email 提取老師名字
                 // e.g., "teacherBellLiu@hkmu.edu.hk" -> "Bell Liu"
+                // For direct t001/t002 emails, also look up the DB name
                 const extractNameFromEmail = (email) => {
                     // 檢查特殊映射
                     if (SPECIAL_TEACHER_MAP[email.toLowerCase()]) {
                         return SPECIAL_TEACHER_MAP[email.toLowerCase()].extract;
                     }
-                    const userPart = email.split('@')[0]; // "teacherBellLiu"
+                    const userPart = email.split('@')[0]; // "teacherBellLiu" or "t002"
                     // 移除前綴 "teacher" 或 "Teacher"
                     let name = userPart.replace(/^teacher(s?)/i, '');
                     // 在每個大寫字母前加空格，分割成單詞
@@ -1130,15 +1363,13 @@ try {
                     // 如果只有一個詞，保持原樣
                     return name || userPart;
                 };
-                const teacherName = extractNameFromEmail(teacherEmail);
-                console.log('👤 提取的老師名:', teacherName);
+                const teacherNameFromEmail = extractNameFromEmail(teacherEmailResolved);
+                const nameForMatch = teacherDbName || teacherNameFromEmail;
+                console.log('👤 Name match string:', nameForMatch, '(email extract:', teacherNameFromEmail + ')');
                 
                 // 先獲取所有文檔
                 const allDocs = await Project.find({}).lean().exec();
                 console.log('📋 總文檔數:', allDocs.length);
-                allDocs.forEach(doc => {
-                    console.log('  📄 ', doc.title, '| type:', doc.type, '| supervisor:', doc.supervisor, '| email:', doc.supervisorEmail);
-                });
                 
                 // 過濾條件（只用於 "My Projects"）：
                 // 必須是 teacher-proposed 項目
@@ -1148,6 +1379,7 @@ try {
                 // - type === 'student' → 排除（這些屬於 "Student Proposals"）
                 // - type === undefined/null/'' → 視為 teacher-proposed（舊數據兼容）
                 // - type === 'teacher' → 包含
+                // - 按 major 過濾
                 const projects = allDocs.filter(doc => {
                     // 明確排除 student-proposed 項目
                     if (doc.type === 'student') {
@@ -1155,32 +1387,46 @@ try {
                         return false;
                     }
                     
-                    // 匹配 supervisorEmail 精確匹配
+                    const tm = majorToFilterCode(teacherMajor);
+                    const pm = majorToFilterCode(doc.major);
+                    if (tm && tm !== 'ECE+CCS' && pm) {
+                        if (tm === 'ECE' && pm !== 'ECE' && pm !== 'ECE+CCS') {
+                            console.log('  🚫 排除 (major 不匹配 ECE):', doc.title, '| projectMajor:', pm);
+                            return false;
+                        }
+                        if (tm === 'CCS' && pm !== 'CCS' && pm !== 'ECE+CCS') {
+                            console.log('  🚫 排除 (major 不匹配 CCS):', doc.title, '| projectMajor:', pm);
+                            return false;
+                        }
+                    }
+                    
                     if (doc.supervisorEmail && doc.supervisorEmail.toLowerCase() === teacherEmailLower) {
                         return true;
                     }
+
+                    if (teacherDbId && doc.supervisorId &&
+                        String(doc.supervisorId).toLowerCase() === String(teacherDbId).toLowerCase()) {
+                        return true;
+                    }
                     
-                    // 匹配 supervisor 名字
-                    if (doc.supervisor && doc.supervisor !== 'TBD') {
+                    if (doc.supervisor && doc.supervisor !== 'TBD' && nameForMatch) {
+                        if (supervisorNameLikelyMatches(doc.supervisor, nameForMatch)) return true;
+
                         const supLower = doc.supervisor.toLowerCase();
-                        const teacherLower = teacherName.toLowerCase();
-                        
-                        // 特殊映射處理：teacher@hkmu.edu.hk <-> Dr. Bell Liu
+                        const teacherLower = teacherNameFromEmail.toLowerCase();
+
                         if (SPECIAL_TEACHER_MAP[teacherEmailLower]) {
                             const mappedName = SPECIAL_TEACHER_MAP[teacherEmailLower].name.toLowerCase();
-                            // "dr. bell liu" 包含 "bell" 或 "liu"
-                            if (supLower.includes('bell') || supLower.includes('liu') || 
-                                mappedName.includes(supLower) || supLower.includes(mappedName.split(' ')[0])) {
+                            if (supLower.includes('bell') ||
+                                mappedName.includes(supLower) || supLower.includes(mappedName.split(' ').pop() || '')) {
                                 return true;
                             }
                         }
-                        
-                        // supervisor 包含老師名字
+
                         if (teacherLower && (supLower.includes(teacherLower) || teacherLower.includes(supLower))) return true;
-                        
-                        // 老師名字包含 supervisor 第一個詞
-                        const supFirstWord = supLower.split(' ')[0];
-                        if (teacherLower && teacherLower.includes(supFirstWord)) return true;
+
+                        const supFirstWord = supLower.replace(/^prof\.?\s*/, '').trim().split(/\s+/)[0] || '';
+                        if (teacherLower && supFirstWord && teacherLower.includes(supFirstWord)) return true;
                     }
                     
                     return false;
@@ -1198,14 +1444,29 @@ try {
                         id: p.code || String(p._id)
                     })) 
                 });
+            } else {
+                // ── Mock fallback: use in-memory catalogue when DB is unavailable ──
+                const teacherEmailResolved = resolveTeacherDbEmail(teacherEmail);
+                const teacherEmailLower = teacherEmailResolved.toLowerCase();
+                const teacherEmailPrefix = teacherEmailLower.replace('@hkmu.edu.hk', ''); // e.g. "t001"
+                const mockProjects = applySupervisorsToMockProjects(mockData.projects || []);
+                const teacherMockProjects = mockProjects.filter(p => {
+                    if (p.type === 'student') return false;
+                    const pe = (p.supervisorEmail || '').toLowerCase().replace('@hkmu.edu.hk', '');
+                    return pe === teacherEmailPrefix;
+                });
+                if (teacherMockProjects.length > 0) {
+                    console.log(`[mock] Returning ${teacherMockProjects.length} projects for ${teacherEmail}`);
+                    return res.json({
+                        success: true,
+                        projects: teacherMockProjects.map(p => ({
+                            ...p,
+                            id: p.code || String(p.id)
+                        }))
+                    });
+                }
+                res.json({ success: true, projects: [] });
             }
-            
-            // Fallback to mock data
-            const mockProjects = mockData.projects.filter(p => 
-                (p.type === 'teacher' && p.supervisorEmail === teacherEmail) ||
-                (p.type === 'student' && p.supervisorEmail === teacherEmail && p.proposalStatus === 'approved')
-            );
-            res.json({ success: true, projects: mockProjects });
         } catch (error) {
             console.error('❌ 獲取導師項目錯誤:', error);
             res.status(500).json({ success: false, message: 'Failed to load teacher projects' });
@@ -1316,6 +1577,7 @@ try {
     });
 
     // Create new project (teacher-proposed)
+    // 根據老師的 major 自動設置項目的 major
     app.post('/api/teacher/projects', async (req, res) => {
         console.log('➕ 導師創建項目');
         try {
@@ -1328,8 +1590,32 @@ try {
             
             const isDbConnected = teacherCheckDbConnection();
             const Project = require('./models/Project');
+            const Teacher = require('./models/Teacher');
+            
+            let teacherMajor = '';
+            const teacherEmailCanonical = resolveTeacherDbEmail(teacherEmail).toLowerCase();
+            let teacherRow = null;
+            if (isDbConnected && Teacher) {
+                teacherRow = await Teacher.findOne(emailQueryInsensitive(teacherEmailCanonical)).lean().exec();
+                if (teacherRow && teacherRow.major) {
+                    teacherMajor = teacherRow.major;
+                }
+            }
+
+            const majorCodeRaw = majorToFilterCode(teacherMajor);
+            const majorForProject =
+                majorCodeRaw === 'ECE' || majorCodeRaw === 'CCS' || majorCodeRaw === 'ECE+CCS'
+                    ? majorCodeRaw
+                    : 'CCS';
             
             if (isDbConnected && Project) {
+                let supName =
+                    (teacherRow && teacherRow.name && String(teacherRow.name).trim()) ||
+                    teacherEmailCanonical.split('@')[0];
+                if (supName && !/^prof\.?\s/i.test(supName)) {
+                    supName = `Prof. ${supName}`;
+                }
+
                 // Generate project code
                 const projectCode = `T${Date.now().toString().slice(-6)}`;
                 
@@ -1340,9 +1626,11 @@ try {
                     skills: skills || [],
                     capacity: 1,
                     type: 'teacher',                           // Mark as teacher-proposed
-                    supervisor: teacherEmail.split('@')[0],
-                    supervisorEmail: teacherEmail,
-                    department: department || 'Computer Science',
+                    supervisor: supName,
+                    supervisorId: (teacherRow && teacherRow.teacherId) || '',
+                    supervisorEmail: teacherEmailCanonical,
+                    department: department || teacherMajor || 'FYP',
+                    major: majorForProject,
                     category: category || 'General',
                     status: 'Under Review',
                     popularity: 0,
@@ -1548,10 +1836,15 @@ try {
             if (!teacherEmail) {
                 return res.status(400).json({ success: false, message: 'Teacher email required' });
             }
-            
+
+            const SPECIAL_TEACHER_MAP = {
+                'teacher@hkmu.edu.hk': 't001@hkmu.edu.hk'
+            };
+            const resolvedEmail = SPECIAL_TEACHER_MAP[teacherEmail.toLowerCase()] || teacherEmail;
+
             if (dbEnabled && ProjectModel && StudentModel) {
-                // Get teacher's projects
-                const teacherProjects = await ProjectModel.find({ supervisorEmail: teacherEmail }).lean().exec();
+                // Get teacher's projects (resolve special email)
+                const teacherProjects = await ProjectModel.find({ supervisorEmail: resolvedEmail }).lean().exec();
                 const projectIds = teacherProjects.map(p => String(p._id));
                 
                 // Get assigned students
@@ -1565,13 +1858,15 @@ try {
                         projectId: String(project._id),
                         projectCode: project.code,
                         projectTitle: project.title,
+                        projectType: project.type === 'student' ? 'student' : 'teacher',
                         capacity: project.capacity || 1,
                         assignedStudent: assigned ? {
                             id: assigned.id,
                             name: assigned.name,
                             email: assigned.email,
                             gpa: assigned.gpa,
-                            major: assigned.major
+                            major: assigned.major,
+                            assignedAt: assigned.updatedAt ? assigned.updatedAt.toISOString() : null
                         } : null,
                         status: assigned ? 'Matched' : 'Available'
                     };
@@ -1597,7 +1892,7 @@ try {
             {
                 id: 1,
                 title: 'AI-based Learning System',
-                supervisor: 'Dr. Bell Liu',
+                supervisor: 'Prof. Bell',
                 description: 'Develop an intelligent learning platform.',
                 skills: 'Python, Machine Learning, Web Development',
                 popularity: 15,
@@ -1608,60 +1903,9 @@ try {
     });
 }
 
-// 初始化測試學生帳戶（如果存在的話，更新其SID為13700797）
-async function initializeTestStudent() {
-    const mongoose = require('mongoose');
-    if (mongoose.connection.readyState !== 1) {
-        console.log('⚠️ MongoDB 未連接，跳過測試學生初始化');
-        return;
-    }
-    
-    try {
-        const Student = require('./models/Student');
-        
-        // 嘗試找到現有的 student@hkmu.edu.hk 學生
-        let student = await Student.findOne({ email: 'student@hkmu.edu.hk' }).exec();
-        
-        if (student) {
-            // 如果找到但 SID 不是 13700797，則更新
-            if (student.id !== '13700797') {
-                const oldId = student.id;
-                student.id = '13700797';
-                await student.save();
-                console.log(`✅ 測試學生帳戶 SID 更新: ${oldId} -> 13700797`);
-            } else {
-                console.log('✅ 測試學生帳戶 SID 已為 13700797');
-            }
-        } else {
-            // 創建新的測試學生帳戶
-            const studentPassword = await bcrypt.hash('student123', 10);
-            student = new Student({
-                id: '13700797',
-                name: 'Chan Tai Man',
-                email: 'student@hkmu.edu.hk',
-                password: studentPassword,
-                gpa: 3.45,
-                major: 'Computer Science',
-                year: 'Year 4',
-                preferences: [],
-                proposalSubmitted: false,
-                assignedProject: null,
-                proposedProject: null,
-                proposalApproved: false,
-                proposalStatus: 'none'
-            });
-            await student.save();
-            console.log('✅ 測試學生帳戶已創建: student@hkmu.edu.hk / student123');
-        }
-    } catch (err) {
-        console.error('❌ 測試學生初始化失敗:', err.message);
-    }
-}
-
 // 🔥 啟動伺服器前先初始化用戶資料
 initializeUsers().then(async () => {
-    // 初始化測試學生帳戶
-    await initializeTestStudent();
+    await ensureDatabaseSeeded();
     
     app.listen(port, () => {
         console.log(`🚀 API 伺服器運行在 http://localhost:${port}`);
@@ -1674,8 +1918,8 @@ initializeUsers().then(async () => {
         console.log(`\n💡 React 前端運行在 http://localhost:5173 (通過 Vite)`);
         console.log(`\n🔑 測試帳號:`);
         console.log('   Admin: admin@hkmu.edu.hk / admin123');
-        console.log('   Student: student@hkmu.edu.hk / student123 (SID: 13700797)');
-        console.log('   Teacher: teacher@hkmu.edu.hk / teacher123');
+        console.log('   Student: s001@hkmu.edu.hk / 00000000 (Major: CCS)');
+        console.log('   Teacher: t001@hkmu.edu.hk / 00000001 (MongoDB seed, Major: CCS)');
     });
 });
 
@@ -1834,6 +2078,7 @@ app.post('/api/admin/students/create', async (req, res) => {
 });
 
 // Batch create student accounts (admin only)
+// New format: Student ID is 's001', 's002', etc.
 app.post('/api/admin/students/batch-create', async (req, res) => {
     console.log('👥 Admin 批量創建學生帳戶:', req.body);
     try {
@@ -1865,13 +2110,13 @@ app.post('/api/admin/students/batch-create', async (req, res) => {
                     continue;
                 }
 
-                // Validate studentId: 8 digits
-                if (!/^\d{8}$/.test(studentId)) {
+                // Validate studentId: must start with 's' followed by digits (1-10 digits)
+                if (!/^s\d{1,10}$/.test(studentId)) {
                     results.push({
                         studentId,
                         name,
                         success: false,
-                        message: 'Student ID must be exactly 8 digits'
+                        message: 'Invalid student ID format. Must be s001, s002, etc. (1-10 digits)'
                     });
                     continue;
                 }
@@ -1883,6 +2128,18 @@ app.post('/api/admin/students/batch-create', async (req, res) => {
                         name,
                         success: false,
                         message: 'Password must be at least 8 characters'
+                    });
+                    continue;
+                }
+
+                // Validate major: Computer and Cyber Security or Electronics and Computer Engineering
+                const validMajors = ['Computer and Cyber Security', 'Electronics and Computer Engineering'];
+                if (!validMajors.includes(major)) {
+                    results.push({
+                        studentId,
+                        name,
+                        success: false,
+                        message: 'Invalid major. Must be Computer and Cyber Security or Electronics and Computer Engineering'
                     });
                     continue;
                 }
@@ -1900,8 +2157,8 @@ app.post('/api/admin/students/batch-create', async (req, res) => {
                         continue;
                     }
 
-                    // Generate email: first 7 digits + @hkmu.edu.hk
-                    const email = studentId.substring(0, 7) + '@hkmu.edu.hk';
+                    // Email is the studentId + @hkmu.edu.hk
+                    const email = `${studentId}@hkmu.edu.hk`;
 
                     // Check if email already exists
                     const existingEmail = await Student.findOne({ email: email }).exec();
@@ -1918,13 +2175,16 @@ app.post('/api/admin/students/batch-create', async (req, res) => {
                     // Hash password for security
                     const hashedPassword = await bcrypt.hash(password, 10);
 
+                    // Generate random GPA between 2.5 and 3.8
+                    const randomGPA = generateRandomGPA();
+
                     // Create new student
                     const newStudent = new Student({
                         id: studentId,
                         name: name,
                         email: email,
                         password: hashedPassword,
-                        gpa: 0,
+                        gpa: randomGPA,
                         major: major,
                         year: 'Year 4',
                         preferences: [],
@@ -1942,12 +2202,14 @@ app.post('/api/admin/students/batch-create', async (req, res) => {
                     // Verify the save worked
                     const savedStudent = await Student.findOne({ email: email }).exec();
                     console.log('🔍 Verification - mustChangePassword:', savedStudent?.mustChangePassword);
+                    console.log('🔍 Generated GPA:', randomGPA);
 
                     console.log('✅ Student account created:', {
                         id: studentId,
                         name: name,
                         email: email,
-                        major: major
+                        major: major,
+                        gpa: randomGPA
                     });
 
                     results.push({
@@ -1955,12 +2217,13 @@ app.post('/api/admin/students/batch-create', async (req, res) => {
                         name,
                         email,
                         major,
+                        gpa: randomGPA,
                         success: true,
                         message: 'Account created successfully'
                     });
                 } else {
                     // Mock mode
-                    const email = studentId.substring(0, 7) + '@hkmu.edu.hk';
+                    const email = `${studentId}@hkmu.edu.hk`;
                     console.log('⚠️ Mock mode - Student account:', { studentId, name, email, major });
                     results.push({
                         studentId,
@@ -1999,6 +2262,7 @@ app.post('/api/admin/students/batch-create', async (req, res) => {
 });
 
 // Batch create teacher accounts
+// New format: Teacher ID is 't001', 't002', etc.
 app.post('/api/admin/teachers/batch-create', async (req, res) => {
     console.log('👨‍🏫 Admin 批量創建教師帳戶:', req.body);
     try {
@@ -2016,27 +2280,39 @@ app.post('/api/admin/teachers/batch-create', async (req, res) => {
         const results = [];
 
         for (const teacherData of accounts) {
-            const { name, email, password } = teacherData;
+            const { teacherId, name, password, major } = teacherData;
 
             try {
                 // Validation
-                if (!name || !email || !password) {
+                if (!teacherId || !name || !password || !major) {
                     results.push({
+                        teacherId,
                         name,
-                        email,
                         success: false,
                         message: 'All fields are required'
                     });
                     continue;
                 }
 
-                // Validate email format
-                if (!/^[\w.-]+@hkmu\.edu\.hk$/.test(email)) {
+                // Validate teacherId: must start with 't' followed by digits (1-10 digits)
+                if (!/^t\d{1,10}$/.test(teacherId)) {
                     results.push({
+                        teacherId,
                         name,
-                        email,
                         success: false,
-                        message: 'Invalid email format. Must be @hkmu.edu.hk'
+                        message: 'Invalid teacher ID format. Must be t001, t002, etc. (1-10 digits)'
+                    });
+                    continue;
+                }
+
+                // Validate major
+                const validMajors = ['Computer and Cyber Security', 'Electronics and Computer Engineering', 'Computer and Cyber Security + Electronics and Computer Engineering'];
+                if (!validMajors.includes(major)) {
+                    results.push({
+                        teacherId,
+                        name,
+                        success: false,
+                        message: 'Invalid major. Must be Computer and Cyber Security, Electronics and Computer Engineering, or Computer and Cyber Security + Electronics and Computer Engineering'
                     });
                     continue;
                 }
@@ -2044,19 +2320,23 @@ app.post('/api/admin/teachers/batch-create', async (req, res) => {
                 // Validate password: at least 8 characters
                 if (password.length < 8) {
                     results.push({
+                        teacherId,
                         name,
-                        email,
                         success: false,
                         message: 'Password must be at least 8 characters'
                     });
                     continue;
                 }
 
+                // Email is the teacherId + @hkmu.edu.hk
+                const email = `${teacherId}@hkmu.edu.hk`;
+
                 if (isDbConnected && Teacher) {
                     // Check if teacher already exists by email
                     const existingTeacher = await Teacher.findOne({ email: email }).exec();
                     if (existingTeacher) {
                         results.push({
+                            teacherId,
                             name,
                             email,
                             success: false,
@@ -2070,10 +2350,12 @@ app.post('/api/admin/teachers/batch-create', async (req, res) => {
 
                     // Create new teacher
                     const newTeacher = new Teacher({
+                        teacherId: teacherId,
                         email: email,
                         name: name,
                         password: hashedPassword,
                         department: 'FYP',
+                        major: major,
                         mustChangePassword: true,
                         initialPassword: password
                     });
@@ -2081,22 +2363,28 @@ app.post('/api/admin/teachers/batch-create', async (req, res) => {
                     await newTeacher.save();
 
                     console.log('✅ Teacher account created:', {
+                        teacherId: teacherId,
                         name: name,
-                        email: email
+                        email: email,
+                        major: major
                     });
 
                     results.push({
+                        teacherId,
                         name,
                         email,
+                        major,
                         success: true,
                         message: 'Account created successfully'
                     });
                 } else {
                     // Mock mode
-                    console.log('⚠️ Mock mode - Teacher account:', { name, email });
+                    console.log('⚠️ Mock mode - Teacher account:', { teacherId, name, email, major });
                     results.push({
+                        teacherId,
                         name,
                         email,
+                        major,
                         success: true,
                         message: 'Account created successfully (Mock mode)'
                     });
@@ -2104,8 +2392,8 @@ app.post('/api/admin/teachers/batch-create', async (req, res) => {
             } catch (individualError) {
                 console.error('❌ Error creating teacher:', teacherData.name, individualError);
                 results.push({
+                    teacherId: teacherData.teacherId,
                     name: teacherData.name,
-                    email: teacherData.email,
                     success: false,
                     message: 'Error: ' + individualError.message
                 });
@@ -2125,6 +2413,76 @@ app.post('/api/admin/teachers/batch-create', async (req, res) => {
             success: false,
             message: 'Failed to batch create teacher accounts: ' + error.message
         });
+    }
+});
+
+// Get project statistics for major requirements
+app.get('/api/admin/project-stats', async (req, res) => {
+    console.log('📊 請求項目統計數據');
+    try {
+        const isDbConnected = checkDbConnectionForAdmin();
+        
+        let eceStudents = 0;
+        let ccsStudents = 0;
+        let eceProjects = 0;
+        let ccsProjects = 0;
+        let eceTeachers = 0;
+        let ccsTeachers = 0;
+        let bothTeachers = 0;
+        
+        if (isDbConnected) {
+            const Student = require('./models/Student');
+            const Project = require('./models/Project');
+            const Teacher = require('./models/Teacher');
+
+            const studentDocs = await Student.find({}).select('major').lean().exec();
+            eceStudents = studentDocs.filter((s) => majorToFilterCode(s.major) === 'ECE').length;
+            ccsStudents = studentDocs.filter((s) => majorToFilterCode(s.major) === 'CCS').length;
+
+            const projectDocs = await Project.find({ type: { $ne: 'student' } }).select('major').lean().exec();
+            eceProjects = projectDocs.filter((p) => {
+                const c = majorToFilterCode(p.major);
+                return c === 'ECE' || c === 'ECE+CCS';
+            }).length;
+            ccsProjects = projectDocs.filter((p) => {
+                const c = majorToFilterCode(p.major);
+                return c === 'CCS' || c === 'ECE+CCS';
+            }).length;
+
+            const teacherDocs = await Teacher.find({}).select('major').lean().exec();
+            eceTeachers = teacherDocs.filter((t) => majorToFilterCode(t.major) === 'ECE').length;
+            ccsTeachers = teacherDocs.filter((t) => majorToFilterCode(t.major) === 'CCS').length;
+            bothTeachers = teacherDocs.filter((t) => majorToFilterCode(t.major) === 'ECE+CCS').length;
+        } else {
+            // Mock mode - estimate based on test data
+            eceStudents = 20;
+            ccsStudents = 30;
+            eceProjects = 10;
+            ccsProjects = 20;
+            eceTeachers = 1;
+            ccsTeachers = 1;
+            bothTeachers = 1;
+        }
+        
+        return res.json({
+            success: true,
+            stats: {
+                eceStudents,
+                ccsStudents,
+                eceProjects,
+                ccsProjects,
+                eceTeachers,
+                ccsTeachers,
+                bothTeachers,
+                eceNeeded: Math.max(0, eceStudents - eceProjects),
+                ccsNeeded: Math.max(0, ccsStudents - ccsProjects),
+                totalStudents: eceStudents + ccsStudents,
+                totalProjects: eceProjects + ccsProjects
+            }
+        });
+    } catch (error) {
+        console.error('❌ Error fetching project stats:', error);
+        res.status(500).json({ success: false, message: 'Server error' });
     }
 });
 

@@ -1,18 +1,19 @@
 import React from 'react';
+import { majorToPortalBadge } from '../../utils/majorPortalBadge';
 
-function Sidebar({ currentSection, onSwitchSection, userName, onLogout }) {
+function Sidebar({ currentSection, onSwitchSection, userName, onLogout, teacherMajor = '' }) {
   const menuItems = [
     { id: 'student-applications', label: 'Student Proposal' },
     { id: 'project-management', label: 'Teacher Proposal' },
+    { id: 'all-projects', label: 'Other Projects' },
     { id: 'results', label: 'Result' },
-    { id: 'supervision-list', label: 'Supervision List' }
   ];
 
   return (
     <nav className="sidebar">
       <div className="sidebar-header">
         <h2>HKMU FYP Matching System</h2>
-        <p>Teacher Portal</p>
+        <p>Teacher Portal <span className="major-tag">({majorToPortalBadge(teacherMajor)})</span></p>
       </div>
       
       <ul className="sidebar-menu">

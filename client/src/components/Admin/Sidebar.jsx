@@ -3,10 +3,10 @@ import React from 'react';
 function Sidebar({ currentSection, onSwitchSection, userName, onLogout }) {
   const menuItems = [
     { id: 'matching-control', label: 'Matching Control' },
-    { id: 'final-assignment', label: 'Final Assignment' },
     { id: 'create-student-account', label: 'Create Account' },
-    { id: 'data-export', label: 'Data Export' },
-    { id: 'deadline-management', label: 'Deadline Management' }
+    { id: 'deadline-management', label: 'Deadline Management' },
+    { id: 'final-assignment', label: 'Final Assignment' },
+    { id: 'data-export', label: 'Data Export' }
   ];
 
   return (
