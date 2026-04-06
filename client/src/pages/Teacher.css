@@ -221,48 +221,39 @@
 
 /* Project Requirements Hint */
 .project-requirements-hint {
-  background: #f8f9fa;
-  border: 1px solid #e9ecef;
-  border-radius: 8px;
-  padding: 1rem 1.25rem;
+  background: linear-gradient(135deg, #e8f4fd 0%, #d4ecf9 100%);
+  border: 2px solid #2196f3;
+  border-radius: 10px;
+  padding: 1.5rem 1.75rem 1.5rem 3.5rem;
   margin-bottom: 1.5rem;
+  position: relative;
 }
 
-.project-requirements-hint h4 {
-  font-size: 0.9rem;
-  color: #495057;
-  margin: 0 0 0.5rem 0;
-  font-weight: 600;
-}
-
-.requirements-list {
+.project-requirements-hint::before {
+  content: "i";
+  position: absolute;
+  left: 1rem;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 24px;
+  height: 24px;
+  background: #2196f3;
+  color: white;
+  border-radius: 50%;
   display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
+  align-items: center;
+  justify-content: center;
+  font-style: italic;
+  font-weight: bold;
+  font-size: 0.85rem;
+  line-height: 1;
 }
 
 .requirement-item {
-  font-size: 0.9rem;
+  font-size: 1.2rem;
   margin: 0;
-}
-
-.requirement-item.ece .requirement-major {
-  color: #3498db;
+  color: #1565c0;
   font-weight: 600;
-}
-
-.requirement-item.ccs .requirement-major {
-  color: #9b59b6;
-  font-weight: 600;
-}
-
-.requirement-item.neutral .requirement-major {
-  color: #95a5a6;
-  font-weight: 600;
-}
-
-.current-count {
-  color: #27ae60;
 }
 
 /* Deadline Notification */

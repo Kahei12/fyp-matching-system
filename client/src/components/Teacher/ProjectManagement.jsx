@@ -297,6 +297,7 @@ function ProjectManagement({ showNotification, expiredDeadlineKeys = new Set() }
           {/* Project Requirements Hint */}
           {!isSelfProposalExpired && (() => {
             const tm = majorToFilterCode(teacherMajor);
+            // Per-teacher rough share (same as pool shortfall ÷ supervisors in that programme); not the whole pool.
             const eceDenom = Math.max(1, projectStats.eceTeachers + projectStats.bothTeachers);
             const ccsDenom = Math.max(1, projectStats.ccsTeachers + projectStats.bothTeachers);
             const eceShare = Math.ceil(projectStats.eceNeeded / eceDenom);
@@ -307,29 +308,16 @@ function ProjectManagement({ showNotification, expiredDeadlineKeys = new Set() }
             const showCcs = tm === 'CCS' || tm === 'ECE+CCS' || !tm;
             return (
             <div className="project-requirements-hint">
-              <h4>Topic pool reminder</h4>
-              <p className="requirements-intro">
-                Shortfall = students in that programme minus topics in the pool (each ECE+CCS topic counts toward both).
-                Suggested extra for you ≈ ceil(shortfall ÷ supervisors in that programme, including dual-programme staff) minus your listed topics.
-              </p>
-              <div className="requirements-list">
-                {showCcs && (
-                  <p className="requirement-item ccs">
-                    <span className="requirement-major">CCS:</span> Pool still needs{' '}
-                    <strong>{projectStats.ccsNeeded}</strong> topic(s). With <strong>{ccsDenom}</strong> supervisor(s), rough share ≈{' '}
-                    <strong>{ccsShare}</strong> each. You have <strong>{projectStats.ccsCreated}</strong> CCS-capable topic(s) here —{' '}
-                    suggest about <strong>{stillCcs}</strong> more if split evenly.
-                  </p>
-                )}
-                {showEce && (
-                  <p className="requirement-item ece">
-                    <span className="requirement-major">ECE:</span> Pool still needs{' '}
-                    <strong>{projectStats.eceNeeded}</strong> topic(s). With <strong>{eceDenom}</strong> supervisor(s), rough share ≈{' '}
-                    <strong>{eceShare}</strong> each. You have <strong>{projectStats.eceCreated}</strong> ECE-capable topic(s) here —{' '}
-                    suggest about <strong>{stillEce}</strong> more if split evenly.
-                  </p>
-                )}
-              </div>
+              {showCcs && (
+                <p className="requirement-item ccs">
+                  You still need to propose <strong>{stillCcs}</strong> CCS project{stillCcs !== 1 ? '(s)' : ''}.
+                </p>
+              )}
+              {showEce && (
+                <p className="requirement-item ece">
+                  You still need to propose <strong>{stillEce}</strong> ECE project{stillEce !== 1 ? '(s)' : ''}.
+                </p>
+              )}
             </div>
             );
           })()}
