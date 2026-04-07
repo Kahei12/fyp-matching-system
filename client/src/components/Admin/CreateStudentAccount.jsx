@@ -82,7 +82,7 @@ function CreateStudentAccount({ showNotification }) {
     let valid = true;
     let newStudent = { ...student, studentIdError: '', nameError: '', majorError: '', passwordError: '' };
 
-    // 格式：1-10位數字，如 001, 002, ..., 9999999999
+    // Format: 1-10 digits, e.g. 001, 002, ..., 9999999999
     if (!student.studentId) {
       newStudent.studentIdError = 'Required';
       valid = false;
@@ -116,7 +116,7 @@ function CreateStudentAccount({ showNotification }) {
     let valid = true;
     let newTeacher = { ...teacher, teacherIdError: '', nameError: '', majorError: '', passwordError: '' };
 
-    // 格式：1-10位數字，如 001, 002, ..., 9999999999
+    // Format: 1-10 digits, e.g. 001, 002, ..., 9999999999
     if (!teacher.teacherId) {
       newTeacher.teacherIdError = 'Required';
       valid = false;
@@ -375,7 +375,7 @@ function CreateStudentAccount({ showNotification }) {
     e.target.value = '';
   };
 
-  // 生成學生登入郵箱預覽：s001@hkmu.edu.hk
+  // Generate student login email preview: s001@hkmu.edu.hk
   const getStudentPreviewEmail = (studentId) => {
     if (studentId) {
       return `s${studentId}@hkmu.edu.hk`;
@@ -383,7 +383,7 @@ function CreateStudentAccount({ showNotification }) {
     return '';
   };
 
-  // 生成老師登入郵箱預覽：t001@hkmu.edu.hk
+  // Generate teacher login email preview: t001@hkmu.edu.hk
   const getTeacherPreviewEmail = (teacherId) => {
     if (teacherId) {
       return `t${teacherId}@hkmu.edu.hk`;

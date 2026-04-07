@@ -15,7 +15,7 @@ function Admin() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    // 檢查登入狀態
+    // Check login status
     const isLoggedIn = sessionStorage.getItem('isLoggedIn');
     const userRole = sessionStorage.getItem('userRole');
     
@@ -104,9 +104,9 @@ function Admin() {
         onLogout={handleLogout}
       />
 
-      {/* 主內容區域 */}
+      {/* Main content area */}
       <main className="main-content">
-        {/* 麵包屑導航 */}
+        {/* Breadcrumb navigation */}
         <div className="breadcrumb">
           <span 
             className="breadcrumb-link" 

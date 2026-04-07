@@ -9,9 +9,9 @@ function Login() {
   const navigate = useNavigate();
 
   const showMessage = (message, type) => {
-    console.log('[MSG] 顯示訊息:', message);
+    console.log('[MSG] Display message:', message);
     
-    // 移除現有的訊息
+    // Remove existing message
     const existingMessage = document.querySelector('.message-popup');
     if (existingMessage) {
       existingMessage.remove();
@@ -21,7 +21,7 @@ function Login() {
     messageDiv.className = 'message-popup';
     messageDiv.textContent = message;
     
-    // 樣式設定
+    // Style settings
     messageDiv.style.cssText = `
       position: fixed;
       top: 20px;
@@ -43,7 +43,7 @@ function Login() {
     
     document.body.appendChild(messageDiv);
     
-    // 3秒後自動消失
+    // Auto-dismiss after 3 seconds
     setTimeout(() => {
       messageDiv.style.opacity = '0';
       messageDiv.style.transform = 'translateY(-20px)';
@@ -57,14 +57,14 @@ function Login() {
 
   const handleSubmit = async (event) => {
     event.preventDefault();
-    console.log('[TARGET] 表單提交被觸發');
+    console.log('[TARGET] Form submission triggered');
     
     setIsLoading(true);
-    console.log('[EMAIL] 輸入的 Email:', email);
-    console.log('[PASS] 輸入的 Password:', password);
+    console.log('[EMAIL] Input email:', email);
+    console.log('[PASS] Input password:', password);
 
     try {
-      console.log('[SYNC] 發送請求到後端...');
+      console.log('[SYNC] Sending request to backend...');
       const response = await fetch('/login', {
         method: 'POST',
         headers: {
@@ -73,23 +73,23 @@ function Login() {
         body: JSON.stringify({ email, password }),
       });
 
-      console.log('[STATUS] 後端回傳狀態:', response.status);
+      console.log('[STATUS] Backend response status:', response.status);
       const result = await response.json();
-      console.log('[DATA] 後端回傳資料:', result);
+      console.log('[DATA] Backend response data:', result);
 
       if (result.success) {
-        // 顯示成功訊息
+        // Show success message
         showMessage('Login successful! Redirecting...', 'success');
-        console.log('[ROLE] 用戶角色:', result.user.role);
+        console.log('[ROLE] User role:', result.user.role);
         
-        // 儲存登入狀態
+        // Store login state
         sessionStorage.setItem('isLoggedIn', 'true');
         sessionStorage.setItem('userEmail', String(email || '').trim().toLowerCase());
         sessionStorage.setItem('userRole', result.user.role);
         sessionStorage.setItem('userName', result.user.name);
         sessionStorage.setItem('mustChangePassword', String(!!result.user.mustChangePassword));
         
-        // 根據角色存儲特定信息
+        // Store role-specific info
         if (result.user.role === 'student') {
           const sid = result.user.studentId || result.user.id || '';
           sessionStorage.setItem('studentId', sid);
@@ -97,31 +97,31 @@ function Login() {
           sessionStorage.setItem('userMajor', result.user.major || '');
         }
         
-        // 儲存老師的 major
+        // Store teacher's major
         if (result.user.role === 'teacher') {
           sessionStorage.setItem('userMajor', result.user.major || '');
         }
         
-        // 根據角色導向不同頁面
+        // Navigate based on role
         setTimeout(() => {
           switch(result.user.role) {
             case 'admin':
-              console.log('-> 導向 Admin 儀表板');
+              console.log('-> Navigate to Admin dashboard');
               navigate('/admin');
               break;
             case 'student':
-              console.log('-> 導向 Student 儀表板');
+              console.log('-> Navigate to Student dashboard');
               navigate('/student');
               break;
             case 'teacher':
-              console.log('-> 導向 Teacher 儀表板');
+              console.log('-> Navigate to Teacher dashboard');
               navigate('/teacher');
               break;
             default:
-              console.log('-> 導向首頁');
+              console.log('-> Navigate to home');
               navigate('/');
           }
-        }, 1500); // 1.5秒後跳轉
+        }, 1500); // Redirect after 1.5 seconds
         
       } else {
         showMessage('Login failed: ' + result.message, 'error');
@@ -138,7 +138,7 @@ function Login() {
     <div className="login-page">
       <div className="login-container">
         <header>
-          {/* Logo 單獨一行在標題上方 */}
+          {/* Logo above title */}
           <div className="logo-container">
             <img 
               src="https://www.hkmu.edu.hk/wp-content/uploads/2021/08/HKMU-logo-mb.png" 
@@ -147,7 +147,7 @@ function Login() {
             />
           </div>
           
-          {/* 標題和副標題 */}
+          {/* Title and subtitle */}
           <div className="title-container">
             <h1>HKMU FYP Matching System</h1>
             <p>Sign in to access your dashboard</p>

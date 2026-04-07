@@ -45,7 +45,7 @@ function Student() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    // 檢查登入狀態
+    // Check login status
     const isLoggedIn = sessionStorage.getItem('isLoggedIn');
     const userRole = sessionStorage.getItem('userRole');
     
@@ -127,9 +127,9 @@ function Student() {
     const studentId = sessionStorage.getItem('studentId') || 's001';
     const userEmail = sessionStorage.getItem('userEmail') || '';
     
-    console.log('[SEARCH] 載入學生數據，studentId:', studentId);
-    
-    // 更新本地狀態
+    console.log('[SEARCH] Loading student data, studentId:', studentId);
+
+    // Update local state
     setStudentData(prev => ({
       ...prev,
       studentId: studentId,
@@ -156,16 +156,16 @@ function Student() {
           email: s.email || userEmail
         });
         
-        // 載入偏好
+        // Load preferences
         await loadPreferences(resolvedId);
       } else {
-        // API 失敗，使用 sessionStorage 數據
+        // API failed, use sessionStorage data
         console.log('API returned failure, using local data');
         await loadPreferences(studentId);
       }
     } catch (error) {
-      console.error('載入學生數據錯誤:', error);
-      // 使用本地偏好
+      console.error('Failed to load student data:', error);
+      // Use local preferences
       await loadPreferences(studentId);
     }
   };
@@ -209,7 +209,7 @@ function Student() {
         setPreferences(result.preferences);
       }
     } catch (error) {
-      console.error('載入偏好錯誤:', error);
+      console.error('Failed to load preferences:', error);
       const saved = localStorage.getItem(`studentPreferences_${studentId}`);
       setPreferences(saved ? JSON.parse(saved) : []);
     }
@@ -245,7 +245,7 @@ function Student() {
     // Buffer preference locally; only submit to server on Submit Preferences
     const currentStudentId = studentData.studentId || sessionStorage.getItem('studentId') || 's001';
 
-    // 檢查是否已提交或匹配已完成
+    // Check if already submitted or matching completed
     const submittedFlag = studentData.proposalSubmitted || sessionStorage.getItem('proposalSubmitted') === 'true';
     const locked = submittedFlag || matchingCompleted;
     
@@ -280,7 +280,7 @@ function Student() {
     setPreferences(newPreferences);
     localStorage.setItem(`studentPreferences_${currentStudentId}`, JSON.stringify(newPreferences));
     showNotification(`Project added to preferences (${newPreferences.length}/10). Please go to My Preferences to check.`, 'success');
-    // 不再自動跳轉，讓用戶繼續添加項目
+    // Do not auto-navigate, let user continue adding projects
   };
 
   const handleRemovePreference = async (projectId) => {
@@ -315,7 +315,7 @@ function Student() {
       }
     } catch (error) {
       console.error('Remove preference error:', error);
-      // 本地後備
+      // Local fallback
       const newPreferences = preferences.filter(p => p.id !== projectId);
       setPreferences(newPreferences);
       localStorage.setItem(`studentPreferences_${currentStudentId}`, JSON.stringify(newPreferences));
@@ -372,9 +372,9 @@ function Student() {
   const handleClearPreferences = () => {
     const currentStudentId = studentData.studentId || sessionStorage.getItem('studentId') || 's001';
     
-    // 檢查是否已提交
+    // Check if already submitted
     const submittedFlag = studentData.proposalSubmitted || sessionStorage.getItem('proposalSubmitted') === 'true';
-    const matchingCompleted = false; // 可以從 API 獲取
+    const matchingCompleted = false; // Can be fetched from API
     
     if (submittedFlag || matchingCompleted) {
       showNotification('Cannot clear preferences after submission or matching completion.', 'error');
@@ -452,11 +452,11 @@ function Student() {
     
     console.log('[REORDER] Reordering preferences via drag-drop:', { currentStudentId });
     
-    // 立即更新 UI 以獲得流暢的體驗
+    // Immediately update UI for smooth experience
     setPreferences(newPreferences);
     
     try {
-      // 提取項目 ID 的順序
+      // Extract the order of project IDs
       const newOrder = newPreferences.map(p => p.id);
       
       const response = await fetch(`/api/student/${currentStudentId}/preferences/reorder`, {
@@ -469,17 +469,17 @@ function Student() {
       console.log('Reorder response:', result);
       
       if (result.success) {
-        // 重新載入以確保與服務器同步
+        // Reload to ensure sync with server
         await loadPreferences(currentStudentId);
         showNotification('Order updated successfully!', 'success');
       } else {
-        // 如果 API 失敗，使用本地存儲
+        // If API failed, use local storage
         localStorage.setItem(`studentPreferences_${currentStudentId}`, JSON.stringify(newPreferences));
         showNotification('Order updated (saved locally)!', 'success');
       }
     } catch (error) {
       console.error('Reorder preference error:', error);
-      // API 失敗時使用本地後備
+      // Use local fallback when API fails
       localStorage.setItem(`studentPreferences_${currentStudentId}`, JSON.stringify(newPreferences));
       showNotification('Order updated (saved locally)!', 'success');
     }
@@ -522,7 +522,7 @@ function Student() {
   const stageSections = ['project-browse', 'my-preferences', 'results'];
   const shouldShowStageOverview = stageSections.includes(currentSection);
 
-  // 获取phase信息
+  // Get phase info
   const getPhaseInfo = (section) => {
     const phaseMap = {
       'proposal': { phase: 1, name: 'Proposal' },
@@ -533,7 +533,7 @@ function Student() {
     return phaseMap[section] || null;
   };
 
-  // 渲染主标题和 deadline 提示
+  // Render page title with deadline hint
   const renderPageTitleWithDeadline = (section) => {
     // Per-section deadline mapping
     const sectionDeadlineKey = {
@@ -655,7 +655,7 @@ function Student() {
 
         {shouldShowStageOverview && (
           <div className="page-overview">
-            {/* 主标题和 deadline 提示 */}
+            {/* Page title and deadline hint */}
             {renderPageTitleWithDeadline(currentSection)}
             <StageOverview
               currentSection={currentSection}
@@ -706,7 +706,7 @@ function StageOverview({ currentSection, onStageChange, preferencesCount, expire
     return dk ? expiredDeadlineKeys.has(dk) : false;
   };
 
-  // 決定哪個 tag 應該處於 active 狀態
+  // Determine which tag should be active
   const getActiveStageId = () => {
     if (currentSection === 'my-preferences') {
       return 'project-browse';
@@ -714,7 +714,7 @@ function StageOverview({ currentSection, onStageChange, preferencesCount, expire
     return currentSection;
   };
 
-  // 根據當前頁面決定按鈕文字
+  // Determine button text based on current page
   const getButtonText = (stage) => {
     if (stage.id === 'project-browse' && currentSection === 'my-preferences') {
       return 'Go to Browse Project';

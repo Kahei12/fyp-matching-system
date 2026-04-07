@@ -3,8 +3,8 @@ import { createPortal } from 'react-dom';
 import './AppModal.css';
 
 /**
- * 與教師端「建立專題」一致的圓角卡片式對話框（覆蓋原生 alert / confirm）。
- * 使用 portal 掛到 document.body，避免父層版面（如 hover）造成寬度跳動。
+ * Rounded card-style dialog consistent with teacher-side "Create Project" modal.
+ * Uses portal to mount to document.body, avoiding layout shifts from parent hover effects.
  */
 function AppModal({
   open,

@@ -24,7 +24,7 @@ function MyPreferences({
   const handleDragStart = (e, preference, index) => {
     setDraggedItem({ preference, index });
     e.dataTransfer.effectAllowed = 'move';
-    // 添加視覺效果
+    // Add visual effect
     e.currentTarget.style.opacity = '0.5';
   };
 
@@ -52,12 +52,12 @@ function MyPreferences({
       return;
     }
 
-    // 創建新的偏好順序
+    // Create new preference order
     const newPreferences = [...preferences];
     const [movedItem] = newPreferences.splice(draggedItem.index, 1);
     newPreferences.splice(dropIndex, 0, movedItem);
 
-    // 調用父組件的重新排序函數
+    // Call parent component's reorder function
     if (onReorderPreferences) {
       onReorderPreferences(newPreferences);
     }

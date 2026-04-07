@@ -141,27 +141,27 @@ function Teacher() {
 
   const fetchProjectStats = async () => {
     try {
-      // 获取该老师自己的项目
+      // Fetch teacher's own projects
       const projectsResponse = await fetch(`/api/teacher/projects?email=${encodeURIComponent(userEmail)}`, {
         headers: { 'x-teacher-email': userEmail }
       });
       const projectsData = await projectsResponse.json();
       
-      // 获取该老师批准的学生提案
+      // Fetch student proposals approved by this teacher
       const proposalsResponse = await fetch(`/api/teacher/student-proposals?email=${encodeURIComponent(userEmail)}`, {
         headers: { 'x-teacher-email': userEmail }
       });
       const proposalsData = await proposalsResponse.json();
       
-      // My Projects: 该老师自己创建的项目数量
+      // My Projects: projects created by this teacher
       const myProjectsCount = projectsData.success && projectsData.projects ? projectsData.projects.length : 0;
       
-      // Approved: 该老师已批准的学生提案数量
+      // Approved: student proposals approved by this teacher
       const approvedCount = proposalsData.success && proposalsData.proposals 
         ? proposalsData.proposals.filter(p => p.myDecision === 'approve').length 
         : 0;
       
-      // Under Review: 待审批的学生提案数量
+      // Under Review: pending student proposals
       const underReviewCount = proposalsData.success && proposalsData.proposals 
         ? proposalsData.proposals.filter(p => !p.myDecision).length 
         : 0;
@@ -187,7 +187,7 @@ function Teacher() {
   const projectUpdateDaysLeft = Math.ceil((teacherSelfProposalDeadline - now) / (1000 * 60 * 60 * 24));
   const fmtLine = (d) => formatDateTime24(d);
 
-  // 获取phase信息
+  // Get phase info
   const getPhaseInfo = (section) => {
     const phaseMap = {
       'student-applications': { phase: 1, name: 'Proposal' },
@@ -197,7 +197,7 @@ function Teacher() {
     return phaseMap[section] || null;
   };
 
-  // 渲染主标题和 deadline 提示
+  // Render page title with deadline hint
   const renderPageTitleWithDeadline = (section) => {
     const sectionDeadlineKey = {
       'student-applications': 'teacherProposalReview',
@@ -287,9 +287,9 @@ function Teacher() {
         teacherMajor={teacherMajor}
       />
 
-      {/* 主內容區域 */}
+      {/* Main content area */}
       <main className="main-content">
-        {/* 麵包屑導航 */}
+        {/* Breadcrumb navigation */}
         <div className="breadcrumb">
           <span 
             className="breadcrumb-link" 
@@ -306,7 +306,7 @@ function Teacher() {
         <div className="page-overview">
           {currentSection !== 'supervision-list' && (
             <>
-              {/* 主标题和 deadline 提示 */}
+              {/* Page title and deadline hint */}
               {renderPageTitleWithDeadline(currentSection)}
               <StageOverview
                 currentSection={currentSection}
@@ -352,7 +352,7 @@ function Teacher() {
             </OverdueNotice>
           )}
 
-          {/* My Project Stats - 在首頁顯示 */}
+          {/* My Project Stats - displayed on home page */}
           {currentSection === 'student-applications' && (
             <div className="project-stats-cards">
               <div className="stat-card">

@@ -35,7 +35,7 @@ function saveDeadlinesToFile(deadlines) {
     }
 }
 
-// 同步檢查數據庫連接狀態 - 每次都重新檢查
+// Sync check database connection status - check fresh every time
 function checkDBConnection() {
     try {
         const mongoose = require('mongoose');
@@ -55,8 +55,8 @@ function checkDBConnection() {
 }
 
 const studentService = {
-    // 獲取所有可用項目（DB-backed）
-    // major 過濾是首選；若符合的項目為 0，則顯示全部老師項目（不做 major 過濾）
+    // Get all available projects (DB-backed)
+    // Major filter is preferred; if matching projects is 0, show all teacher projects (without major filter)
     getAvailableProjects: async (studentMajor) => {
         try {
             if (!checkDBConnection() || !ProjectModel) {
@@ -67,11 +67,11 @@ const studentService = {
             const allDocs = await ProjectModel.find({}).lean().exec();
             console.log(`[getAvailableProjects] Total docs in DB: ${allDocs.length}`);
 
-            // 第一層過濾：只要是老師提出、有 supervisor、狀態合理的項目
+            // First layer filter: only teacher-proposed projects with supervisor and reasonable status
             const teacherProjects = allDocs.filter(doc => {
                 if (doc.type === 'student') return false;
                 if (!doc.supervisor || doc.supervisor === 'TBD') return false;
-                // status 為空或缺失也算有效（向後兼容）
+                // status empty or missing is also valid (backward compatibility)
                 const s = String(doc.status || '').toLowerCase();
                 const ok = !s || s === 'active' || s === 'approved' || s === 'under review' || s === 'approved';
                 return ok;
@@ -79,7 +79,7 @@ const studentService = {
 
             console.log(`[getAvailableProjects] Teacher projects (no major filter): ${teacherProjects.length}`);
 
-            // 第二層：套用 major 過濾
+            // Second layer: apply major filter
             let filtered = teacherProjects;
             if (studentMajor) {
                 const sm = majorToFilterCode(studentMajor);
@@ -87,14 +87,14 @@ const studentService = {
                 if (sm) {
                     filtered = teacherProjects.filter(doc => {
                         const pm = majorToFilterCode(doc.major) || 'ECE';
-                        if (pm === 'ECE+CCS') return true; // Both 老師的項目所有學生都能看
+                        if (pm === 'ECE+CCS') return true; // Both projects visible to all students
                         return pm === sm;
                     });
                     console.log(`[getAvailableProjects] After major filter: ${filtered.length}`);
                 }
             }
 
-            // 若 major 過濾後為 0，退回顯示全部（不做 major 過濾）
+            // If major filter returns 0, fallback to showing all (without major filter)
             if (filtered.length === 0 && studentMajor) {
                 console.log('[getAvailableProjects] Major filter returned 0, showing all teacher projects');
                 filtered = teacherProjects;
@@ -112,7 +112,7 @@ const studentService = {
         }
     },
     
-    // 獲取學生信息
+    // Get student info
     getStudent: async (studentId) => {
         if (checkDBConnection() && StudentModel) {
             const doc = await StudentModel.findOne({ id: studentId }).lean().exec();
@@ -133,7 +133,7 @@ const studentService = {
         return null;
     },
     
-    // 獲取學生的偏好列表
+    // Get student's preference list
     getStudentPreferences: async (studentId) => {
         if (checkDBConnection() && StudentModel && ProjectModel) {
             const student = await StudentModel.findOne({ id: studentId }).lean().exec();
@@ -148,17 +148,17 @@ const studentService = {
                 const pid = String(projectId);
                 let proj = null;
                 
-                // 嘗試作為 ObjectId
+                // Try as ObjectId
                 if (mongoose.Types.ObjectId.isValid(pid)) {
                     proj = projects.find(p => String(p._id) === pid);
                 }
                 
-                // 如果找不到，嘗試作為 code
+                // If not found, try as code
                 if (!proj) {
                     proj = projects.find(p => p.code && String(p.code) === pid);
                 }
                 
-                // 如果還是找不到，嘗試作為其他 ID 字段
+                // If still not found, try as other ID field
                 if (!proj) {
                     proj = projects.find(p => {
                         if (p.id !== undefined && p.id !== null && String(p.id) === pid) return true;
@@ -189,7 +189,7 @@ const studentService = {
         return [];
     },
     
-    // 添加項目到偏好
+    // Add project to preferences
     addPreference: async (studentId, projectId) => {
         // projectId may be a string (code or ObjectId) or numeric id
         if (checkDBConnection() && StudentModel && ProjectModel) {
@@ -220,9 +220,9 @@ const studentService = {
         return { success: false, message: "Database unavailable" };
     },
     
-    // 從偏好中移除項目
+    // Remove project from preferences
     removePreference: async (studentId, projectId) => {
-        // 確保 projectId 是數字類型
+        // Ensure projectId is string type
         const pidStr = String(projectId);
         if (checkDBConnection() && StudentModel && ProjectModel) {
             const student = await StudentModel.findOne({ id: studentId }).exec();
@@ -253,7 +253,7 @@ const studentService = {
     
     // Move preference position
     movePreference: async (studentId, projectId, direction) => {
-        // 確保 projectId 是數字類型
+        // Ensure projectId is string type
         const pidStr = String(projectId);
         if (checkDBConnection() && StudentModel) {
             const student = await StudentModel.findOne({ id: studentId }).exec();
@@ -273,7 +273,7 @@ const studentService = {
         return { success: false, message: "Database unavailable" };
     },
     
-    // Reorder preferences (用於拖曳排序)
+    // Reorder preferences (used for drag-drop sorting)
     reorderPreferences: async (studentId, newOrder) => {
         if (checkDBConnection() && StudentModel) {
             const student = await StudentModel.findOne({ id: studentId }).exec();
@@ -290,7 +290,7 @@ const studentService = {
         return { success: false, message: "Database unavailable" };
     },
     
-    // 提交最終偏好
+    // Submit final preferences
     submitPreferences: async (studentId) => {
         if (checkDBConnection() && StudentModel) {
             const student = await StudentModel.findOne({ id: studentId }).exec();
@@ -303,7 +303,7 @@ const studentService = {
         return { success: false, message: "Database unavailable" };
     },
     
-    // 直接設定學生的 preferences（由 Student UI 的 Submit 發起）
+    // Set student's preferences directly (initiated by Student UI Submit)
     setPreferences: async (studentId, preferencesArray) => {
         const stringPrefs = (preferencesArray || []).map(id => String(id));
         if (checkDBConnection() && StudentModel && ProjectModel) {
@@ -313,17 +313,17 @@ const studentService = {
                 return { success: false, message: "Student not found" };
             }
             
-            // 驗證所有項目 ID 是否存在（可選，但建議驗證）
+            // Validate all project IDs (optional but recommended)
             if (stringPrefs.length > 0) {
                 const mongoose = require('mongoose');
                 const validProjects = [];
                 for (const prefId of stringPrefs) {
                     let project = null;
-                    // 嘗試作為 ObjectId
+                    // Try as ObjectId
                     if (mongoose.Types.ObjectId.isValid(prefId)) {
                         project = await ProjectModel.findById(prefId).lean().exec();
                     }
-                    // 如果找不到，嘗試作為 code
+                    // If not found, try as code
                     if (!project) {
                         project = await ProjectModel.findOne({ code: prefId }).lean().exec();
                     }
@@ -333,7 +333,7 @@ const studentService = {
                         console.warn(`[setPreferences] Project not found: ${prefId}`);
                     }
                 }
-                // 使用驗證過的項目 ID
+                // Use validated project IDs
                 student.preferences = validProjects;
             } else {
                 student.preferences = stringPrefs;
@@ -481,7 +481,7 @@ const studentService = {
             const studentDocs = await StudentModel.find({ proposalSubmitted: true, preferences: { $exists: true, $ne: [] } }).lean().exec();
             console.log(`[runMatching] Found ${studentDocs.length} students with submitted preferences`);
             
-            // 只使用 teacher-proposed 且 status === 'Approved' 的項目
+            // Only use teacher-proposed and status === 'Approved' projects
             const projectDocs = await ProjectModel.find({ 
                 type: 'teacher',
                 status: 'Approved',
@@ -519,12 +519,12 @@ const studentService = {
                 if (!pref && pref !== 0) return null;
                 const asString = String(pref);
                 
-                // 嘗試通過 lookup 找到項目
+                // Try to find project via lookup
                 if (projectLookup[asString]) {
                     return String(projectLookup[asString]._id);
                 }
                 
-                // 如果 pref 本身就是 ObjectId 格式，直接使用
+                // If pref is already in ObjectId format, use directly
                 const mongoose = require('mongoose');
                 if (mongoose.Types.ObjectId.isValid(asString)) {
                     if (projectsMap[asString]) {
@@ -532,7 +532,7 @@ const studentService = {
                     }
                 }
                 
-                // 如果找不到，記錄警告
+                // If not found, log warning
                 console.warn(`[runMatching] Cannot resolve preference ID: ${asString}`);
                 return null;
             }
@@ -611,7 +611,7 @@ const studentService = {
             const projects = await ProjectModel.find({}).lean().exec();
             const students = await StudentModel.find({ assignedProject: { $ne: null } }).lean().exec();
 
-            // 檢查是否有任何分配（用於判斷 matching 是否已完成）
+            // Check if any assignments exist (to determine if matching is complete)
             const matchingCompleted = students.length > 0;
 
             const results = [];
@@ -631,14 +631,14 @@ const studentService = {
                 });
             }
 
-            // 返回結果和匹配完成標誌
+            // Return results and matching completion flag
             return { results, matchingCompleted };
         }
 
         return { results: [], matchingCompleted: false };
     },
 
-    // 獲取所有學生列表（DB-backed if available）
+    // Get all student list (DB-backed if available)
     getAllStudents: async () => {
         if (checkDBConnection() && StudentModel) {
             const docs = await StudentModel.find({}).lean().exec();
@@ -661,7 +661,7 @@ const studentService = {
     resetState: async () => {
         if (checkDBConnection() && StudentModel) {
             try {
-                // 重置所有學生的 preferences 和提交狀態
+                // Reset all students' preferences and submission status
                 await StudentModel.updateMany(
                     {},
                     {
@@ -676,7 +676,7 @@ const studentService = {
                     }
                 ).exec();
                 
-                // 重置所有項目的 popularity 和 proposal 相關狀態
+                // Reset all projects' popularity and proposal-related status
                 if (ProjectModel) {
                     await ProjectModel.updateMany(
                         {},

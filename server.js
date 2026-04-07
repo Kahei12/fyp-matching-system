@@ -4,15 +4,15 @@ const { Parser } = require('json2csv');
 const app = express();
 const port = 3000;
 
-// GPA 生成函數：隨機生成 2.5x - 3.8x
+// GPA Generation Function: randomly generates 2.5x - 3.8x
 function generateRandomGPA() {
     const minGPA = 2.5;
     const maxGPA = 3.8;
     const gpa = Math.random() * (maxGPA - minGPA) + minGPA;
-    return Math.round(gpa * 100) / 100; // 保留兩位小數
+    return Math.round(gpa * 100) / 100; // keep two decimal places
 }
 
-// 中介軟體
+// Middleware
 app.use(express.json());
 
 // load env and attempt DB connection
@@ -31,34 +31,34 @@ if (process.env.MONGO_URI) {
         tlsAllowInvalidHostnames: true,
     };
 
-    console.log('🔄 正在連接 MongoDB Atlas...');
+    console.log('Connecting to MongoDB Atlas...');
 
     mongoose.connection.on('connected', async () => {
-        console.log('✅ MongoDB 連接成功');
+        console.log('MongoDB connected successfully');
         try {
             await ensureDatabaseSeeded();
         } catch (e) {
-            console.error('❌ ensureDatabaseSeeded (on connected):', e.message);
+            console.error('ensureDatabaseSeeded (on connected):', e.message);
         }
     });
 
     mongoose.connection.on('error', (err) => {
-        console.error('❌ MongoDB 連接錯誤:', err.message.split('\n')[0]);
+        console.error('MongoDB connection error:', err.message.split('\n')[0]);
     });
 
     mongoose.connection.on('disconnected', () => {
-        console.log('⚠️ MongoDB 連接已斷開');
+        console.log('MongoDB disconnected');
     });
 
     mongoose.connection.on('reconnected', () => {
-        console.log('🔄 MongoDB 已重新連接');
+        console.log('MongoDB reconnected');
     });
 
     mongoose.connect(process.env.MONGO_URI, mongooseOptions)
         .then(() => console.log('✅ Connected to MongoDB'))
         .catch(err => {
             console.error('❌ MongoDB connection error:', err.message.split('\n')[0]);
-            console.log('⚠️ 將使用模擬數據運行...');
+            console.log('Will run with mock data...');
         });
 } else {
     console.log('⚠️ MONGO_URI not set — API needs MongoDB; seed and data features will be unavailable');
@@ -107,15 +107,15 @@ function resolveTeacherDbEmail(email) {
     return TEACHER_LOGIN_ALIASES[e] || String(email || '').trim();
 }
 
-// 用戶資料（會自動初始化）
+// User data (auto-initialized)
 let users = [];
 
-// 🔥 自動初始化用戶資料
+// Auto-initialize user data
 async function initializeUsers() {
     const adminPassword = await bcrypt.hash('admin123', 10);
     const studentPassword = await bcrypt.hash('00000000', 10);
 
-    console.log('🔑 自動生成的密碼雜湊完成');
+    console.log('Auto-generated password hashes completed');
     
     users = [
         {
@@ -135,27 +135,27 @@ async function initializeUsers() {
         }
     ];
     
-    console.log('✅ 用戶資料初始化完成');
-    console.log('📧 測試帳號:');
+    console.log('User data initialization completed');
+    console.log('Test accounts:');
     console.log('   Admin: admin@hkmu.edu.hk / admin123');
     console.log('   Student: s001@hkmu.edu.hk / 00000000');
     console.log('   Teacher: t001–t008@hkmu.edu.hk / 00000001–00000008 (MongoDB seed)');
     console.log('   Teacher alias: teacher@hkmu.edu.hk → t001, same password as t001');
 }
 
-// 登入 API 路由
+// Login API route
 app.post('/login', async (req, res) => {
-    console.log('📨 收到登入請求:', req.body);
+    console.log('Received login request:', req.body);
     
     const { email: emailRaw, password } = req.body;
     const emailNorm = String(emailRaw || '').trim().toLowerCase();
     const email = emailNorm; // use normalized email for DB and comparisons
     
-    // 首先檢查本地 users 數組（不區分大小寫）
+    // First check local users array (case-insensitive)
     let user = users.find(u => u.email.toLowerCase() === emailNorm);
     
-    // 如果是測試學生帳號 s001@hkmu.edu.hk，檢查並更新 MongoDB 中的 SID
-            if (emailNorm === 's001@hkmu.edu.hk') {
+    // For test student account s001@hkmu.edu.hk, check and update SID in MongoDB
+    if (emailNorm === 's001@hkmu.edu.hk') {
         try {
             const mongoose = require('mongoose');
             const isDbConnected = mongoose.connection.readyState === 1;
@@ -165,40 +165,40 @@ app.post('/login', async (req, res) => {
                 const student = await Student.findOne(emailQueryInsensitive(emailNorm)).exec();
                 
                 if (student) {
-                    // 確保測試學生的 SID 是 s001
+                    // Ensure test student's SID is s001
                     if (student.id !== 's001') {
-                        console.log(`🔄 更新測試學生 SID: ${student.id} -> s001`);
+                        console.log(`Updating test student SID: ${student.id} -> s001`);
                         student.id = 's001';
                         await student.save();
                     }
-                    // 確保 major 是 Computer and Cyber Security
+                    // Ensure major is Computer and Cyber Security
                     if (student.major !== 'Computer and Cyber Security') {
-                        console.log(`🔄 更新測試學生 Major: ${student.major} -> Computer and Cyber Security`);
+                        console.log(`Updating test student Major: ${student.major} -> Computer and Cyber Security`);
                         student.major = 'Computer and Cyber Security';
                         await student.save();
                     }
                 }
             }
         } catch (err) {
-            console.error('❌ 更新測試學生 SID/Major 錯誤:', err);
+            console.error('Update test student SID/Major error:', err);
         }
     }
     
-    // 如果本地沒有找到，且是學生 email 格式，檢查 MongoDB
+    // If not found locally, and is student email format, check MongoDB
     if (!user && emailNorm.includes('@hkmu.edu.hk')) {
         try {
             const mongoose = require('mongoose');
             const isDbConnected = mongoose.connection.readyState === 1;
 
             if (isDbConnected) {
-                // 先當作學生
+                // Try as student first
                 const Student = require('./models/Student');
                 const student = await Student.findOne(emailQueryInsensitive(emailNorm)).exec();
 
-                console.log('🔍 Login - student from DB:', JSON.stringify(student));
+                console.log('Login - student from DB:', JSON.stringify(student));
 
-                if (student) {
-                    console.log('🔍 Login - mustChangePassword from DB:', student.mustChangePassword);
+                    if (student) {
+                        console.log('Login - mustChangePassword from DB:', student.mustChangePassword);
                     if (student.password && student.password.startsWith('$2')) {
                         const isMatch = await bcrypt.compare(password, student.password);
                         if (isMatch) {
@@ -226,7 +226,7 @@ app.post('/login', async (req, res) => {
                         };
                     }
                 } else {
-                    // 再當作老師（別名帳號對應到正式教師郵箱驗證密碼）
+                    // Try as teacher (alias account maps to canonical teacher email for password verification)
                     const Teacher = require('./models/Teacher');
                     const teacherLookupEmail = TEACHER_LOGIN_ALIASES[emailNorm] || emailNorm;
                     const teacher = await Teacher.findOne(emailQueryInsensitive(teacherLookupEmail)).exec();
@@ -258,29 +258,28 @@ app.post('/login', async (req, res) => {
                 }
             }
         } catch (err) {
-            console.error('❌ 檢查 MongoDB 用戶錯誤:', err);
+            console.error('MongoDB user check error:', err);
         }
     }
     
-    // 如果本地找到用戶
+    // If user found locally
     if (user) {
-        // 如果是本地用戶（admin/teacher/student），需要 bcrypt 驗證密碼
+        // For local users (admin/teacher/student), need bcrypt password verification
         const localUser = users.find(u => u.email.toLowerCase() === emailNorm);
         if (localUser) {
             const isMatch = await bcrypt.compare(password, localUser.password);
             if (!isMatch) {
-                console.log('❌ 密碼錯誤');
+                console.log('Incorrect password');
                 return res.json({ success: false, message: 'Email or password is incorrect' });
             }
         }
         
-        // 測試學生：先確保 MongoDB 中 SID 是正確的，再取回作為回傳值
+        // Test student: ensure SID is correct in MongoDB first, then retrieve as return value
         if (emailNorm === 's001@hkmu.edu.hk') {
             try {
                 const mongoose = require('mongoose');
                 if (mongoose.connection.readyState === 1) {
                     const Student = require('./models/Student');
-                    // find + update in one atomic op (upsert avoids "no matching document" issues)
                     const updated = await Student.findOneAndUpdate(
                         emailQueryInsensitive(emailNorm),
                         { $set: { id: 's001', major: 'Computer and Cyber Security' } },
@@ -292,11 +291,11 @@ app.post('/login', async (req, res) => {
                     }
                 }
             } catch (e) {
-                console.error('❌ 同步測試學生 SID/Major:', e.message);
+                console.error('Sync test student SID/Major error:', e.message);
             }
         }
 
-        // 教師：以 MongoDB 的 major 為準（避免本地 users 與 DB 不一致、或舊文檔缺欄位）
+        // Teacher: use MongoDB major as authoritative (to avoid mismatch between local users and DB, or missing fields in old documents)
         if (user.role === 'teacher') {
             try {
                 const mongoose = require('mongoose');
@@ -311,15 +310,15 @@ app.post('/login', async (req, res) => {
                     }
                 }
             } catch (e) {
-                console.error('❌ 同步教師 Major:', e.message);
+                console.error('Sync teacher major error:', e.message);
             }
             if (!user.major && localUser && localUser.major) {
                 user.major = localUser.major;
             }
         }
         
-        // 登入成功
-        console.log('✅ 登入成功，用戶角色:', user.role, '| studentId:', user.studentId, '| major:', user.major);
+        // Login successful
+        console.log('Login successful, user role:', user.role, '| studentId:', user.studentId, '| major:', user.major);
         return res.json({ 
             success: true,
             message: `Login successful! Welcome, ${user.name || user.role}.`,
@@ -337,7 +336,7 @@ app.post('/login', async (req, res) => {
         });
     }
     
-    console.log('❌ 用戶不存在');
+    console.log('User not found');
     return res.json({ success: false, message: 'Email or password is incorrect' });
 });
 
@@ -400,48 +399,48 @@ app.post('/api/change-password', async (req, res) => {
     }
 });
 
-// 注意：HTML 頁面路由已移除，React 版本通過 Vite 開發伺服器提供前端
-// 此伺服器僅提供 API 端點
+// Note: HTML page routes have been removed. React version serves frontend via Vite dev server.
+// This server only provides API endpoints.
 
-// 🔥 引入服務層 - 放在路由之前
+// Import service layer - placed before routes
 try {
     const studentService = require('./services/studentService');
     
-    // 從 studentService 獲取 dbEnabled 狀態
+    // Get dbEnabled status from studentService
     let dbEnabled = false;
     let ProjectModel = null;
     let StudentModel = null;
     
-    // 嘗試獲取模型
+    // Try to get models
     try {
         ProjectModel = require('./models/Project');
         StudentModel = require('./models/Student');
-        // 檢查數據庫連接狀態
+        // Check database connection status
         const mongoose = require('mongoose');
         if (mongoose.connection.readyState === 1) {
             dbEnabled = true;
-            console.log('✅ Teacher API: MongoDB 已連接，啟用數據庫模式');
+            console.log('Teacher API: MongoDB connected, database mode enabled');
         }
     } catch (e) {
-        console.log('⚠️ Teacher API: 模型加載失敗');
+        console.log('Teacher API: Model loading failed');
     }
     
-    // 📊 Student API 路由
+    // Student API routes
     app.get('/api/student/projects', async (req, res) => {
-        console.log('📋 請求項目列表 | major query:', req.query.major);
+        console.log('Requesting project list | major query:', req.query.major);
         try {
             const studentMajor = req.query.major || '';
             const projects = await studentService.getAvailableProjects(studentMajor);
-            console.log(`📋 返回 ${projects.length} 個項目`);
+            console.log(`Returning ${projects.length} projects`);
             res.json({ success: true, projects });
         } catch (error) {
-            console.error('❌ 獲取項目錯誤:', error);
+            console.error('Get projects error:', error);
             res.json({ success: false, message: 'Failed to load projects' });
         }
     });
 
     app.get('/api/student/:id', async (req, res) => {
-        console.log('👤 請求學生信息:', req.params.id);
+        console.log('Requesting student info:', req.params.id);
         try {
             const student = await studentService.getStudent(req.params.id);
             if (!student) {
@@ -449,37 +448,37 @@ try {
             }
             res.json({ success: true, student });
         } catch (error) {
-            console.error('❌ 獲取學生信息錯誤:', error);
+            console.error('Get student info error:', error);
             res.json({ success: false, message: 'Failed to load student info' });
         }
     });
 
     app.get('/api/student/:id/preferences', async (req, res) => {
-        console.log('⭐ 請求學生偏好:', req.params.id);
+        console.log('Requesting student preferences:', req.params.id);
         try {
             const preferences = await studentService.getStudentPreferences(req.params.id);
             res.json({ success: true, preferences });
         } catch (error) {
-            console.error('❌ 獲取偏好錯誤:', error);
+            console.error('Get preferences error:', error);
             res.json({ success: false, message: 'Failed to load preferences' });
         }
     });
 
     app.post('/api/student/:id/preferences', async (req, res) => {
-        console.log('➕ 添加偏好:', { studentId: req.params.id, projectId: req.body.projectId });
+        console.log('Adding preference:', { studentId: req.params.id, projectId: req.body.projectId });
         try {
             const projectId = req.body.projectId;
             const result = await studentService.addPreference(req.params.id, projectId);
             res.json(result);
         } catch (error) {
-            console.error('❌ 添加偏好錯誤:', error);
+            console.error('Add preference error:', error);
             res.json({ success: false, message: 'Failed to add preference' });
         }
     });
 
-    // 設定整個 preferences（由學生 Submit 發起）
+    // Set entire preferences (initiated by student Submit)
     app.post('/api/student/:id/preferences/set', async (req, res) => {
-        console.log('🔧 設定偏好 (set):', { studentId: req.params.id, body: req.body });
+        console.log('Setting preferences (set):', { studentId: req.params.id, body: req.body });
         try {
             // Accept either { preferences: [..] } or single { projectId: x } for convenience
             let prefs = req.body && req.body.preferences;
@@ -489,14 +488,14 @@ try {
             const result = await studentService.setPreferences(req.params.id, prefs || []);
             res.json(result);
         } catch (error) {
-            console.error('❌ 設定偏好錯誤:', error);
+            console.error('Set preferences error:', error);
             res.status(500).json({ success: false, message: 'Failed to set preferences' });
         }
     });
     
     // Clear student's preferences on server (used when submitted)
     app.delete('/api/student/:id/preferences/clear', async (req, res) => {
-        console.log('🧹 清除學生偏好 (server clear):', req.params.id);
+        console.log('Clear student preferences (server clear):', req.params.id);
         try {
             const student = await studentService.getStudent(req.params.id);
             if (!student) {
@@ -506,67 +505,67 @@ try {
             const result = await studentService.setPreferences(req.params.id, []);
             res.json(result || { success: true, message: 'Preferences cleared' });
         } catch (error) {
-            console.error('❌ 清除偏好錯誤:', error);
+            console.error('Clear preferences error:', error);
             res.status(500).json({ success: false, message: 'Failed to clear preferences' });
         }
     });
 
     app.delete('/api/student/:id/preferences/:projectId', async (req, res) => {
-        console.log('➖ 移除偏好:', { studentId: req.params.id, projectId: req.params.projectId });
+        console.log('Remove preference:', { studentId: req.params.id, projectId: req.params.projectId });
         try {
             const projectId = req.params.projectId;
             const result = await studentService.removePreference(req.params.id, projectId);
             res.json(result);
         } catch (error) {
-            console.error('❌ 移除偏好錯誤:', error);
+            console.error('Remove preference error:', error);
             res.json({ success: false, message: 'Failed to remove preference' });
         }
     });
 
     app.put('/api/student/:id/preferences/:projectId/move', async (req, res) => {
-        console.log('🔄 移動偏好:', { studentId: req.params.id, projectId: req.params.projectId, direction: req.body.direction });
+        console.log('Move preference:', { studentId: req.params.id, projectId: req.params.projectId, direction: req.body.direction });
         try {
             const projectId = req.params.projectId;
             const { direction } = req.body;
             const result = await studentService.movePreference(req.params.id, projectId, direction);
             res.json(result);
         } catch (error) {
-            console.error('❌ 移動偏好錯誤:', error);
+            console.error('Move preference error:', error);
             res.json({ success: false, message: 'Failed to move preference' });
         }
     });
 
     app.put('/api/student/:id/preferences/reorder', async (req, res) => {
-        console.log('🔄 重新排序偏好:', { studentId: req.params.id, order: req.body.order });
+        console.log('Reorder preferences:', { studentId: req.params.id, order: req.body.order });
         try {
             const { order } = req.body;
             // pass order through (studentService will normalize types)
             const result = await studentService.reorderPreferences(req.params.id, order);
             res.json(result);
         } catch (error) {
-            console.error('❌ 重新排序偏好錯誤:', error);
+            console.error('Reorder preferences error:', error);
             res.json({ success: false, message: 'Failed to reorder preferences' });
         }
     });
 
     app.post('/api/student/:id/preferences/submit', async (req, res) => {
-        console.log('📤 提交偏好:', req.params.id);
+        console.log('Submit preferences:', req.params.id);
         try {
             const result = await studentService.submitPreferences(req.params.id);
             res.json(result);
         } catch (error) {
-            console.error('❌ 提交偏好錯誤:', error);
+            console.error('Submit preferences error:', error);
             res.json({ success: false, message: 'Failed to submit preferences' });
         }
     });
 
     app.get('/api/system/status', async (req, res) => {
-        console.log('⚙️ 請求系統狀態');
+        console.log('Requesting system status');
         try {
             const status = await studentService.getSystemStatus();
             res.json({ success: true, ...status });
         } catch (error) {
-            console.error('❌ 獲取系統狀態錯誤:', error);
+            console.error('Get system status error:', error);
             res.json({ success: false, message: 'Failed to load system status' });
         }
     });
@@ -576,7 +575,7 @@ try {
             const deadlines = await studentService.getDeadlines();
             res.json({ success: true, deadlines });
         } catch (error) {
-            console.error('❌ 獲取截止日期錯誤:', error);
+            console.error('Get deadlines error:', error);
             res.status(500).json({ success: false, message: 'Failed to load deadlines' });
         }
     });
@@ -586,14 +585,14 @@ try {
             const result = await studentService.updateDeadlines(req.body || {});
             res.json(result);
         } catch (error) {
-            console.error('❌ 更新截止日期錯誤:', error);
+            console.error('Update deadlines error:', error);
             res.status(500).json({ success: false, message: 'Failed to update deadlines' });
         }
     });
 
-    // 自動駁回所有未審批的學生提案（截止日已過）
+    // Auto-reject all unapproved student proposals (after deadline has passed)
     app.post('/api/admin/auto-reject-proposals', async (req, res) => {
-        console.log('🔔 自動駁回過期提案請求');
+        console.log('Auto-reject expired proposals request');
         try {
             const deadlines = await studentService.getDeadlines();
             const reviewDeadline = deadlines.teacherProposalReview
@@ -605,7 +604,7 @@ try {
                 return res.json({ success: false, message: 'Deadline not yet passed' });
             }
 
-            // 找出所有未處理的 pending 提案
+            // Find all pending proposals that haven't been processed
             const pendingProposals = await Project.find({
                 type: 'student',
                 proposalStatus: 'pending',
@@ -620,17 +619,17 @@ try {
                 rejected++;
             }
 
-            console.log(`✅ 已自動駁回 ${rejected} 個過期提案`);
+            console.log(`Auto-rejected ${rejected} expired proposals`);
             res.json({ success: true, message: `Auto-rejected ${rejected} expired proposals`, count: rejected });
         } catch (error) {
-            console.error('❌ Auto-reject error:', error);
+            console.error('Auto-reject error:', error);
             res.status(500).json({ success: false, message: 'Auto-reject failed' });
         }
     });
 
-    // 匯出 API
+    // Export API
     app.get('/api/export/matching-results', async (req, res) => {
-        console.log('📊 導出配對結果');
+        console.log('Export matching results');
         try {
             const matchingResults = await studentService.getMatchingResults();
             const csvData = matchingResults.results.map(result => ({
@@ -651,13 +650,13 @@ try {
             res.attachment('matching_results.csv');
             res.send(csv);
         } catch (error) {
-            console.error('❌ 導出配對結果錯誤:', error);
+            console.error('Export matching results error:', error);
             res.status(500).json({ success: false, message: 'Failed to export matching results' });
         }
     });
 
     app.get('/api/export/student-list', async (req, res) => {
-        console.log('👥 導出學生清單');
+        console.log('Export student list');
         try {
             const students = await studentService.getAllStudents();
             const csvData = students.map(student => ({
@@ -678,13 +677,13 @@ try {
             res.attachment('student_list.csv');
             res.send(csv);
         } catch (error) {
-            console.error('❌ 導出學生清單錯誤:', error);
+            console.error('Export student list error:', error);
             res.status(500).json({ success: false, message: 'Failed to export student list' });
         }
     });
 
     app.get('/api/export/project-list', async (req, res) => {
-        console.log('📋 導出項目清單');
+        console.log('Export project list');
         try {
             const projects = await studentService.getAvailableProjects();
             const csvData = projects.map(project => ({
@@ -707,7 +706,7 @@ try {
             res.attachment('project_list.csv');
             res.send(csv);
         } catch (error) {
-            console.error('❌ 導出項目清單錯誤:', error);
+            console.error('Export project list error:', error);
             res.status(500).json({ success: false, message: 'Failed to export project list' });
         }
     });
@@ -732,21 +731,21 @@ try {
 
     // Matching endpoints
     app.post('/api/match/run', async (req, res) => {
-        console.log('▶️ 執行配對 (runMatching)');
+        console.log('Running matching algorithm (runMatching)');
         try {
             const result = await studentService.runMatching();
             res.json(result);
         } catch (error) {
-            console.error('❌ 執行配對錯誤:', error);
+            console.error('Run matching error:', error);
             res.status(500).json({ success: false, message: 'Failed to run matching' });
         }
     });
 
     app.get('/api/match/results', async (req, res) => {
-        console.log('📄 取得配對結果 (getMatchingResults)');
+        console.log('Getting matching results (getMatchingResults)');
         try {
             const result = await studentService.getMatchingResults();
-            // result 可能是 { results, matchingCompleted } 或只是 results 數組
+            // result may be { results, matchingCompleted } or just results array
             if (result && typeof result === 'object' && 'results' in result) {
                 res.json({ 
                     success: true, 
@@ -754,13 +753,13 @@ try {
                     results: result.results || [] 
                 });
             } else {
-                // 兼容舊格式
+                // Legacy format compatibility
                 const results = Array.isArray(result) ? result : [];
                 const matchingCompleted = results.some(r => r.studentId !== null);
                 res.json({ success: true, matchingCompleted, results });
             }
         } catch (error) {
-            console.error('❌ 獲取配對結果錯誤:', error);
+            console.error('Get matching results error:', error);
             res.status(500).json({ success: false, message: 'Failed to get matching results' });
         }
     });
@@ -793,11 +792,11 @@ try {
 
     // Student submits a proposal
     app.post('/api/student/proposal', async (req, res) => {
-        console.log('📝 學生提交提議', req.body);
+        console.log('Student submits proposal', req.body);
         try {
             const { studentId, title, description, skills } = req.body;
             
-            console.log('📝 Received - title:', title, 'description:', description, 'skills:', skills);
+            console.log('Received - title:', title, 'description:', description, 'skills:', skills);
             
             if (!studentId || !title || !description) {
                 return res.status(400).json({ success: false, message: 'Missing required fields' });
@@ -809,7 +808,7 @@ try {
             const Student = require('./models/Student');
             
             if (isDbConnected && Project && Student) {
-                // 獲取學生信息
+                // Get student info
                 const student = await Student.findOne({ id: studentId }).exec();
                 if (!student) {
                     return res.status(404).json({ success: false, message: 'Student not found' });
@@ -826,20 +825,20 @@ try {
                     capacity: 1,
                     type: 'student',                    // Mark as student-proposed
                     category: 'Student Proposed',
-                    department: student.major || 'ECE', // 設置為學生的 major
-                    major: student.major || 'ECE',       // 新增 major 字段
-                    status: 'Under Review',              // 等待老師審批
+                    department: student.major || 'ECE', // Set to student's major
+                    major: student.major || 'ECE',       // New major field
+                    status: 'Under Review',              // Waiting for teacher review
                     proposalStatus: 'pending',
                     popularity: 0,
-                    proposedBy: studentId,             // 學生ID
-                    proposedByName: student.name,       // 學生名字
-                    proposedByEmail: student.email,     // 學生email
-                    teacherReviews: [],                 // 老師審批記錄
+                    proposedBy: studentId,             // Student ID
+                    proposedByName: student.name,       // Student name
+                    proposedByEmail: student.email,     // Student email
+                    teacherReviews: [],                 // Teacher review records
                     createdAt: new Date()
                 });
                 
                 await newProject.save();
-                console.log('✅ Student proposal saved:', newProject);
+                console.log('Student proposal saved:', newProject);
                 
                 // Update student's proposal status
                 student.proposalSubmitted = true;
@@ -863,8 +862,8 @@ try {
                 });
             }
             
-            // Mock mode fallback - 當數據庫未連接時
-            console.log('⚠️ Database not connected - Mock mode for student proposal');
+            // Mock mode fallback - when database is not connected
+            console.log('Database not connected - Mock mode for student proposal');
             const projectCode = `S${Date.now().toString().slice(-6)}`;
             
             return res.json({ 
@@ -882,14 +881,14 @@ try {
                 }
             });
         } catch (error) {
-            console.error('❌ 提交提議錯誤:', error);
+            console.error('Submit proposal error:', error);
             res.status(500).json({ success: false, message: 'Failed to submit proposal: ' + error.message });
         }
     });
 
     // Get student's proposal status
     app.get('/api/student/:studentId/proposal', async (req, res) => {
-        console.log('📋 獲取學生提議狀態');
+        console.log('Get student proposal status');
         try {
             const { studentId } = req.params;
             
@@ -924,38 +923,38 @@ try {
             
             res.json({ success: true, proposal: null });
         } catch (error) {
-            console.error('❌ 獲取提議錯誤:', error);
+            console.error('Get proposal error:', error);
             res.status(500).json({ success: false, message: 'Failed to get proposal' });
         }
     });
 
     // Get all proposals (for Teacher/Admin)
     app.get('/api/proposals/all', async (req, res) => {
-        console.log('📋 獲取所有學生提議');
+        console.log('Get all student proposals');
         try {
             const isDbConnected = checkDbConnection();
             const Project = require('./models/Project');
             const Student = require('./models/Student');
             
             if (isDbConnected && Project && Student) {
-                // 使用新的 type: 'student' 字段
+                // Use new type: 'student' field
                 const proposals = await Project.find({ type: 'student' }).lean().exec();
                 
                 // Enrich with student info
                 const enrichedProposals = await Promise.all(proposals.map(async (proposal) => {
                     const student = await Student.findOne({ proposedProject: proposal._id }).exec();
                     
-                    // 計算顯示狀態
-                    // 只有當所有老師都reject了，或者deadline過了，才顯示rejected
-                    // 否則顯示pending
+                    // Calculate display status
+                    // Only show rejected when all teachers have rejected, or deadline has passed
+                    // Otherwise show pending
                     let displayStatus = proposal.proposalStatus;
                     if (displayStatus === 'rejected') {
-                        // 檢查是否所有老師都reject了
+                        // Check if all teachers have rejected
                         const hasAnyApproval = proposal.teacherReviews?.some(r => r.decision === 'approve');
                         if (!hasAnyApproval) {
-                            // 所有老師都沒有approve，檢查是否deadline過了
-                            // 這裡我們假設 deadline logic 會在之後實裝
-                            // 目前只要有reject記錄就顯示rejected
+                            // All teachers have not approved, check if deadline has passed
+                            // Assume deadline logic will be implemented later
+                            // Currently just show rejected if there's any reject record
                         }
                     }
                     
@@ -966,7 +965,7 @@ try {
                         studentEmail: student?.email || proposal.proposedByEmail || '',
                         studentGpa: student?.gpa || 0,
                         studentMajor: student?.major || '',
-                        displayStatus: displayStatus // 前端使用的顯示狀態
+                        displayStatus: displayStatus // Display status for frontend
                     };
                 }));
                 
@@ -975,17 +974,17 @@ try {
             
             res.json({ success: true, proposals: [], message: 'MongoDB required for proposals' });
         } catch (error) {
-            console.error('❌ 獲取所有提議錯誤:', error);
+            console.error('Get all proposals error:', error);
             res.status(500).json({ success: false, message: 'Failed to get proposals' });
         }
     });
     
     // Get proposals for specific teacher
-    // 返回所有 student-proposed 項目，包括未審核的
-    // 老師可以approve/reject 尚未被任何老師審核的項目
-    // 只返回與老師 major 相關的 proposals
+    // Return all student-proposed projects including un-reviewed
+    // Teachers can approve/reject projects that haven't been reviewed by any teacher
+    // Only return proposals related to teacher's major
     app.get('/api/teacher/student-proposals', async (req, res) => {
-        console.log('📋 獲取老師的學生提議（包含未審核，按major過濾）');
+        console.log('Get teacher student proposals (including un-reviewed, filtered by major)');
         try {
             const teacherEmail = req.query.email || req.headers['x-teacher-email'];
             const teacherEmailLower = teacherEmail?.toLowerCase();
@@ -994,13 +993,13 @@ try {
             const Student = require('./models/Student');
             const Teacher = require('./models/Teacher');
             
-            // 獲取老師的 major
+            // Get teacher's major
             let teacherMajor = '';
             if (isDbConnected && Teacher && teacherEmail) {
                 const teacher = await Teacher.findOne(emailQueryInsensitive(resolveTeacherDbEmail(teacherEmail))).lean().exec();
                 teacherMajor = teacher?.major || '';
             }
-            console.log('👤 老師 major:', teacherMajor);
+            console.log('Teacher major:', teacherMajor);
             
             if (isDbConnected && Project && Student) {
                 const proposals = await Project.find({ type: 'student' }).lean().exec();
@@ -1025,10 +1024,10 @@ try {
                     const reviews = proposal.teacherReviews || [];
                     const myReview = reviews.find(r => r.teacherEmail?.toLowerCase() === teacherEmailLower);
                     
-                    // 獲取提出這個 proposal 的學生
+                    // Get the student who submitted this proposal
                     const student = await Student.findOne({ proposedProject: proposal._id }).exec();
                     
-                    // 檢查是否有其他老師的 approve
+                    // Check if there's approval from another teacher
                     const otherApproval = reviews.find(r => 
                         r.decision === 'approve' && r.teacherEmail?.toLowerCase() !== teacherEmailLower
                     );
@@ -1047,20 +1046,20 @@ try {
                     };
                 }));
                 
-                console.log('📋 老師的 student proposals (含未審核):', enrichedProposals.length);
+                console.log('Teacher student proposals (including un-reviewed):', enrichedProposals.length);
                 return res.json({ success: true, proposals: enrichedProposals });
             }
             
             res.json({ success: true, proposals: [] });
         } catch (error) {
-            console.error('❌ 獲取老師的學生提議錯誤:', error);
+            console.error('Get teacher student proposals error:', error);
             res.status(500).json({ success: false, message: 'Failed to get teacher proposals' });
         }
     });
 
     // Approve/Reject proposal
     app.put('/api/proposals/:proposalId/status', async (req, res) => {
-        console.log('✏️ 更新提議狀態');
+        console.log('Update proposal status');
         try {
             const { proposalId } = req.params;
             const { status, supervisorEmail, supervisorName, teacherId } = req.body; 
@@ -1079,12 +1078,12 @@ try {
                     return res.status(404).json({ success: false, message: 'Proposal not found' });
                 }
                 
-                // 初始化 teacherReviews 數組
+                // Initialize teacherReviews array
                 if (!project.teacherReviews) {
                     project.teacherReviews = [];
                 }
                 
-                // 找到或創建當前老師的review記錄
+                // Find or create current teacher's review record
                 let reviewIndex = project.teacherReviews.findIndex(r => r.teacherEmail === teacherId || r.teacherEmail === supervisorEmail);
                 const reviewRecord = {
                     teacherEmail: teacherId || supervisorEmail,
@@ -1099,15 +1098,15 @@ try {
                     project.teacherReviews.push(reviewRecord);
                 }
                 
-                // 根據decision更新項目狀態
+                // Update project status based on decision
                 if (status === 'approve') {
                     project.status = 'Approved';
                     project.supervisorEmail = teacherId || supervisorEmail;
                     project.supervisor = supervisorName || supervisorEmail?.split('@')[0] || 'Assigned';
                     project.proposalStatus = 'approved';
                 } else {
-                    // reject: 檢查是否所有老師都reject了
-                    // 如果有至少一個approve，整體是approved
+                    // reject: check if all teachers have rejected
+                    // if at least one approve exists, overall is approved
                     const hasApproval = project.teacherReviews.some(r => r.decision === 'approve');
                     if (!hasApproval) {
                         project.proposalStatus = 'rejected';
@@ -1143,14 +1142,14 @@ try {
             
             res.status(500).json({ success: false, message: 'Database not available' });
         } catch (error) {
-            console.error('❌ 更新提議狀態錯誤:', error);
+            console.error('Update proposal status error:', error);
             res.status(500).json({ success: false, message: 'Failed to update proposal status' });
         }
     });
 
     // Check if student is already assigned (either through proposal approval or matching)
     app.get('/api/student/:studentId/assignment-status', async (req, res) => {
-        console.log('📋 檢查學生分配狀態');
+        console.log('Check student assignment status');
         try {
             const { studentId } = req.params;
             
@@ -1196,7 +1195,7 @@ try {
             
             res.json({ success: true, isAssigned: false, assignmentType: null });
         } catch (error) {
-            console.error('❌ 檢查分配狀態錯誤:', error);
+            console.error('Check assignment status error:', error);
             res.json({ success: true, isAssigned: false, assignmentType: null });
         }
     });
@@ -1207,7 +1206,7 @@ try {
 
     // Get single teacher by email
     app.get('/api/teachers/:email', async (req, res) => {
-        console.log('👤 請求教師資料:', req.params.email);
+        console.log('Request teacher info:', req.params.email);
         try {
             const teacherEmail = decodeURIComponent(req.params.email || '').trim();
             const emailNorm = teacherEmail.toLowerCase();
@@ -1254,7 +1253,7 @@ try {
                 },
             });
         } catch (error) {
-            console.error('❌ Error fetching teacher:', error);
+            console.error('Error fetching teacher:', error);
             res.status(500).json({ success: false, message: 'Server error' });
         }
     });
@@ -1262,7 +1261,7 @@ try {
     // Get all projects (for teacher to browse other teachers' projects)
     // Excludes projects from the specified teacher email
     app.get('/api/projects/all', async (req, res) => {
-        console.log('📋 請求所有項目列表（排除指定老師）');
+        console.log('Request all projects (excluding specified teacher)');
         try {
             const excludeTeacher = req.query.excludeTeacher || '';
             const excludeEmailLower = excludeTeacher.toLowerCase();
@@ -1271,11 +1270,11 @@ try {
             const Project = require('./models/Project');
             
             if (isDbConnected && Project) {
-                // 只獲取 teacher-proposed 項目（排除 student-proposed）
+                // Only get teacher-proposed projects (exclude student-proposed)
                 const allDocs = await Project.find({ type: { $ne: 'student' } }).lean().exec();
                 
                 const filteredProjects = allDocs.filter(doc => {
-                    // 排除指定老師的項目
+                    // Exclude projects from specified teacher
                     if (doc.supervisorEmail && doc.supervisorEmail.toLowerCase() === excludeEmailLower) {
                         return false;
                     }
@@ -1294,7 +1293,7 @@ try {
             // Mock mode
             res.json({ success: true, projects: [] });
         } catch (error) {
-            console.error('❌ 獲取所有項目錯誤:', error);
+            console.error('Get all projects error:', error);
             res.status(500).json({ success: false, message: 'Failed to load projects' });
         }
     });
@@ -1310,10 +1309,10 @@ try {
     };
 
     // Get teacher's projects 
-    // 包括：老師自己創建的 teacher-proposed 項目 + 老師approve的 student-proposed 項目
-    // 按老師的 major 過濾：ECE 老師只看 ECE 項目，CCS 老師只看 CCS 項目
+    // Includes: teacher-created teacher-proposed projects + teacher-approved student-proposed projects
+    // Filter by teacher's major: ECE teachers see only ECE projects, CCS teachers see only CCS projects
     app.get('/api/teacher/projects', async (req, res) => {
-        console.log('📋 請求導師項目列表');
+        console.log('Requesting teacher project list');
         try {
             const teacherEmail = req.query.email || req.headers['x-teacher-email'];
             if (!teacherEmail) {
@@ -1322,7 +1321,7 @@ try {
 
             const teacherEmailResolved = resolveTeacherDbEmail(teacherEmail);
             
-            console.log('📧 教師郵箱:', teacherEmail);
+            console.log('Teacher email:', teacherEmail);
             
             const isDbConnected = teacherCheckDbConnection();
             const Project = require('./models/Project');
@@ -1337,53 +1336,53 @@ try {
                 teacherDbName = (tdoc?.name && String(tdoc.name).trim()) || '';
                 teacherDbId = (tdoc?.teacherId && String(tdoc.teacherId).trim()) || '';
             }
-            console.log('👤 老師 major:', teacherMajor, '| name:', teacherDbName, '| id:', teacherDbId);
+            console.log('Teacher major:', teacherMajor, '| name:', teacherDbName, '| id:', teacherDbId);
             
             if (isDbConnected && Project) {
                 const teacherEmailLower = teacherEmailResolved.toLowerCase();
 
-                // 特殊映射：測試帳號 teacher@hkmu.edu.hk 等同於 Bell（登入後多為 t001@）
+                // Special mapping: test account teacher@hkmu.edu.hk is equivalent to Bell (usually t001@ after login)
                 const SPECIAL_TEACHER_MAP = {
                     'teacher@hkmu.edu.hk': { name: 'Prof. Bell Liu', extract: 'bell' },
                 };
 
-                // 從 email 提取老師名字
+                // Extract teacher name from email
                 // e.g., "teacherBellLiu@hkmu.edu.hk" -> "Bell Liu"
                 // For direct t001/t002 emails, also look up the DB name
                 const extractNameFromEmail = (email) => {
-                    // 檢查特殊映射
+                    // Check special mapping
                     if (SPECIAL_TEACHER_MAP[email.toLowerCase()]) {
                         return SPECIAL_TEACHER_MAP[email.toLowerCase()].extract;
                     }
                     const userPart = email.split('@')[0]; // "teacherBellLiu" or "t002"
-                    // 移除前綴 "teacher" 或 "Teacher"
+                    // Remove prefix "teacher" or "Teacher"
                     let name = userPart.replace(/^teacher(s?)/i, '');
-                    // 在每個大寫字母前加空格，分割成單詞
+                    // Add space before each uppercase letter, split into words
                     name = name.replace(/([A-Z])/g, ' $1').trim();
-                    // 如果只有一個詞，保持原樣
+                    // If only one word, keep as is
                     return name || userPart;
                 };
                 const teacherNameFromEmail = extractNameFromEmail(teacherEmailResolved);
                 const nameForMatch = teacherDbName || teacherNameFromEmail;
-                console.log('👤 Name match string:', nameForMatch, '(email extract:', teacherNameFromEmail + ')');
+                console.log('Name match string:', nameForMatch, '(email extract:', teacherNameFromEmail + ')');
                 
-                // 先獲取所有文檔
+                // Get all documents first
                 const allDocs = await Project.find({}).lean().exec();
-                console.log('📋 總文檔數:', allDocs.length);
+                console.log('Total documents:', allDocs.length);
                 
-                // 過濾條件（只用於 "My Projects"）：
-                // 必須是 teacher-proposed 項目
-                // type === 'student' 的項目屬於 "Student Proposals"，不應顯示在 "My Projects"
+                // Filter conditions (only used for "My Projects"):
+                // Must be teacher-proposed projects
+                // type === 'student' belongs to "Student Proposals", should not show in "My Projects"
                 // 
-                // 規則：
-                // - type === 'student' → 排除（這些屬於 "Student Proposals"）
-                // - type === undefined/null/'' → 視為 teacher-proposed（舊數據兼容）
-                // - type === 'teacher' → 包含
-                // - 按 major 過濾
+                // Rules:
+                // - type === 'student' -> exclude (these belong to "Student Proposals")
+                // - type === undefined/null/'' -> treat as teacher-proposed (legacy data compatibility)
+                // - type === 'teacher' -> include
+                // - filter by major
                 const projects = allDocs.filter(doc => {
-                    // 明確排除 student-proposed 項目
+                    // Explicitly exclude student-proposed projects
                     if (doc.type === 'student') {
-                        console.log('  🚫 排除 student-proposed:', doc.title);
+                        console.log('  Excluding student-proposed:', doc.title);
                         return false;
                     }
                     
@@ -1391,11 +1390,11 @@ try {
                     const pm = majorToFilterCode(doc.major);
                     if (tm && tm !== 'ECE+CCS' && pm) {
                         if (tm === 'ECE' && pm !== 'ECE' && pm !== 'ECE+CCS') {
-                            console.log('  🚫 排除 (major 不匹配 ECE):', doc.title, '| projectMajor:', pm);
+                            console.log('  Excluding (major does not match ECE):', doc.title, '| projectMajor:', pm);
                             return false;
                         }
                         if (tm === 'CCS' && pm !== 'CCS' && pm !== 'ECE+CCS') {
-                            console.log('  🚫 排除 (major 不匹配 CCS):', doc.title, '| projectMajor:', pm);
+                            console.log('  Excluding (major does not match CCS):', doc.title, '| projectMajor:', pm);
                             return false;
                         }
                     }
@@ -1432,7 +1431,7 @@ try {
                     return false;
                 });
                 
-                console.log('✅ 過濾後返回項目數:', projects.length);
+                console.log('Filtered project count:', projects.length);
                 projects.forEach(p => {
                     console.log('  - ', p.title, '| type:', p.type, '| supervisor:', p.supervisor);
                 });
@@ -1468,14 +1467,14 @@ try {
                 res.json({ success: true, projects: [] });
             }
         } catch (error) {
-            console.error('❌ 獲取導師項目錯誤:', error);
+            console.error('Get teacher projects error:', error);
             res.status(500).json({ success: false, message: 'Failed to load teacher projects' });
         }
     });
 
     // Get students who applied to teacher's projects
     app.get('/api/teacher/students', async (req, res) => {
-        console.log('👥 請求導師項目的學生列表');
+        console.log('Requesting teacher project student list');
         try {
             const teacherEmail = req.query.email || req.headers['x-teacher-email'];
             if (!teacherEmail) {
@@ -1527,14 +1526,14 @@ try {
             // Fallback to mock data
             res.json({ success: true, projectsWithApplicants: [] });
         } catch (error) {
-            console.error('❌ 獲取學生列表錯誤:', error);
+            console.error('Get student list error:', error);
             res.status(500).json({ success: false, message: 'Failed to load student applications' });
         }
     });
 
     // Get teacher's supervision list (assigned students after matching)
     app.get('/api/teacher/supervision', async (req, res) => {
-        console.log('📝 請求導師監督列表');
+        console.log('Requesting teacher supervision list');
         try {
             const teacherEmail = req.query.email || req.headers['x-teacher-email'];
             if (!teacherEmail) {
@@ -1571,15 +1570,15 @@ try {
             
             res.json({ success: true, supervisionList: [] });
         } catch (error) {
-            console.error('❌ 獲取監督列表錯誤:', error);
+            console.error('Get supervision list error:', error);
             res.status(500).json({ success: false, message: 'Failed to load supervision list' });
         }
     });
 
     // Create new project (teacher-proposed)
-    // 根據老師的 major 自動設置項目的 major
+    // Auto-set project major based on teacher's major
     app.post('/api/teacher/projects', async (req, res) => {
-        console.log('➕ 導師創建項目');
+        console.log('Teacher creates project');
         try {
             const teacherEmail = req.body.teacherEmail || req.headers['x-teacher-email'];
             if (!teacherEmail) {
@@ -1647,14 +1646,14 @@ try {
             
             res.status(500).json({ success: false, message: 'Database not available' });
         } catch (error) {
-            console.error('❌ 創建項目錯誤:', error);
+            console.error('Create project error:', error);
             res.status(500).json({ success: false, message: 'Failed to create project' });
         }
     });
 
     // Update project
     app.put('/api/teacher/projects/:projectId', async (req, res) => {
-        console.log('✏️ 導師更新項目', req.params.projectId);
+        console.log('Teacher updates project', req.params.projectId);
         try {
             const { projectId } = req.params;
             const teacherEmail = req.body.teacherEmail || req.headers['x-teacher-email'];
@@ -1716,14 +1715,14 @@ try {
             
             res.status(500).json({ success: false, message: 'Database not available' });
         } catch (error) {
-            console.error('❌ 更新項目錯誤:', error);
+            console.error('Update project error:', error);
             res.status(500).json({ success: false, message: 'Failed to update project: ' + error.message });
         }
     });
 
     // Delete project
     app.delete('/api/teacher/projects/:projectId', async (req, res) => {
-        console.log('🗑️ 導師刪除項目', req.params.projectId);
+        console.log('Teacher deletes project', req.params.projectId);
         try {
             const { projectId } = req.params;
             const teacherEmail = req.headers['x-teacher-email'];
@@ -1778,14 +1777,14 @@ try {
             
             res.status(500).json({ success: false, message: 'Database not available' });
         } catch (error) {
-            console.error('❌ 刪除項目錯誤:', error);
+            console.error('Delete project error:', error);
             res.status(500).json({ success: false, message: 'Failed to delete project: ' + error.message });
         }
     });
 
     // Add note to student
     app.post('/api/teacher/students/:studentId/note', async (req, res) => {
-        console.log('📝 導師添加學生備註');
+        console.log('Teacher adds student note');
         try {
             const { studentId } = req.params;
             const teacherEmail = req.headers['x-teacher-email'];
@@ -1823,14 +1822,14 @@ try {
             
             res.status(500).json({ success: false, message: 'Database not available' });
         } catch (error) {
-            console.error('❌ 添加備註錯誤:', error);
+            console.error('Add note error:', error);
             res.status(500).json({ success: false, message: 'Failed to add note' });
         }
     });
 
     // Get matching results for teacher
     app.get('/api/teacher/matching-results', async (req, res) => {
-        console.log('📊 請求導師配對結果');
+        console.log('Request teacher matching results');
         try {
             const teacherEmail = req.query.email || req.headers['x-teacher-email'];
             if (!teacherEmail) {
@@ -1877,17 +1876,17 @@ try {
             
             res.json({ success: true, results: [] });
         } catch (error) {
-            console.error('❌ 獲取配對結果錯誤:', error);
+            console.error('Get matching results error:', error);
             res.status(500).json({ success: false, message: 'Failed to load matching results' });
         }
     });
 
 } catch (error) {
-    console.log('⚠️ 服務層未找到，使用模擬API');
+    console.log('Service layer not found, using mock API');
     
-    // 簡化的模擬API作為後備
+    // Simplified mock API as fallback
     app.get('/api/student/projects', (req, res) => {
-        console.log('📋 請求項目列表 (模擬)');
+        console.log('Request project list (mock)');
         const projects = [
             {
                 id: 1,
@@ -1903,20 +1902,20 @@ try {
     });
 }
 
-// 🔥 啟動伺服器前先初始化用戶資料
+// Initialize user data before starting server
 initializeUsers().then(async () => {
     await ensureDatabaseSeeded();
     
     app.listen(port, () => {
-        console.log(`🚀 API 伺服器運行在 http://localhost:${port}`);
-        console.log(`📡 提供 API 端點:`);
-        console.log(`   POST /login - 登入驗證`);
-        console.log(`   GET  /api/student/projects - 獲取項目列表`);
-        console.log(`   GET  /api/student/:id - 獲取學生信息`);
-        console.log(`   GET  /api/student/:id/preferences - 獲取學生偏好`);
-        console.log(`   更多 API 端點請查看 server.js`);
-        console.log(`\n💡 React 前端運行在 http://localhost:5173 (通過 Vite)`);
-        console.log(`\n🔑 測試帳號:`);
+        console.log(`API server running on http://localhost:${port}`);
+        console.log(`Available API endpoints:`);
+        console.log(`   POST /login - Login verification`);
+        console.log(`   GET  /api/student/projects - Get project list`);
+        console.log(`   GET  /api/student/:id - Get student info`);
+        console.log(`   GET  /api/student/:id/preferences - Get student preferences`);
+        console.log(`   See server.js for more API endpoints`);
+        console.log(`\nReact frontend running on http://localhost:5173 (via Vite)`);
+        console.log(`\nTest accounts:`);
         console.log('   Admin: admin@hkmu.edu.hk / admin123');
         console.log('   Student: s001@hkmu.edu.hk / 00000000 (Major: CCS)');
         console.log('   Teacher: t001@hkmu.edu.hk / 00000001 (MongoDB seed, Major: CCS)');
@@ -1939,7 +1938,7 @@ const checkDbConnectionForAdmin = () => {
 
 // Create student account (admin only)
 app.post('/api/admin/students/create', async (req, res) => {
-    console.log('👤 Admin 創建學生帳戶:', req.body);
+    console.log('Admin creates student account:', req.body);
     try {
         const { studentId, password, name, major } = req.body;
         
@@ -2069,7 +2068,7 @@ app.post('/api/admin/students/create', async (req, res) => {
         });
         
     } catch (error) {
-        console.error('❌ 創建學生帳戶錯誤:', error);
+        console.error('Create student account error:', error);
         return res.status(500).json({ 
             success: false, 
             message: 'Failed to create student account: ' + error.message 
@@ -2080,7 +2079,7 @@ app.post('/api/admin/students/create', async (req, res) => {
 // Batch create student accounts (admin only)
 // New format: Student ID is 's001', 's002', etc.
 app.post('/api/admin/students/batch-create', async (req, res) => {
-    console.log('👥 Admin 批量創建學生帳戶:', req.body);
+    console.log('Admin batch creates student accounts:', req.body);
     try {
         const students = req.body.students ?? req.body.accounts;
 
@@ -2253,7 +2252,7 @@ app.post('/api/admin/students/batch-create', async (req, res) => {
         });
 
     } catch (error) {
-        console.error('❌ 批量創建學生帳戶錯誤:', error);
+        console.error('Batch create student accounts error:', error);
         return res.status(500).json({
             success: false,
             message: 'Failed to batch create student accounts: ' + error.message
@@ -2264,7 +2263,7 @@ app.post('/api/admin/students/batch-create', async (req, res) => {
 // Batch create teacher accounts
 // New format: Teacher ID is 't001', 't002', etc.
 app.post('/api/admin/teachers/batch-create', async (req, res) => {
-    console.log('👨‍🏫 Admin 批量創建教師帳戶:', req.body);
+    console.log('Admin batch creates teacher accounts:', req.body);
     try {
         const { accounts } = req.body;
 
@@ -2408,7 +2407,7 @@ app.post('/api/admin/teachers/batch-create', async (req, res) => {
         });
 
     } catch (error) {
-        console.error('❌ 批量創建教師帳戶錯誤:', error);
+        console.error('Batch create teacher accounts error:', error);
         return res.status(500).json({
             success: false,
             message: 'Failed to batch create teacher accounts: ' + error.message
@@ -2418,7 +2417,7 @@ app.post('/api/admin/teachers/batch-create', async (req, res) => {
 
 // Get project statistics for major requirements
 app.get('/api/admin/project-stats', async (req, res) => {
-    console.log('📊 請求項目統計數據');
+    console.log('Requesting project statistics');
     try {
         const isDbConnected = checkDbConnectionForAdmin();
         
@@ -2488,7 +2487,7 @@ app.get('/api/admin/project-stats', async (req, res) => {
 
 // Get all students (admin only)
 app.get('/api/admin/students', async (req, res) => {
-    console.log('👥 Admin 請求學生列表');
+    console.log('Admin requests student list');
     try {
         const isDbConnected = checkDbConnectionForAdmin();
         const Student = require('./models/Student');
@@ -2514,7 +2513,7 @@ app.get('/api/admin/students', async (req, res) => {
         
         return res.json({ success: true, students: [] });
     } catch (error) {
-        console.error('❌ 獲取學生列表錯誤:', error);
+        console.error('Get student list error:', error);
         return res.status(500).json({ 
             success: false, 
             message: 'Failed to get student list' 
@@ -2528,7 +2527,7 @@ app.get('/api/admin/students', async (req, res) => {
 
 // Get unmatched students (no assigned project, proposal approved or not)
 app.get('/api/admin/unmatched-students', async (req, res) => {
-    console.log('📋 Admin 請求未分配學生列表');
+    console.log('Admin requests unassigned student list');
     try {
         const isDbConnected = checkDbConnectionForAdmin();
         const Student = require('./models/Student');
@@ -2558,14 +2557,14 @@ app.get('/api/admin/unmatched-students', async (req, res) => {
         
         return res.json({ success: true, students: [] });
     } catch (error) {
-        console.error('❌ 獲取未分配學生列表錯誤:', error);
+        console.error('Get unassigned student list error:', error);
         return res.status(500).json({ success: false, message: 'Failed to get unmatched students' });
     }
 });
 
 // Get matched students (with assigned project)
 app.get('/api/admin/matched-students', async (req, res) => {
-    console.log('📋 Admin 請求已分配學生列表');
+    console.log('Admin requests assigned student list');
     try {
         const isDbConnected = checkDbConnectionForAdmin();
         const Student = require('./models/Student');
@@ -2606,14 +2605,14 @@ app.get('/api/admin/matched-students', async (req, res) => {
         
         return res.json({ success: true, students: [] });
     } catch (error) {
-        console.error('❌ 獲取已分配學生列表錯誤:', error);
+        console.error('Get assigned student list error:', error);
         return res.status(500).json({ success: false, message: 'Failed to get matched students' });
     }
 });
 
 // Get available projects for assignment
 app.get('/api/admin/available-projects', async (req, res) => {
-    console.log('📋 Admin 請求可用項目列表（用於分配）');
+    console.log('Admin requests available project list (for assignment)');
     try {
         const isDbConnected = checkDbConnectionForAdmin();
         const Project = require('./models/Project');
@@ -2668,7 +2667,7 @@ app.get('/api/admin/available-projects', async (req, res) => {
         
         return res.json({ success: true, projects: [] });
     } catch (error) {
-        console.error('❌ 獲取可用項目列表錯誤:', error);
+        console.error('Get available project list error:', error);
         return res.status(500).json({ success: false, message: 'Failed to get available projects' });
     }
 });
@@ -2676,7 +2675,7 @@ app.get('/api/admin/available-projects', async (req, res) => {
 // Get ALL projects for edit modal (admin has maximum permissions)
 // Includes both teacher-proposed and student-proposed projects
 app.get('/api/admin/all-projects', async (req, res) => {
-    console.log('📋 Admin 請求所有項目列表（用於編輯 Modal）');
+    console.log('Admin requests all project list (for edit modal)');
     try {
         const isDbConnected = checkDbConnectionForAdmin();
         const Project = require('./models/Project');
@@ -2734,14 +2733,14 @@ app.get('/api/admin/all-projects', async (req, res) => {
         
         return res.json({ success: true, projects: [] });
     } catch (error) {
-        console.error('❌ 獲取所有項目列表錯誤:', error);
+        console.error('Get all project list error:', error);
         return res.status(500).json({ success: false, message: 'Failed to get all projects' });
     }
 });
 
 // Manual assign project to a student
 app.post('/api/admin/assign-project', async (req, res) => {
-    console.log('📋 Admin 手動分配項目:', req.body);
+    console.log('Admin manually assigns project:', req.body);
     try {
         const { studentId, projectId } = req.body;
         
@@ -2812,14 +2811,14 @@ app.post('/api/admin/assign-project', async (req, res) => {
         
         return res.status(500).json({ success: false, message: 'Database not available' });
     } catch (error) {
-        console.error('❌ 分配項目錯誤:', error);
+        console.error('Assign project error:', error);
         return res.status(500).json({ success: false, message: 'Failed to assign project: ' + error.message });
     }
 });
 
 // Auto-assign selected students to random available projects
 app.post('/api/admin/auto-assign', async (req, res) => {
-    console.log('📋 Admin 自動分配選中學生:', req.body);
+    console.log('Admin auto-assigns selected students:', req.body);
     try {
         const { studentIds } = req.body;
         
@@ -2922,14 +2921,14 @@ app.post('/api/admin/auto-assign', async (req, res) => {
         
         return res.status(500).json({ success: false, message: 'Database not available' });
     } catch (error) {
-        console.error('❌ 自動分配錯誤:', error);
+        console.error('Auto-assign error:', error);
         return res.status(500).json({ success: false, message: 'Failed to auto-assign: ' + error.message });
     }
 });
 
 // Clear student's assignment
 app.post('/api/admin/clear-assignment', async (req, res) => {
-    console.log('📋 Admin 清除學生分配:', req.body);
+    console.log('Admin clears student assignment:', req.body);
     try {
         const { studentId } = req.body;
         
@@ -2977,14 +2976,14 @@ app.post('/api/admin/clear-assignment', async (req, res) => {
         
         return res.status(500).json({ success: false, message: 'Database not available' });
     } catch (error) {
-        console.error('❌ 清除分配錯誤:', error);
+        console.error('Clear assignment error:', error);
         return res.status(500).json({ success: false, message: 'Failed to clear assignment: ' + error.message });
     }
 });
 
 // Update student's assignment (change project)
 app.post('/api/admin/update-assignment', async (req, res) => {
-    console.log('📋 Admin 更新學生分配:', req.body);
+    console.log('Admin updates student assignment:', req.body);
     try {
         const { studentId, newProjectId } = req.body;
         
@@ -3068,14 +3067,14 @@ app.post('/api/admin/update-assignment', async (req, res) => {
         
         return res.status(500).json({ success: false, message: 'Database not available' });
     } catch (error) {
-        console.error('❌ 更新分配錯誤:', error);
+        console.error('Update assignment error:', error);
         return res.status(500).json({ success: false, message: 'Failed to update assignment: ' + error.message });
     }
 });
 
 // Update student test account SID
 app.put('/api/admin/students/test-account-sid', async (req, res) => {
-    console.log('📋 更新測試學生帳戶 SID:', req.body);
+    console.log('Update test student account SID:', req.body);
     try {
         const { email, newId } = req.body;
         
@@ -3123,13 +3122,13 @@ app.put('/api/admin/students/test-account-sid', async (req, res) => {
         
         return res.status(500).json({ success: false, message: 'Database not available' });
     } catch (error) {
-        console.error('❌ 更新學生 SID 錯誤:', error);
+        console.error('Update student SID error:', error);
         return res.status(500).json({ success: false, message: 'Failed to update student SID: ' + error.message });
     }
 });
 
-// 錯誤處理
+// Error handling
 process.on('unhandledRejection', (err) => {
-    console.error('❌ 未處理的錯誤:', err);
+    console.error('Unhandled error:', err);
     process.exit(1);
 });

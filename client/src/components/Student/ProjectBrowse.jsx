@@ -13,7 +13,7 @@ function ProjectBrowse({ projects, preferences, onAddPreference, isAssigned = fa
   const isPreferenceExpired = expiredDeadlineKeys.has('preference');
   const isBrowseDisabled = isPreferenceExpired || isAssigned;
 
-  // 獲取所有技能選項
+  // Get all skills options
   const allSkills = useMemo(() => {
     const skills = new Set();
     projects.forEach(project => {
@@ -24,17 +24,17 @@ function ProjectBrowse({ projects, preferences, onAddPreference, isAssigned = fa
     return Array.from(skills).sort();
   }, [projects]);
 
-  // 獲取所有導師選項
+  // Get all supervisor options
   const allSupervisors = useMemo(() => {
     const supervisors = new Set();
     projects.forEach(project => supervisors.add(project.supervisor));
     return Array.from(supervisors).sort();
   }, [projects]);
 
-  // 過濾和排序項目
+  // Filter and sort projects
   const filteredProjects = useMemo(() => {
     let filtered = projects.filter(project => {
-      // 關鍵詞搜索
+      // Keyword search
       if (searchKeyword) {
         const keyword = searchKeyword.toLowerCase();
         const matchesKeyword = 
@@ -44,19 +44,19 @@ function ProjectBrowse({ projects, preferences, onAddPreference, isAssigned = fa
         if (!matchesKeyword) return false;
       }
 
-      // 技能過濾
+      // Skill filter
       if (selectedSkill) {
         const skills = Array.isArray(project.skills) ? project.skills : [project.skills];
         const hasMatchingSkill = skills.includes(selectedSkill);
         if (!hasMatchingSkill) return false;
       }
 
-      // 導師過濾
+      // Supervisor filter
       if (selectedSupervisor && project.supervisor !== selectedSupervisor) {
         return false;
       }
 
-      // 狀態過濾 - 默認顯示所有項目（包括 Under Review）
+      // Status filter - default show all projects (including Under Review)
       if (statusFilter === 'active' && project.status !== 'active') {
         return false;
       }
@@ -64,7 +64,7 @@ function ProjectBrowse({ projects, preferences, onAddPreference, isAssigned = fa
       return true;
     });
 
-    // 排序
+    // Sort
     switch (sortBy) {
       case 'popularity':
         filtered.sort((a, b) => b.popularity - a.popularity);
@@ -113,7 +113,7 @@ function ProjectBrowse({ projects, preferences, onAddPreference, isAssigned = fa
         </div>
       </div>
 
-      {/* 搜索過濾器 */}
+      {/* Search filters */}
       <div className="search-filters">
         <div className="filter-group">
           <label htmlFor="skillFilter">Filter by Skills:</label>
@@ -170,7 +170,7 @@ function ProjectBrowse({ projects, preferences, onAddPreference, isAssigned = fa
         </div>
       </div>
 
-      {/* 項目網格 */}
+      {/* Project grid */}
       <div className="projects-grid">
         {filteredProjects.length === 0 ? (
           <div className="no-results">

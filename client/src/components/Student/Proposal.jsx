@@ -75,7 +75,7 @@ function Proposal({
       ...prev,
       [name]: value
     }));
-    // 清除该字段的错误
+    // Clear field error
     if (formErrors[name]) {
       setFormErrors(prev => ({
         ...prev,
@@ -153,7 +153,7 @@ function Proposal({
           setProposal(result.proposal);
         }
         
-        // 重置表单
+        // Reset form
         setFormData({
           title: '',
           description: '',

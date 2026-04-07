@@ -18,7 +18,7 @@ function StudentApplications({ showNotification, onStatsChange, expiredDeadlineK
   const fetchProposals = async () => {
     try {
       setLoading(true);
-      // 使用新的 API 端點，只獲取屬於當前老師可見的 student-proposed 項目
+      // Use new API endpoint, only fetch student-proposed projects visible to this teacher
       const response = await fetch(`/api/teacher/student-proposals?email=${encodeURIComponent(userEmail)}`, {
         headers: {
           'x-teacher-email': userEmail
@@ -123,7 +123,7 @@ function StudentApplications({ showNotification, onStatsChange, expiredDeadlineK
   }
 
   // Filter proposals based on visibility rules
-  // 只顯示：該老師還沒審批過的 proposals
+  // Only show: proposals that this teacher hasn't reviewed yet
   const visibleProposals = proposals.filter(p => {
     if (p.myDecision) {
       return false;
@@ -155,7 +155,7 @@ function StudentApplications({ showNotification, onStatsChange, expiredDeadlineK
             <div className="proposals-list">
               {visibleProposals.map(proposal => (
                 <div key={proposal._id} className={`proposal-review-card ${proposal.myDecision || ''}`}>
-                  {/* 统一信息框 - 表格形式 */}
+                  {/* Unified info box - table format */}
                   <div className="proposal-info-box">
                     <table className="proposal-info-table">
                       <tbody>

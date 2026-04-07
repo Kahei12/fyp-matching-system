@@ -9,7 +9,7 @@ function ProjectManagement({ showNotification, expiredDeadlineKeys = new Set() }
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingProject, setEditingProject] = useState(null);
   const [activeTab, setActiveTab] = useState('my-projects');
-  /** Teacher Proposal → Student Proposals：篩選已審核列表（全部 / 僅 Approved / 僅 Rejected） */
+  /** Teacher Proposal → Student Proposals: Filter reviewed list (All / Approved only / Rejected only) */
   const [reviewedProposalFilter, setReviewedProposalFilter] = useState('all');
   const [newProject, setNewProject] = useState({
     title: '',
@@ -250,7 +250,7 @@ function ProjectManagement({ showNotification, expiredDeadlineKeys = new Set() }
     setDeleteConfirm({ projectId, title: project.title });
   };
 
-  // 計算 Student Proposals 分頁中已審核的提案數量（用於括號 badge）
+  // Calculate number of reviewed proposals in Student Proposals tab (for badge)
   const reviewedProposalsCount = proposals.filter((p) => getMyReview(p)).length;
 
   if (loading) {
@@ -282,7 +282,7 @@ function ProjectManagement({ showNotification, expiredDeadlineKeys = new Set() }
         </button>
       </div>
 
-      {/* My Projects Section - 老師自己創建的項目 */}
+      {/* My Projects Section - projects created by the teacher */}
       {activeTab === 'my-projects' && (
         <>
           <div className="section-header">
@@ -383,7 +383,7 @@ function ProjectManagement({ showNotification, expiredDeadlineKeys = new Set() }
         </>
       )}
 
-      {/* Student Proposals Section - 只顯示老師已審核的 student-proposed 項目 */}
+      {/* Student Proposals Section - only shows teacher-reviewed student-proposed projects */}
       {activeTab === 'student-proposals' && (() => {
         const reviewedProposals = proposals.filter((p) => getMyReview(p));
         const filteredReviewed =

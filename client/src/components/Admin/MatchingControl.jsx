@@ -17,20 +17,20 @@ function MatchingControl({ showNotification }) {
     ccsMatched: 0
   });
 
-  // 從數據庫獲取真實統計數據
+  // Fetch real statistics from database
   const fetchStats = async () => {
     try {
-      // 獲取項目總數
+      // Get total project count
       const projResp = await fetch('/api/admin/all-projects');
       const projJson = await projResp.json();
       const projects = projJson.projects || [];
       
-      // 按 major 分類項目
+      // Categorize projects by major
       const eceProjects = projects.filter(p => p.major === 'ECE' || p.major === 'ECE+CCS' || !p.major);
       const ccsProjects = projects.filter(p => p.major === 'CCS' || p.major === 'ECE+CCS');
       const projectCount = projects.length;
 
-      // 獲取配對結果
+      // Get matching results
       const resResp = await fetch('/api/match/results');
       const resJson = await resResp.json();
       const results = resJson.results || [];
@@ -39,7 +39,7 @@ function MatchingControl({ showNotification }) {
       setTotalProjects(projectCount);
       setMatchedProjects(matched);
       
-      // 嘗試獲取更詳細的 major 統計
+      // Try to get more detailed major statistics
       try {
         const statsResp = await fetch('/api/admin/project-stats');
         const statsJson = await statsResp.json();
@@ -49,12 +49,12 @@ function MatchingControl({ showNotification }) {
             ccsStudents: statsJson.stats.ccsStudents || 0,
             eceProjects: eceProjects.length,
             ccsProjects: ccsProjects.length,
-            eceMatched: matched, // 這個需要進一步細分
+            eceMatched: matched, // This needs further breakdown
             ccsMatched: 0
           });
         }
       } catch (e) {
-        // 如果 stats API 失敗，使用估算值
+        // If stats API fails, use estimated values
         setMajorStats({
           eceStudents: 20,
           ccsStudents: 30,
@@ -69,7 +69,7 @@ function MatchingControl({ showNotification }) {
     }
   };
 
-  // 組件載入時獲取初始數據
+  // Fetch initial data when component loads
   useEffect(() => {
     fetchStats();
   }, []);
