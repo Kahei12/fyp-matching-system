@@ -767,7 +767,7 @@
   width: 100%;
   border-collapse: collapse;
   background: #f8f9fa;
-  table-layout: fixed;
+  table-layout: auto;
 }
 
 .proposal-info-table tr {
@@ -787,15 +787,15 @@
   font-weight: 600;
   color: #34495e;
   font-size: 0.85rem;
-  width: 25%;
   white-space: nowrap;
   background: #ecf0f1;
+  min-width: 100px;
 }
 
 .proposal-info-table .info-value {
   color: #2c3e50;
   font-size: 0.9rem;
-  width: 25%;
+  min-width: 100px;
 }
 
 .proposal-info-table .info-value-title {
@@ -803,7 +803,6 @@
   font-size: 0.95rem;
   font-weight: 500;
   padding-right: 1rem;
-  width: 50%;
 }
 
 .proposal-info-table .gpa-value {
@@ -880,6 +879,28 @@
 }
 
 .your-decision.reject {
+  background: #e74c3c;
+  color: white;
+  border: 2px solid #c0392b;
+}
+
+/* Decision Tag - Approved / Rejected */
+.decision-tag {
+  display: inline-block;
+  padding: 0.3rem 0.75rem;
+  border-radius: 12px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.decision-approved {
+  background: #27ae60;
+  color: white;
+  border: 2px solid #1e8449;
+}
+
+.decision-rejected {
   background: #e74c3c;
   color: white;
   border: 2px solid #c0392b;

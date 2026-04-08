@@ -550,13 +550,13 @@ function ProjectManagement({ showNotification, expiredDeadlineKeys = new Set() }
                             <td className="info-value-title">{proposal.title}</td>
                             <td className="info-label">Your Decision</td>
                             <td>
-                              <span className={`your-decision ${decision || ''}`}>
-                                {decision === 'approve'
-                                  ? '✓ Approved'
-                                  : decision === 'reject'
-                                    ? '✗ Rejected'
-                                    : '—'}
-                              </span>
+                              {decision === 'approve' && (
+                                <span className="decision-tag decision-approved">✓ Approved</span>
+                              )}
+                              {decision === 'reject' && (
+                                <span className="decision-tag decision-rejected">✗ Rejected</span>
+                              )}
+                              {!decision && <span className="your-decision">—</span>}
                             </td>
                           </tr>
                           <tr>

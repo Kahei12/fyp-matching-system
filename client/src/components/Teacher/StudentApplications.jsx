@@ -122,10 +122,14 @@ function StudentApplications({ showNotification, onStatsChange, expiredDeadlineK
 
   // Filter proposals based on visibility rules
   // Only show: proposals that this teacher hasn't approved yet
-  // Hide if another teacher has approved
+  // Hide if another teacher has approved OR this teacher has rejected
   const visibleProposals = proposals.filter(p => {
     // If teacher has already approved, don't show
     if (p.myDecision === 'approve') {
+      return false;
+    }
+    // If teacher has already rejected, don't show on home page
+    if (p.myDecision === 'reject') {
       return false;
     }
     // Hide if another teacher has approved
@@ -135,7 +139,7 @@ function StudentApplications({ showNotification, onStatsChange, expiredDeadlineK
     if (otherApproval) {
       return false;
     }
-    // Show all other proposals (including rejected ones that this teacher can review)
+    // Show all other proposals
     return true;
   });
 
@@ -187,10 +191,12 @@ function StudentApplications({ showNotification, onStatsChange, expiredDeadlineK
                           <tr>
                             <td className="info-label">Your Decision</td>
                             <td colSpan="5">
-                              <span className={`your-decision ${proposal.myDecision}`}>
-                                {proposal.myDecision === 'approve' ? 'You Approved' : 
-                                 proposal.myDecision === 'reject' ? 'You Rejected' : 'Pending'}
-                              </span>
+                              {proposal.myDecision === 'approve' && (
+                                <span className="decision-tag decision-approved">✓ Approved</span>
+                              )}
+                              {proposal.myDecision === 'reject' && (
+                                <span className="decision-tag decision-rejected">✗ Rejected</span>
+                              )}
                               {proposal.myReviewedAt && (
                                 <span className="decision-date">
                                   on {new Date(proposal.myReviewedAt).toLocaleDateString()}
