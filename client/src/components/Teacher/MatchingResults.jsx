@@ -27,15 +27,15 @@ function MatchingResults({ showNotification }) {
       const data = await response.json();
 
       if (data.success && data.results) {
-        setResults(data.results);
-
-        const matched = data.results.filter(r => r.assignedStudent).length;
+        // Only show matched projects (with assigned students)
+        const matchedProjects = data.results.filter(r => r.assignedStudent);
+        setResults(matchedProjects);
 
         setSummary({
-          totalMatched: matched
+          totalMatched: matchedProjects.length
         });
 
-        const matchedWithDate = data.results.find(r => r.assignedStudent?.assignedAt);
+        const matchedWithDate = matchedProjects.find(r => r.assignedStudent?.assignedAt);
         if (matchedWithDate) {
           setLastUpdated(formatDateTime24(new Date(matchedWithDate.assignedStudent.assignedAt)));
         }

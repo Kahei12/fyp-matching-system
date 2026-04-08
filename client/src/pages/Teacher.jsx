@@ -12,10 +12,10 @@ import OverdueNotice from '../components/common/OverdueNotice';
 import { formatDateTime24 } from '../utils/formatDateTime24';
 
 const DEFAULT_TEACHER_DEADLINES = {
-  studentSelfProposal: '2025-03-20T23:59:00',
-  preference: '2025-04-15T22:59:00',
-  teacherProposalReview: '2025-04-15T23:59:00',
-  teacherSelfProposal: '2025-05-30T23:59:00',
+  studentSelfProposal: '2026-03-20T23:59:00',
+  preference: '2026-06-30T23:59:00',
+  teacherProposalReview: '2026-06-30T23:59:00',
+  teacherSelfProposal: '2026-12-31T23:59:00',
 };
 
 function fmtDaysLeft(days) {

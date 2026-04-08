@@ -41,6 +41,7 @@ async function run() {
     major: s.major,
     year: s.year,
     preferences: s.preferences || [],
+    preferencesSubmitted: !!s.preferencesSubmitted,
     proposalSubmitted: !!s.proposalSubmitted,
     assignedProject: null
   }));

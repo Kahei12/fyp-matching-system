@@ -13,6 +13,8 @@ const StudentSchema = new mongoose.Schema({
   }, // Student major
   year: String,
   preferences: [String], // array of project ids (can be code or ObjectId string)
+  /** True after student clicks "Submit Preferences" (ranking lock). Distinct from self-proposal. */
+  preferencesSubmitted: { type: Boolean, default: false },
   proposalSubmitted: { type: Boolean, default: false },
   assignedProject: { type: mongoose.Schema.Types.ObjectId, ref: 'Project', default: null },
   // For student-proposed projects

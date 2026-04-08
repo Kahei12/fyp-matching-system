@@ -12,11 +12,12 @@ import OverdueNotice from '../components/common/OverdueNotice';
 import { StageGlyph } from '../components/common/StageGlyphs';
 import { formatDateTime24 } from '../utils/formatDateTime24';
 
+/** Fallback when /api/system/status fails — use future dates so UI is not falsely “overdue” */
 const DEFAULT_SYSTEM_DEADLINES = {
-  studentSelfProposal: '2025-03-20T23:59:00',
-  preference: '2025-04-15T22:59:00',
-  teacherProposalReview: '2025-04-15T23:59:00',
-  teacherSelfProposal: '2025-05-30T23:59:00',
+  studentSelfProposal: '2026-03-20T23:59:00',
+  preference: '2026-06-30T23:59:00',
+  teacherProposalReview: '2026-06-30T23:59:00',
+  teacherSelfProposal: '2026-12-31T23:59:00',
 };
 
 /** Return 'N days left' or 'Overdue' (no negative numbers) */
@@ -32,7 +33,8 @@ function Student() {
     gpa: sessionStorage.getItem('userGPA') || '',
     email: sessionStorage.getItem('userEmail') || '',
     major: sessionStorage.getItem('userMajor') || '',
-    year: 'Year 4'
+    year: 'Year 4',
+    preferencesSubmitted: false,
   });
   const [preferences, setPreferences] = useState([]);
   const [projects, setProjects] = useState([]);
@@ -57,8 +59,8 @@ function Student() {
     (async () => {
       await loadStudentData();
       loadProjects();
-      loadMatchingStatus();
-      loadAssignmentStatus();
+      await loadMatchingStatus();
+      await loadAssignmentStatus();
     })();
   }, [navigate]);
 
@@ -98,7 +100,7 @@ function Student() {
         setMatchingCompleted(false);
       }
     } catch (err) {
-      console.error('loadMatchingStatus error', err);
+      // Silently handle — don't spam console on network issues
       setMatchingCompleted(false);
     }
   };
@@ -112,11 +114,6 @@ function Student() {
       if (data.success) {
         setIsAssigned(data.isAssigned);
         setAssignmentType(data.assignmentType);
-        
-        // If assigned via proposal, also update matchingCompleted to lock preferences
-        if (data.isAssigned) {
-          setMatchingCompleted(true);
-        }
       }
     } catch (err) {
       console.error('loadAssignmentStatus error', err);
@@ -150,14 +147,18 @@ function Student() {
         if (s.major) sessionStorage.setItem('userMajor', s.major);
         if (gpaStr) sessionStorage.setItem('userGPA', gpaStr);
         sessionStorage.setItem('studentId', resolvedId);
+        const prefsSub = !!s.preferencesSubmitted;
+        if (prefsSub) sessionStorage.setItem('preferencesSubmitted', 'true');
+        else sessionStorage.removeItem('preferencesSubmitted');
+
         setStudentData({
           ...s,
           studentId: resolvedId,
-          email: s.email || userEmail
+          email: s.email || userEmail,
+          preferencesSubmitted: prefsSub,
         });
-        
-        // Load preferences
-        await loadPreferences(resolvedId);
+
+        await loadPreferences(resolvedId, prefsSub);
       } else {
         // API failed, use sessionStorage data
         console.log('API returned failure, using local data');
@@ -189,19 +190,19 @@ function Student() {
     }
   };
 
-  const loadPreferences = async (studentId) => {
+  const loadPreferences = async (studentId, serverPrefsSubmitted = null) => {
+    const submitted =
+      serverPrefsSubmitted === true ||
+      sessionStorage.getItem('preferencesSubmitted') === 'true';
+
     try {
       const response = await fetch(`/api/student/${studentId}/preferences`);
       const result = await response.json();
       
       if (result.success) {
-        // If server has no preferences but localStorage has (and student not yet submitted), use localStorage
         const saved = localStorage.getItem(`studentPreferences_${studentId}`);
         if ((!result.preferences || result.preferences.length === 0) && saved) {
-          // only use local saved preferences if server indicates not submitted
-          const serverStudent = mockStudentDataFallback(); // helper to read current studentData state
-          const submittedFlag = serverStudent ? serverStudent.proposalSubmitted : (sessionStorage.getItem('proposalSubmitted') === 'true');
-          if (!submittedFlag) {
+          if (!submitted) {
             setPreferences(JSON.parse(saved));
             return;
           }
@@ -215,18 +216,9 @@ function Student() {
     }
   };
 
-  // helper to obtain studentData from current state/session for loadPreferences decision
-  const mockStudentDataFallback = () => {
-    // try state first
-    if (studentData && typeof studentData === 'object') return studentData;
-    // fallback to sessionStorage
-    const sid = sessionStorage.getItem('studentId');
-    if (!sid) return null;
-    return {
-      studentId: sid,
-      proposalSubmitted: sessionStorage.getItem('proposalSubmitted') === 'true'
-    };
-  };
+  const isPrefsSubmitted = () =>
+    !!studentData.preferencesSubmitted ||
+    sessionStorage.getItem('preferencesSubmitted') === 'true';
 
   const handleLogout = () => {
     setConfirmDialog({
@@ -246,8 +238,8 @@ function Student() {
     const currentStudentId = studentData.studentId || sessionStorage.getItem('studentId') || 's001';
 
     // Check if already submitted or matching completed
-    const submittedFlag = studentData.proposalSubmitted || sessionStorage.getItem('proposalSubmitted') === 'true';
-    const locked = submittedFlag || matchingCompleted;
+    const submittedFlag = isPrefsSubmitted();
+    const locked = submittedFlag || matchingCompleted || isAssigned;
     
     if (locked) {
       showNotification('Preferences are locked. You cannot add more projects after submission.', 'error');
@@ -289,37 +281,23 @@ function Student() {
     console.log('Removing preference:', { projectId, currentStudentId });
     
     try {
-      // If preferences haven't been submitted to server or matching completed, remove locally only
-      const submittedFlag = studentData.proposalSubmitted || sessionStorage.getItem('proposalSubmitted') === 'true';
-      const locked = submittedFlag || matchingCompleted;
-      if (!submittedFlag && !matchingCompleted) {
-        const newPreferences = preferences.filter(p => p.id !== projectId);
-        setPreferences(newPreferences);
-        localStorage.setItem(`studentPreferences_${currentStudentId}`, JSON.stringify(newPreferences));
-        showNotification('Project removed (local)', 'success');
-        return;
-      }
-
       const response = await fetch(`/api/student/${currentStudentId}/preferences/${projectId}`, {
         method: 'DELETE'
       });
-
       const result = await response.json();
       console.log('Remove response:', result);
-      
+
       if (result.success) {
-        await loadPreferences(currentStudentId);
-        showNotification(result.message, 'success');
+        const newPreferences = preferences.filter(p => p.id !== projectId);
+        setPreferences(newPreferences);
+        localStorage.setItem(`studentPreferences_${currentStudentId}`, JSON.stringify(newPreferences));
+        showNotification('Project removed', 'success');
       } else {
         showNotification(result.message, 'error');
       }
     } catch (error) {
       console.error('Remove preference error:', error);
-      // Local fallback
-      const newPreferences = preferences.filter(p => p.id !== projectId);
-      setPreferences(newPreferences);
-      localStorage.setItem(`studentPreferences_${currentStudentId}`, JSON.stringify(newPreferences));
-      showNotification('Project removed (saved locally)!', 'success');
+      showNotification('Failed to remove project', 'error');
     }
   };
 
@@ -338,9 +316,9 @@ function Student() {
       console.log('Set preferences response:', result);
 
       if (response.ok && result.success) {
-        setStudentData((prev) => ({ ...prev, proposalSubmitted: true }));
-        sessionStorage.setItem('proposalSubmitted', 'true');
-        await loadPreferences(currentStudentId);
+        setStudentData((prev) => ({ ...prev, preferencesSubmitted: true }));
+        sessionStorage.setItem('preferencesSubmitted', 'true');
+        await loadPreferences(currentStudentId, true);
         localStorage.removeItem(`studentPreferences_${currentStudentId}`);
         showNotification(result.message || 'Preferences submitted successfully!', 'success');
       } else {
@@ -373,10 +351,9 @@ function Student() {
     const currentStudentId = studentData.studentId || sessionStorage.getItem('studentId') || 's001';
     
     // Check if already submitted
-    const submittedFlag = studentData.proposalSubmitted || sessionStorage.getItem('proposalSubmitted') === 'true';
-    const matchingCompleted = false; // Can be fetched from API
+    const submittedFlag = isPrefsSubmitted();
     
-    if (submittedFlag || matchingCompleted) {
+    if (submittedFlag || matchingCompleted || isAssigned) {
       showNotification('Cannot clear preferences after submission or matching completion.', 'error');
       return;
     }
@@ -405,41 +382,34 @@ function Student() {
     
     console.log('[MOVE] Moving preference:', { projectId, direction, currentStudentId });
 
-    const submittedFlag = studentData.proposalSubmitted || sessionStorage.getItem('proposalSubmitted') === 'true';
-    const locked = submittedFlag || matchingCompleted;
+    const submittedFlag = isPrefsSubmitted();
+    const locked = submittedFlag || matchingCompleted || isAssigned;
 
-    // If not submitted and not locked, perform local optimistic reorder only
-    if (!submittedFlag && !matchingCompleted) {
+    // If not submitted and not locked, call server API to persist the new order
+    try {
+      // Build new preference list after the swap
       const currentIndex = preferences.findIndex(p => p.id === projectId);
       if (currentIndex === -1) return;
-      const newPreferences = [...preferences];
       const targetIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
-      if (targetIndex < 0 || targetIndex >= newPreferences.length) return;
-      [newPreferences[currentIndex], newPreferences[targetIndex]] = [newPreferences[targetIndex], newPreferences[currentIndex]];
-      setPreferences(newPreferences);
-      localStorage.setItem(`studentPreferences_${currentStudentId}`, JSON.stringify(newPreferences));
-      // call reorder handler to sync if parent supports it
-      if (onReorderPreferences) onReorderPreferences(newPreferences);
-      showNotification('Order updated (local)', 'success');
-      return;
-    }
+      if (targetIndex < 0 || targetIndex >= preferences.length) return;
+      const reordered = [...preferences];
+      [reordered[currentIndex], reordered[targetIndex]] = [reordered[targetIndex], reordered[currentIndex]];
+      const newOrder = reordered.map(p => p.id);
 
-    // Otherwise (submitted or matching completed), call server API to move
-    try {
-      const response = await fetch(`/api/student/${currentStudentId}/preferences/${projectId}/move`, {
-        method: 'PUT',
+      const response = await fetch(`/api/student/${currentStudentId}/preferences/set`, {
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ direction })
+        body: JSON.stringify({ preferences: newOrder, _draft: true })
       });
-
       const result = await response.json();
-      console.log('Move response:', result);
-      
+
       if (result.success) {
-        await loadPreferences(currentStudentId);
-        showNotification('Order updated successfully!', 'success');
+        // Optimistic update + reload from server to stay in sync
+        setPreferences(reordered);
+        localStorage.setItem(`studentPreferences_${currentStudentId}`, JSON.stringify(reordered));
+        showNotification('Order updated', 'success');
       } else {
-        showNotification(result.message, 'error');
+        showNotification(result.message || 'Failed to update order', 'error');
       }
     } catch (error) {
       console.error('Move preference error:', error);
@@ -449,39 +419,32 @@ function Student() {
 
   const handleReorderPreferences = async (newPreferences) => {
     const currentStudentId = studentData.studentId || sessionStorage.getItem('studentId') || 's001';
-    
-    console.log('[REORDER] Reordering preferences via drag-drop:', { currentStudentId });
-    
-    // Immediately update UI for smooth experience
-    setPreferences(newPreferences);
-    
-    try {
-      // Extract the order of project IDs
-      const newOrder = newPreferences.map(p => p.id);
-      
-      const response = await fetch(`/api/student/${currentStudentId}/preferences/reorder`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ order: newOrder })
-      });
+    const submittedFlag = isPrefsSubmitted();
+    if (submittedFlag) return; // already locked; server handles the guard anyway
 
+    setPreferences(newPreferences);
+
+    const newOrder = newPreferences.map(p => p.id);
+    try {
+      const response = await fetch(`/api/student/${currentStudentId}/preferences/set`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ preferences: newOrder, _draft: true })
+      });
       const result = await response.json();
       console.log('Reorder response:', result);
-      
+
       if (result.success) {
-        // Reload to ensure sync with server
-        await loadPreferences(currentStudentId);
-        showNotification('Order updated successfully!', 'success');
-      } else {
-        // If API failed, use local storage
         localStorage.setItem(`studentPreferences_${currentStudentId}`, JSON.stringify(newPreferences));
-        showNotification('Order updated (saved locally)!', 'success');
+        showNotification('Order updated', 'success');
+      } else {
+        localStorage.setItem(`studentPreferences_${currentStudentId}`, JSON.stringify(newPreferences));
+        showNotification(result.message || 'Failed to update order', 'error');
       }
     } catch (error) {
       console.error('Reorder preference error:', error);
-      // Use local fallback when API fails
       localStorage.setItem(`studentPreferences_${currentStudentId}`, JSON.stringify(newPreferences));
-      showNotification('Order updated (saved locally)!', 'success');
+      showNotification('Failed to update order', 'error');
     }
   };
 
@@ -588,7 +551,6 @@ function Student() {
           currentSection={currentSection}
           systemDeadlines={systemDeadlines}
           expiredDeadlineKeys={expiredDeadlineKeys}
-          proposalSubmitted={studentData.proposalSubmitted}
         />;
       case 'project-browse':
         return <ProjectBrowse
@@ -607,8 +569,9 @@ function Student() {
           onMovePreference={handleMovePreference}
           onReorderPreferences={handleReorderPreferences}
           onSwitchSection={setCurrentSection}
-          submitted={studentData.proposalSubmitted}
+          submitted={isPrefsSubmitted()}
           matchingCompleted={matchingCompleted}
+          isAssigned={isAssigned}
         />;
       case 'results':
         return <Results />;
@@ -624,7 +587,6 @@ function Student() {
             assignmentType={assignmentType}
             systemDeadlines={systemDeadlines}
             expiredDeadlineKeys={expiredDeadlineKeys}
-            proposalSubmitted={studentData.proposalSubmitted}
           />
         );
     }

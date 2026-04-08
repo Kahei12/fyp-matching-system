@@ -15,9 +15,10 @@ function MyPreferences({
   onReorderPreferences,
   onSwitchSection,
   submitted,
-  matchingCompleted
+  matchingCompleted,
+  isAssigned
 }) {
-  const locked = !!submitted || !!matchingCompleted;
+  const locked = !!submitted || !!matchingCompleted || !!isAssigned;
   const [draggedItem, setDraggedItem] = useState(null);
   const [dragOverIndex, setDragOverIndex] = useState(null);
 

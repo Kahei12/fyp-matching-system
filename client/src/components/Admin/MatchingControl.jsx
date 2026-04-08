@@ -76,19 +76,21 @@ function MatchingControl({ showNotification }) {
 
   const runStartMatching = async () => {
     try {
-      showNotification('Start Matching...', 'info');
+      showNotification('Starting Matching...', 'info');
       setStatus('Running');
 
       const runResp = await fetch('/api/match/run', { method: 'POST' });
       const runResult = await runResp.json();
-      if (!runResp.ok) {
+      if (!runResp.ok || !runResult.success) {
         throw new Error(runResult && runResult.message ? runResult.message : 'Match run failed');
       }
 
       await fetchStats();
       setStatus('Completed');
-
-      showNotification(`Matching completed`, 'success');
+      showNotification(
+        `Matching completed — ${runResult.matchedStudents ?? 0} / ${runResult.totalStudents ?? 0} students assigned`,
+        'success'
+      );
     } catch (err) {
       console.error('Matching error:', err);
       setStatus('Error');

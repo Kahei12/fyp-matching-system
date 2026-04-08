@@ -5,10 +5,10 @@ import { formatDateTime24 } from '../../utils/formatDateTime24';
 import { PROPOSAL_SKILL_OPTIONS } from '../../constants/proposalSkills';
 
 const DEFAULT_SYSTEM_DEADLINES = {
-  studentSelfProposal: '2025-03-20T23:59:00',
-  preference: '2025-04-15T22:59:00',
-  teacherProposalReview: '2025-04-15T23:59:00',
-  teacherSelfProposal: '2025-05-30T23:59:00',
+  studentSelfProposal: '2026-03-20T23:59:00',
+  preference: '2026-06-30T23:59:00',
+  teacherProposalReview: '2026-06-30T23:59:00',
+  teacherSelfProposal: '2026-12-31T23:59:00',
 };
 
 function fmtDaysLeft(days) {
@@ -24,7 +24,6 @@ function Proposal({
   currentSection = 'proposal',
   systemDeadlines = DEFAULT_SYSTEM_DEADLINES,
   expiredDeadlineKeys = new Set(),
-  proposalSubmitted = false,
 }) {
   const preferencesCount = preferences?.length || 0;
   const proposalTableRef = useRef(null);
@@ -210,8 +209,11 @@ function Proposal({
   const formattedProposalDate = formatDateTime24(proposalDeadline);
   const fmtDeadlineLine = (d) => formatDateTime24(d);
 
-  // Effective submission lock: already submitted, assigned, or deadline passed
-  const isFormLocked = proposalSubmitted || isProposalApproved || isSelfProposalExpired || isAssigned;
+  // Lock from loaded self-proposal state (do not use proposalSubmitted — it was conflated with preference submit)
+  const selfProposalLocksForm =
+    proposal &&
+    (proposal.proposalStatus === 'pending' || proposal.proposalStatus === 'approved');
+  const isFormLocked = selfProposalLocksForm || isSelfProposalExpired || isAssigned;
 
   if (loading) {
     return (

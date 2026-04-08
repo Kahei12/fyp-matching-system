@@ -726,15 +726,17 @@ button:disabled {
 
 .preference-item {
   display: flex;
+  flex-wrap: nowrap;
   align-items: center;
-  gap: 1rem;
-  padding: 1rem;
+  gap: 0.5rem 0.75rem;
+  padding: 0.75rem 1rem;
   background: #f8f9fa;
   border-radius: 8px;
   border: 2px dashed #dee2e6;
   transition: all 0.3s ease;
   cursor: grab;
   user-select: none;
+  overflow: visible;
 }
 
 .preference-item:active {
@@ -763,10 +765,13 @@ button:disabled {
   justify-content: center;
   color: #95a5a6;
   cursor: grab;
-  padding: 0.5rem;
+  padding: 0.25rem;
   user-select: none;
   transition: color 0.2s ease;
   line-height: 0;
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
 }
 
 .drag-handle:hover {
@@ -781,36 +786,135 @@ button:disabled {
 .preference-rank {
   background: #3498db;
   color: white;
-  width: 40px;
-  height: 40px;
+  width: 32px;
+  height: 32px;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
   font-weight: bold;
-  font-size: 1.1rem;
+  font-size: 0.9rem;
   flex-shrink: 0;
 }
 
 .preference-content {
-  flex: 1;
+  flex: 1 1 0;
+  min-width: 0;
 }
 
 .preference-content h4 {
   color: #2c3e50;
-  margin-bottom: 0.25rem;
+  margin-bottom: 0.2rem;
+  word-break: break-word;
+  font-size: 0.95rem;
+  line-height: 1.3;
 }
 
 .preference-content p {
   color: #6c757d;
-  font-size: 0.9rem;
+  font-size: 0.8rem;
+  margin: 0;
 }
 
+/* Actions on same row as title (narrow screens stack below) */
 .preference-actions {
   display: flex;
   gap: 0.5rem;
   align-items: center;
   flex-shrink: 0;
+  flex-wrap: nowrap;
+  width: auto;
+  max-width: 100%;
+  margin-left: auto;
+  justify-content: flex-end;
+  padding-top: 0;
+  border-top: none;
+  margin-top: 0;
+  overflow: visible;
+  box-sizing: border-box;
+}
+
+.preference-actions .btn-move {
+  flex: 0 0 auto;
+  background: #95a5a6;
+  color: white;
+  padding: 0;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 1rem;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  width: 36px;
+  height: 36px;
+  min-width: 36px;
+  min-height: 36px;
+}
+
+.preference-actions .btn-move:hover:not(:disabled) {
+  background: #7f8c8d;
+  transform: scale(1.1);
+}
+
+.preference-actions .btn-move .stage-glyph-svg,
+.preference-actions .btn-move svg {
+  width: 1.35rem;
+  height: 1.35rem;
+  min-width: 1.35rem;
+  min-height: 1.35rem;
+  display: block;
+  overflow: visible;
+}
+
+.preference-actions .btn-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+  white-space: nowrap;
+  flex: 0 0 auto;
+  padding: 0.35rem 1rem;
+  border-radius: 5px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  border: none;
+  cursor: pointer;
+  background: #e74c3c;
+  color: white;
+  transition: all 0.2s ease;
+  min-width: max-content;
+  width: auto;
+  max-width: none;
+  height: 36px;
+  overflow: visible;
+}
+
+.preference-actions .btn-remove:hover:not(:disabled) {
+  background: #c0392b;
+}
+
+@media (max-width: 720px) {
+  .preference-item {
+    flex-wrap: wrap;
+  }
+
+  .preference-actions {
+    width: 100%;
+    max-width: none;
+    margin-left: 0;
+    justify-content: flex-end;
+    padding-top: 0.5rem;
+    border-top: 1px solid #dee2e6;
+    margin-top: 0.25rem;
+  }
+}
+
+button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 
 .preferences-actions {

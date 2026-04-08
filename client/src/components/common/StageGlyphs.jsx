@@ -160,7 +160,7 @@ export function GripVerticalGlyph(props) {
 
 export function ChevronUpGlyph(props) {
   return (
-    <svg {...compactSvg} {...props}>
+    <svg {...compactSvg} viewBox="0 0 24 24" style={{ display: 'block' }} {...props}>
       <path
         d="M7 14l5-5 5 5"
         fill="none"
@@ -175,7 +175,7 @@ export function ChevronUpGlyph(props) {
 
 export function ChevronDownGlyph(props) {
   return (
-    <svg {...compactSvg} {...props}>
+    <svg {...compactSvg} viewBox="0 0 24 24" style={{ display: 'block' }} {...props}>
       <path
         d="M7 10l5 5 5-5"
         fill="none"

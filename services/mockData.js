@@ -61,6 +61,7 @@ const mockData = {
             major: "Computer and Cyber Security",
             year: "Year 4",
             preferences: [],
+            preferencesSubmitted: false,
             proposalSubmitted: false,
             assignedProject: null
         }

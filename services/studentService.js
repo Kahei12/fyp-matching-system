@@ -54,6 +54,24 @@ function checkDBConnection() {
     }
 }
 
+/** Resolve a raw preference value to a project doc (ObjectId / code / catalogue id). */
+function resolveProjectByPref(projects, pref) {
+    const asString = String(pref == null ? '' : pref);
+    if (!asString) return null;
+    const mongoose = require('mongoose');
+    if (mongoose.Types.ObjectId.isValid(asString)) {
+        const found = projects.find(p => String(p._id) === asString);
+        if (found) return found;
+    }
+    const byId = projects.find(p => String(p._id) === asString);
+    if (byId) return byId;
+    const byNumId = projects.find(p => p.id != null && String(p.id) === asString);
+    if (byNumId) return byNumId;
+    const byCode = projects.find(p => p.code && String(p.code) === asString);
+    if (byCode) return byCode;
+    return null;
+}
+
 const studentService = {
     // Get all available projects (DB-backed)
     // Major filter is preferred; if matching projects is 0, show all teacher projects (without major filter)
@@ -71,10 +89,9 @@ const studentService = {
             const teacherProjects = allDocs.filter(doc => {
                 if (doc.type === 'student') return false;
                 if (!doc.supervisor || doc.supervisor === 'TBD') return false;
-                // status empty or missing is also valid (backward compatibility)
+                // Accept any status except explicitly rejected (consistent with runMatching)
                 const s = String(doc.status || '').toLowerCase();
-                const ok = !s || s === 'active' || s === 'approved' || s === 'under review' || s === 'approved';
-                return ok;
+                return s !== 'rejected';
             });
 
             console.log(`[getAvailableProjects] Teacher projects (no major filter): ${teacherProjects.length}`);
@@ -119,6 +136,12 @@ const studentService = {
         if (checkDBConnection() && StudentModel) {
             const doc = await StudentModel.findOne({ id: studentId }).lean().exec();
             if (!doc) return null;
+            const hasSelfProposal = !!doc.proposedProject;
+            const storedPrefsSubmitted = !!doc.preferencesSubmitted;
+            const legacyPrefsOnly = !!doc.proposalSubmitted && !hasSelfProposal
+                && Array.isArray(doc.preferences) && doc.preferences.length > 0;
+            const preferencesSubmitted = storedPrefsSubmitted || legacyPrefsOnly;
+
             return {
                 id: doc.id,
                 studentId: doc.id,
@@ -128,13 +151,16 @@ const studentService = {
                 major: doc.major,
                 year: doc.year,
                 preferences: Array.isArray(doc.preferences) ? doc.preferences.map(p => (typeof p === 'number' ? p : parseInt(p))) : [],
+                preferencesSubmitted,
                 proposalSubmitted: !!doc.proposalSubmitted,
+                proposedProject: doc.proposedProject ? String(doc.proposedProject) : null,
+                proposalStatus: doc.proposalStatus || 'none',
                 assignedProject: doc.assignedProject || null
             };
         }
         return null;
     },
-    
+
     // Get student's preference list
     getStudentPreferences: async (studentId) => {
         if (checkDBConnection() && StudentModel && ProjectModel) {
@@ -142,37 +168,15 @@ const studentService = {
             if (!student) return [];
             const prefs = Array.isArray(student.preferences) ? student.preferences : [];
             if (prefs.length === 0) return [];
-            
+
             const projects = await ProjectModel.find({}).lean().exec();
-            const mongoose = require('mongoose');
-            
-            const resolved = prefs.map((projectId) => {
-                const pid = String(projectId);
-                let proj = null;
-                
-                // Try as ObjectId
-                if (mongoose.Types.ObjectId.isValid(pid)) {
-                    proj = projects.find(p => String(p._id) === pid);
-                }
-                
-                // If not found, try as code
+
+            const resolved = prefs.map(prefId => {
+                const proj = resolveProjectByPref(projects, prefId);
                 if (!proj) {
-                    proj = projects.find(p => p.code && String(p.code) === pid);
-                }
-                
-                // If still not found, try as other ID field
-                if (!proj) {
-                    proj = projects.find(p => {
-                        if (p.id !== undefined && p.id !== null && String(p.id) === pid) return true;
-                        return false;
-                    });
-                }
-                
-                if (!proj) {
-                    console.warn(`[getStudentPreferences] Project not found for ID: ${pid}`);
+                    console.warn(`[getStudentPreferences] Project not found for pref ID: ${prefId}`);
                     return null;
                 }
-                
                 return {
                     ...proj,
                     id: proj.code || String(proj._id),
@@ -185,7 +189,7 @@ const studentService = {
                     status: proj.status || 'active'
                 };
             }).filter(Boolean);
-            
+
             return resolved.map((proj, idx) => ({ ...proj, rank: idx + 1 }));
         }
         return [];
@@ -298,7 +302,7 @@ const studentService = {
             const student = await StudentModel.findOne({ id: studentId }).exec();
             if (!student) return { success: false, message: "Student not found" };
             if (!Array.isArray(student.preferences) || student.preferences.length === 0) return { success: false, message: "No preferences to submit" };
-            student.proposalSubmitted = true;
+            student.preferencesSubmitted = true;
             await student.save();
             return { success: true, message: "Preferences submitted successfully", preferencesCount: student.preferences.length, submittedAt: new Date().toISOString() };
         }
@@ -306,30 +310,24 @@ const studentService = {
     },
     
     // Set student's preferences directly (initiated by Student UI Submit)
-    setPreferences: async (studentId, preferencesArray) => {
+    setPreferences: async (studentId, preferencesArray, options = {}) => {
         const stringPrefs = (preferencesArray || []).map(id => String(id));
+        const isDraft = !!options?.draft;
         if (checkDBConnection() && StudentModel && ProjectModel) {
             const student = await StudentModel.findOne({ id: studentId }).exec();
             if (!student) {
                 console.error(`[setPreferences] Student not found: ${studentId}`);
                 return { success: false, message: "Student not found" };
             }
-            
-            // Validate all project IDs (optional but recommended)
+
+            // Validate all project IDs (consistent resolve strategy)
             if (stringPrefs.length > 0) {
                 const mongoose = require('mongoose');
+                const allProjects = await ProjectModel.find({}).lean().exec();
                 const validProjects = [];
                 for (const prefId of stringPrefs) {
-                    let project = null;
-                    // Try as ObjectId
-                    if (mongoose.Types.ObjectId.isValid(prefId)) {
-                        project = await ProjectModel.findById(prefId).lean().exec();
-                    }
-                    // If not found, try as code
-                    if (!project) {
-                        project = await ProjectModel.findOne({ code: prefId }).lean().exec();
-                    }
-                    if (project) {
+                    const proj = resolveProjectByPref(allProjects, prefId);
+                    if (proj) {
                         validProjects.push(prefId);
                     } else {
                         console.warn(`[setPreferences] Project not found: ${prefId}`);
@@ -337,17 +335,21 @@ const studentService = {
                 }
                 // Use validated project IDs
                 student.preferences = validProjects;
+                // Only lock (preferencesSubmitted) on final submit — not on draft moves/removes
+                if (!isDraft) {
+                    student.preferencesSubmitted = true;
+                }
             } else {
                 student.preferences = stringPrefs;
+                student.preferencesSubmitted = false;
             }
-            
-            student.proposalSubmitted = true;
+
             await student.save();
-            console.log(`[setPreferences] Saved preferences for student ${studentId}: ${student.preferences.length} projects`);
-            return { 
-                success: true, 
-                message: "Preferences saved to database", 
-                preferencesCount: student.preferences.length 
+            console.log(`[setPreferences] Saved preferences for student ${studentId}: ${student.preferences.length} projects${isDraft ? ' (draft)' : ''}`);
+            return {
+                success: true,
+                message: "Preferences saved to database",
+                preferencesCount: student.preferences.length
             };
         }
         return { success: false, message: "Database unavailable" };
@@ -480,23 +482,39 @@ const studentService = {
             console.log('[runMatching] Cleared previous assignments');
 
             // fetch students who submitted preferences
-            const studentDocs = await StudentModel.find({ proposalSubmitted: true, preferences: { $exists: true, $ne: [] } }).lean().exec();
-            console.log(`[runMatching] Found ${studentDocs.length} students with submitted preferences`);
-            
-            // Only use teacher-proposed and status === 'Approved' projects
-            const projectDocs = await ProjectModel.find({ 
-                type: 'teacher',
-                status: 'Approved',
-                isActive: true 
+            // preferencesSubmitted: new field; fall back to legacy proposalSubmitted+prefs for old data
+            const studentDocs = await StudentModel.find({
+                $or: [
+                    { preferencesSubmitted: true },
+                    { proposalSubmitted: true, proposedProject: null, preferences: { $exists: true, $ne: [] } }
+                ],
+                preferences: { $exists: true, $ne: [] }
             }).lean().exec();
-            console.log(`[runMatching] Found ${projectDocs.length} teacher-proposed projects for matching`);
+            console.log(`[runMatching] Found ${studentDocs.length} students with submitted preferences`);
 
-            // build quick lookup by possible identifiers
+            // Consistent with getAvailableProjects: accept all teacher projects except explicitly rejected
+            const projectDocs = await ProjectModel.find({
+                type: 'teacher',
+                isActive: true
+            }).lean().exec();
+
+            const byStatus = { approved: 0, active: 0, other: 0, rejected: 0 };
+            projectDocs.forEach(p => {
+                const s = String(p.status || '').toLowerCase();
+                if (s === 'approved') byStatus.approved++;
+                else if (s === 'active') byStatus.active++;
+                else if (s === 'rejected') byStatus.rejected++;
+                else byStatus.other++;
+            });
+            console.log(`[runMatching] ${projectDocs.length} teacher projects by status: approved=${byStatus.approved}, active=${byStatus.active}, other=${byStatus.other}, rejected=${byStatus.rejected}`);
+
+            // build quick lookup by possible identifiers (must cover all ways preferences are stored)
             const projectLookup = {};
             projectDocs.forEach(p => {
-                if (p.id !== undefined && p.id !== null) projectLookup[String(p.id)] = p;
+                const key = String(p._id);
+                projectLookup[key] = p;
+                if (p.id != null) projectLookup[String(p.id)] = p;
                 if (p.code) projectLookup[String(p.code)] = p;
-                projectLookup[String(p._id)] = p;
             });
 
             // prepare projects map for algorithm keyed by project._id string
@@ -596,6 +614,19 @@ const studentService = {
             }
 
             console.log(`[runMatching] Matching completed: ${assignments.length} students assigned`);
+
+            if (SystemSettingsModel) {
+                try {
+                    await SystemSettingsModel.findOneAndUpdate(
+                        { key: 'system' },
+                        { $set: { matchingCompleted: true } },
+                        { upsert: true }
+                    ).exec();
+                } catch (e) {
+                    console.error('[runMatching] Could not set matchingCompleted flag:', e.message);
+                }
+            }
+
             return { 
                 success: true, 
                 assignments,
@@ -613,8 +644,17 @@ const studentService = {
             const projects = await ProjectModel.find({}).lean().exec();
             const students = await StudentModel.find({ assignedProject: { $ne: null } }).lean().exec();
 
-            // Check if any assignments exist (to determine if matching is complete)
-            const matchingCompleted = students.length > 0;
+            // Global "matching finished" locks preference editing for all students — must not be
+            // inferred from "any student assigned" (that wrongly locked everyone during partial tests).
+            let matchingCompleted = false;
+            if (SystemSettingsModel) {
+                try {
+                    const settings = await SystemSettingsModel.findOne({ key: 'system' }).lean().exec();
+                    matchingCompleted = settings?.matchingCompleted ?? false;
+                } catch (e) {
+                    console.error('[getMatchingResults] SystemSettings read failed:', e.message);
+                }
+            }
 
             const results = [];
             for (const project of projects) {
@@ -652,6 +692,7 @@ const studentService = {
                 major: d.major,
                 year: d.year,
                 preferences: Array.isArray(d.preferences) ? d.preferences.map(p => String(p)) : [],
+                preferencesSubmitted: !!d.preferencesSubmitted,
                 proposalSubmitted: !!d.proposalSubmitted,
                 assignedProject: d.assignedProject || null
             }));
@@ -669,6 +710,7 @@ const studentService = {
                     {
                         $set: {
                             preferences: [],
+                            preferencesSubmitted: false,
                             proposalSubmitted: false,
                             assignedProject: null,
                             proposalStatus: 'none',
@@ -695,6 +737,14 @@ const studentService = {
                     ).exec();
                 }
                 
+                if (SystemSettingsModel) {
+                    await SystemSettingsModel.findOneAndUpdate(
+                        { key: 'system' },
+                        { $set: { matchingCompleted: false } },
+                        { upsert: true }
+                    ).exec();
+                }
+
                 console.log('[resetState] Database reset completed');
                 return { success: true, message: 'Database reset completed. All students can now submit preferences and proposals again.' };
             } catch (err) {

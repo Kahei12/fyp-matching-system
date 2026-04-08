@@ -9,6 +9,7 @@ function resetStudentState() {
   
   // 清除 sessionStorage
   sessionStorage.removeItem('proposalSubmitted');
+  sessionStorage.removeItem('preferencesSubmitted');
   
   // 清除 localStorage
   localStorage.removeItem(`studentPreferences_${studentId}`);

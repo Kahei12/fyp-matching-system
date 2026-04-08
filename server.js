@@ -439,12 +439,15 @@ try {
         StudentModel = require('./models/Student');
         // Check database connection status
         const mongoose = require('mongoose');
+        console.log(`[DB Check] mongoose.connection.readyState: ${mongoose.connection.readyState}`);
         if (mongoose.connection.readyState === 1) {
             dbEnabled = true;
             console.log('Teacher API: MongoDB connected, database mode enabled');
+        } else {
+            console.log(`[DB Check] MongoDB not connected, readyState: ${mongoose.connection.readyState}`);
         }
     } catch (e) {
-        console.log('Teacher API: Model loading failed');
+        console.log('Teacher API: Model loading failed:', e.message);
     }
     
     // Student API routes
@@ -507,7 +510,7 @@ try {
             if ((!Array.isArray(prefs) || prefs.length === 0) && req.body && req.body.projectId) {
                 prefs = [req.body.projectId];
             }
-            const result = await studentService.setPreferences(req.params.id, prefs || []);
+            const result = await studentService.setPreferences(req.params.id, prefs || [], { draft: !!req.body._draft });
             res.json(result);
         } catch (error) {
             console.error('Set preferences error:', error);
@@ -775,10 +778,9 @@ try {
                     results: result.results || [] 
                 });
             } else {
-                // Legacy format compatibility
+                // Legacy format compatibility — do not infer global lock from assigned rows
                 const results = Array.isArray(result) ? result : [];
-                const matchingCompleted = results.some(r => r.studentId !== null);
-                res.json({ success: true, matchingCompleted, results });
+                res.json({ success: true, matchingCompleted: false, results });
             }
         } catch (error) {
             console.error('Get matching results error:', error);
@@ -862,8 +864,8 @@ try {
                 await newProject.save();
                 console.log('Student proposal saved:', newProject);
                 
-                // Update student's proposal status
-                student.proposalSubmitted = true;
+                // Track self-proposal via proposedProject / proposalStatus only — do not set proposalSubmitted
+                // (that flag was conflated with "preferences submitted" and locked My Preferences incorrectly).
                 student.proposedProject = newProject._id;
                 student.proposalStatus = 'pending';
                 await student.save();
@@ -1857,11 +1859,17 @@ try {
                 return res.status(400).json({ success: false, message: 'Teacher email required' });
             }
 
-            const teacherEmailLower = teacherEmail.toLowerCase();
+            // Always check fresh connection status
+            const mongoose = require('mongoose');
+            const currentDbEnabled = mongoose.connection.readyState === 1;
+            console.log(`[Matching Results] Request from teacher: ${teacherEmail}, dbEnabled: ${currentDbEnabled}`);
 
-            if (dbEnabled && ProjectModel && StudentModel) {
+            if (currentDbEnabled && ProjectModel && StudentModel) {
+                const teacherEmailLower = teacherEmail.toLowerCase();
                 const ctx = await loadTeacherFilterContext(teacherEmail);
                 const allDocs = await ProjectModel.find({}).lean().exec();
+                console.log(`[Matching Results] Total projects in DB: ${allDocs.length}`);
+                
                 const teacherProjects = allDocs.filter((p) => {
                     const sem = (p.supervisorEmail || '').toLowerCase();
                     if (sem && (sem === ctx.emailLower || sem === teacherEmailLower)) return true;
@@ -1872,8 +1880,9 @@ try {
                     if (hasReview) return true;
                     return projectBelongsToTeacher(p, ctx);
                 });
+                
+                console.log(`[Matching Results] Projects for teacher: ${teacherProjects.length}`);
 
-                const mongoose = require('mongoose');
                 const projectIds = teacherProjects.map((p) => String(p._id));
                 const oidList = projectIds
                     .filter((id) => mongoose.Types.ObjectId.isValid(id))
@@ -1914,7 +1923,9 @@ try {
     });
 
 } catch (error) {
-    console.log('Service layer not found, using mock API');
+    console.error('❌ studentService failed to load — real student APIs are disabled. Error:', error.message);
+    console.error(error.stack);
+    console.log('Registering minimal mock /api/student/projects only (Prof. Bell demo). Fix the error above and restart.');
     
     // Simplified mock API as fallback
     app.get('/api/student/projects', (req, res) => {
@@ -2658,9 +2669,9 @@ app.get('/api/admin/available-projects', async (req, res) => {
         if (isDbConnected && Project && Student) {
             // For unmatched students: only show teacher-proposed projects
             // (Student-proposed projects have supervisor: 'TBD' and should not be assigned)
+            // Consistent with getAvailableProjects / runMatching: accept all non-rejected projects
             const projects = await Project.find({
                 type: { $ne: 'student' }, // Only teacher-proposed
-                status: 'Under Review',
                 isActive: { $ne: false }
             }).lean().exec();
             

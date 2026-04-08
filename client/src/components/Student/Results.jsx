@@ -14,15 +14,21 @@ function Results() {
   const [showUpdateBanner, setShowUpdateBanner] = useState(false);
 
   useEffect(() => {
+    let mounted = true;
+
     const fetchAssignment = async () => {
       try {
         const studentId = sessionStorage.getItem('studentId') || 's001';
         
+        // Prevent concurrent / overlapping polls
+        if (fetchAssignment._busy) return;
+        fetchAssignment._busy = true;
+
         // Fetch from matching results API
         const resp = await fetch('/api/match/results');
         const data = await resp.json();
         
-        console.log('[Results] Match results data:', data);
+        if (!mounted) return;
         
         if (resp.ok && data.success) {
           const results = data.results || [];
@@ -34,6 +40,7 @@ function Results() {
           // Also check from matched students API for real-time data
           const matchedResp = await fetch('/api/admin/matched-students');
           const matchedData = await matchedResp.json();
+          if (!mounted) return;
           const isMatchedStudent = matchedData.success && matchedData.students 
             ? matchedData.students.find(s => s.id === studentId)
             : null;
@@ -49,23 +56,20 @@ function Results() {
               projectCode: isMatchedStudent.projectCode
             };
             
-            // Check if this is a different assignment than before
             if (lastAssignmentData && 
                 lastAssignmentData.title !== currentAssignment.title) {
-              // Assignment changed - show notification
               setShowUpdateBanner(true);
               setNotificationMessage('Your matching result has been updated. Please check your new project assignment below.');
               setTimeout(() => setShowUpdateBanner(false), 10000);
             }
             
-            // Update last known assignment
             setLastAssignmentData(currentAssignment);
             setAssignment(currentAssignment);
             setStatusText('Assigned');
+            fetchAssignment._busy = false;
             return;
           }
           
-          // Check from legacy matching results
           if (my && my.studentId && my.title) {
             const currentAssignment = {
               title: my.title,
@@ -75,54 +79,51 @@ function Results() {
               assignedAt: my.assignedAt || new Date().toISOString()
             };
             
-            // Check if this is a different assignment than before
             if (lastAssignmentData && 
                 lastAssignmentData.title !== currentAssignment.title) {
-              // Assignment changed - show notification
               setShowUpdateBanner(true);
               setNotificationMessage('Your matching result has been updated. Please check your new project assignment below.');
               setTimeout(() => setShowUpdateBanner(false), 10000);
             }
             
-            // Update last known assignment
             setLastAssignmentData(currentAssignment);
             setAssignment(currentAssignment);
             setStatusText('Assigned');
+            fetchAssignment._busy = false;
             return;
           }
           
-          // If was assigned before but now not assigned (cleared by admin)
           if (lastAssignmentData && !isMatchedStudent && !my?.title) {
-            // Assignment was cleared - show different notification
             setShowUpdateBanner(true);
             setNotificationMessage('Your previous project assignment has been cleared. Please wait patiently for the latest assignment from the admin.');
             setTimeout(() => setShowUpdateBanner(false), 10000);
             setLastAssignmentData(null);
           }
           
-          // If matching completed but no assignment
           if (matchingCompleted && !isMatchedStudent && !my?.title) {
             setAssignment(null);
             setStatusText('Unassigned');
+            fetchAssignment._busy = false;
             return;
           }
         }
         
-        // If no matching data yet, show pending
         setAssignment(null);
         setStatusText('Pending');
       } catch (err) {
-        console.error('Fetch match results error:', err);
-        setAssignment(null);
-        setStatusText('Pending');
+        // Silently handle — network errors are normal during polling
+      } finally {
+        fetchAssignment._busy = false;
       }
     };
 
     fetchAssignment();
     
-    // Poll for updates every 5 seconds
     const interval = setInterval(fetchAssignment, 5000);
-    return () => clearInterval(interval);
+    return () => {
+      mounted = false;
+      clearInterval(interval);
+    };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
