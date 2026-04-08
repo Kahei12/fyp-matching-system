@@ -97,14 +97,38 @@ function supervisorNameLikelyMatches(supervisor, teacherDisplayName) {
     return supWords.every((w) => tnWords.has(w));
 }
 
-/** Login email → canonical teacher doc email (password checked against canonical account) */
-const TEACHER_LOGIN_ALIASES = {
-    'teacher@hkmu.edu.hk': 't001@hkmu.edu.hk',
-};
-
+/** Normalised email string for teacher lookups (use t001@hkmu.edu.hk style accounts only) */
 function resolveTeacherDbEmail(email) {
-    const e = String(email || '').trim().toLowerCase();
-    return TEACHER_LOGIN_ALIASES[e] || String(email || '').trim();
+    return String(email || '').trim();
+}
+
+async function loadTeacherFilterContext(rawEmail) {
+    const Teacher = require('./models/Teacher');
+    const canonical = String(rawEmail || '').trim().toLowerCase();
+    const row = await Teacher.findOne(emailQueryInsensitive(canonical)).lean().exec();
+    const emailLower = (row?.email || canonical).toLowerCase();
+    return {
+        emailLower,
+        teacherId: row?.teacherId ? String(row.teacherId).trim() : '',
+        displayName: row?.name ? String(row.name).trim() : '',
+        major: row?.major || '',
+    };
+}
+
+/** Whether a project row belongs to the logged-in teacher (email, id, or supervisor name) */
+function projectBelongsToTeacher(doc, ctx) {
+    if (!doc || !ctx) return false;
+    const sem = (doc.supervisorEmail || '').toLowerCase();
+    if (sem && sem === ctx.emailLower) return true;
+    if (ctx.teacherId && doc.supervisorId &&
+        String(doc.supervisorId).trim().toLowerCase() === ctx.teacherId.toLowerCase()) {
+        return true;
+    }
+    if (doc.supervisor && doc.supervisor !== 'TBD' && ctx.displayName &&
+        supervisorNameLikelyMatches(doc.supervisor, ctx.displayName)) {
+        return true;
+    }
+    return false;
 }
 
 // User data (auto-initialized)
@@ -140,7 +164,6 @@ async function initializeUsers() {
     console.log('   Admin: admin@hkmu.edu.hk / admin123');
     console.log('   Student: s001@hkmu.edu.hk / 00000000');
     console.log('   Teacher: t001–t008@hkmu.edu.hk / 00000001–00000008 (MongoDB seed)');
-    console.log('   Teacher alias: teacher@hkmu.edu.hk → t001, same password as t001');
 }
 
 // Login API route
@@ -228,8 +251,7 @@ app.post('/login', async (req, res) => {
                 } else {
                     // Try as teacher (alias account maps to canonical teacher email for password verification)
                     const Teacher = require('./models/Teacher');
-                    const teacherLookupEmail = TEACHER_LOGIN_ALIASES[emailNorm] || emailNorm;
-                    const teacher = await Teacher.findOne(emailQueryInsensitive(teacherLookupEmail)).exec();
+                    const teacher = await Teacher.findOne(emailQueryInsensitive(emailNorm)).exec();
 
                     if (teacher) {
                         if (teacher.password && teacher.password.startsWith('$2')) {
@@ -301,7 +323,7 @@ app.post('/login', async (req, res) => {
                 const mongoose = require('mongoose');
                 if (mongoose.connection.readyState === 1) {
                     const Teacher = require('./models/Teacher');
-                    const teacherDbEmail = resolveTeacherDbEmail(emailNorm);
+                    const teacherDbEmail = resolveTeacherDbEmail(emailNorm).toLowerCase();
                     const tdoc = await Teacher.findOne(emailQueryInsensitive(teacherDbEmail)).lean().exec();
                     const defaultMajor = Teacher.schema.path('major').defaultValue;
                     if (tdoc) {
@@ -826,7 +848,7 @@ try {
                     type: 'student',                    // Mark as student-proposed
                     category: 'Student Proposed',
                     department: student.major || 'ECE', // Set to student's major
-                    major: student.major || 'ECE',       // New major field
+                    major: majorToFilterCode(student.major) || 'CCS',       // Convert full major name to short code
                     status: 'Under Review',              // Waiting for teacher review
                     proposalStatus: 'pending',
                     popularity: 0,
@@ -1059,10 +1081,13 @@ try {
 
     // Approve/Reject proposal
     app.put('/api/proposals/:proposalId/status', async (req, res) => {
-        console.log('Update proposal status');
+        console.log('[Proposal Status] Update proposal:', req.params.proposalId);
+        console.log('[Proposal Status] Body:', JSON.stringify(req.body));
         try {
             const { proposalId } = req.params;
             const { status, supervisorEmail, supervisorName, teacherId } = req.body; 
+            
+            console.log('[Proposal Status] status:', status, '| teacherId:', teacherId, '| supervisorEmail:', supervisorEmail);
             
             if (!status) {
                 return res.status(400).json({ success: false, message: 'Status required' });
@@ -1075,8 +1100,12 @@ try {
             if (isDbConnected && Project && Student) {
                 const project = await Project.findById(proposalId).exec();
                 if (!project) {
+                    console.log('[Proposal Status] Project not found:', proposalId);
                     return res.status(404).json({ success: false, message: 'Proposal not found' });
                 }
+                
+                console.log('[Proposal Status] Project found:', project.title);
+                console.log('[Proposal Status] Current teacherReviews:', JSON.stringify(project.teacherReviews));
                 
                 // Initialize teacherReviews array
                 if (!project.teacherReviews) {
@@ -1084,9 +1113,14 @@ try {
                 }
                 
                 // Find or create current teacher's review record
-                let reviewIndex = project.teacherReviews.findIndex(r => r.teacherEmail === teacherId || r.teacherEmail === supervisorEmail);
+                const reviewEmail = teacherId || supervisorEmail;
+                console.log('[Proposal Status] Review email:', reviewEmail);
+                let reviewIndex = project.teacherReviews.findIndex(r => 
+                    r.teacherEmail === reviewEmail || 
+                    r.teacherEmail?.toLowerCase() === reviewEmail?.toLowerCase()
+                );
                 const reviewRecord = {
-                    teacherEmail: teacherId || supervisorEmail,
+                    teacherEmail: reviewEmail,
                     teacherName: supervisorName || supervisorEmail?.split('@')[0] || 'Teacher',
                     decision: status,
                     reviewedAt: new Date()
@@ -1098,12 +1132,17 @@ try {
                     project.teacherReviews.push(reviewRecord);
                 }
                 
-                // Update project status based on decision
+                console.log('[Proposal Status] Updated teacherReviews:', JSON.stringify(project.teacherReviews));
+                
                 if (status === 'approve') {
                     project.status = 'Approved';
-                    project.supervisorEmail = teacherId || supervisorEmail;
-                    project.supervisor = supervisorName || supervisorEmail?.split('@')[0] || 'Assigned';
+                    const Teacher = require('./models/Teacher');
+                    const reviewerNorm = String(reviewEmail || '').trim().toLowerCase();
+                    const tReviewer = await Teacher.findOne(emailQueryInsensitive(reviewerNorm)).lean().exec();
+                    project.supervisorEmail = (tReviewer?.email || reviewerNorm).toLowerCase();
+                    project.supervisor = supervisorName || tReviewer?.name || supervisorEmail?.split('@')[0] || 'Assigned';
                     project.proposalStatus = 'approved';
+                    console.log('[Proposal Status] Approved - supervisorEmail set to:', project.supervisorEmail);
                 } else {
                     // reject: check if all teachers have rejected
                     // if at least one approve exists, overall is approved
@@ -1111,9 +1150,11 @@ try {
                     if (!hasApproval) {
                         project.proposalStatus = 'rejected';
                     }
+                    console.log('[Proposal Status] Rejected - hasApproval:', hasApproval);
                 }
                 
                 await project.save();
+                console.log('[Proposal Status] Project saved successfully');
                 
                 // Update student's proposal status
                 const student = await Student.findOne({ proposedProject: proposalId }).exec();
@@ -1122,10 +1163,12 @@ try {
                     if (project.proposalStatus === 'approved') {
                         student.proposalApproved = true;
                         student.assignedProject = project._id; // Auto-assign!
+                        console.log(`[Proposal] Student ${student.id} auto-assigned to project ${project._id}`);
                     } else {
                         student.proposalApproved = false;
                     }
                     await student.save();
+                    console.log(`[Proposal] Student ${student.id} proposalStatus updated to: ${student.proposalStatus}`);
                 }
                 
                 return res.json({ 
@@ -1264,7 +1307,6 @@ try {
         console.log('Request all projects (excluding specified teacher)');
         try {
             const excludeTeacher = req.query.excludeTeacher || '';
-            const excludeEmailLower = excludeTeacher.toLowerCase();
             
             const isDbConnected = teacherCheckDbConnection();
             const Project = require('./models/Project');
@@ -1272,14 +1314,10 @@ try {
             if (isDbConnected && Project) {
                 // Only get teacher-proposed projects (exclude student-proposed)
                 const allDocs = await Project.find({ type: { $ne: 'student' } }).lean().exec();
-                
-                const filteredProjects = allDocs.filter(doc => {
-                    // Exclude projects from specified teacher
-                    if (doc.supervisorEmail && doc.supervisorEmail.toLowerCase() === excludeEmailLower) {
-                        return false;
-                    }
-                    return true;
-                });
+                const ctx = excludeTeacher ? await loadTeacherFilterContext(excludeTeacher) : null;
+                const filteredProjects = ctx
+                    ? allDocs.filter((doc) => !projectBelongsToTeacher(doc, ctx))
+                    : allDocs;
                 
                 return res.json({ 
                     success: true, 
@@ -1330,8 +1368,9 @@ try {
             let teacherMajor = '';
             let teacherDbName = '';
             let teacherDbId = '';
+            let tdoc = null;
             if (isDbConnected && Teacher) {
-                const tdoc = await Teacher.findOne(emailQueryInsensitive(teacherEmailResolved)).lean().exec();
+                tdoc = await Teacher.findOne(emailQueryInsensitive(teacherEmailResolved)).lean().exec();
                 teacherMajor = tdoc?.major || '';
                 teacherDbName = (tdoc?.name && String(tdoc.name).trim()) || '';
                 teacherDbId = (tdoc?.teacherId && String(tdoc.teacherId).trim()) || '';
@@ -1339,96 +1378,30 @@ try {
             console.log('Teacher major:', teacherMajor, '| name:', teacherDbName, '| id:', teacherDbId);
             
             if (isDbConnected && Project) {
-                const teacherEmailLower = teacherEmailResolved.toLowerCase();
-
-                // Special mapping: test account teacher@hkmu.edu.hk is equivalent to Bell (usually t001@ after login)
-                const SPECIAL_TEACHER_MAP = {
-                    'teacher@hkmu.edu.hk': { name: 'Prof. Bell Liu', extract: 'bell' },
+                const ctx = {
+                    emailLower: ((tdoc && tdoc.email) || teacherEmailResolved).toLowerCase(),
+                    teacherId: teacherDbId,
+                    displayName: teacherDbName,
                 };
-
-                // Extract teacher name from email
-                // e.g., "teacherBellLiu@hkmu.edu.hk" -> "Bell Liu"
-                // For direct t001/t002 emails, also look up the DB name
-                const extractNameFromEmail = (email) => {
-                    // Check special mapping
-                    if (SPECIAL_TEACHER_MAP[email.toLowerCase()]) {
-                        return SPECIAL_TEACHER_MAP[email.toLowerCase()].extract;
-                    }
-                    const userPart = email.split('@')[0]; // "teacherBellLiu" or "t002"
-                    // Remove prefix "teacher" or "Teacher"
-                    let name = userPart.replace(/^teacher(s?)/i, '');
-                    // Add space before each uppercase letter, split into words
-                    name = name.replace(/([A-Z])/g, ' $1').trim();
-                    // If only one word, keep as is
-                    return name || userPart;
-                };
-                const teacherNameFromEmail = extractNameFromEmail(teacherEmailResolved);
-                const nameForMatch = teacherDbName || teacherNameFromEmail;
-                console.log('Name match string:', nameForMatch, '(email extract:', teacherNameFromEmail + ')');
                 
-                // Get all documents first
                 const allDocs = await Project.find({}).lean().exec();
                 console.log('Total documents:', allDocs.length);
                 
-                // Filter conditions (only used for "My Projects"):
-                // Must be teacher-proposed projects
-                // type === 'student' belongs to "Student Proposals", should not show in "My Projects"
-                // 
-                // Rules:
-                // - type === 'student' -> exclude (these belong to "Student Proposals")
-                // - type === undefined/null/'' -> treat as teacher-proposed (legacy data compatibility)
-                // - type === 'teacher' -> include
-                // - filter by major
-                const projects = allDocs.filter(doc => {
-                    // Explicitly exclude student-proposed projects
+                const projects = allDocs.filter((doc) => {
                     if (doc.type === 'student') {
-                        console.log('  Excluding student-proposed:', doc.title);
                         return false;
                     }
-                    
                     const tm = majorToFilterCode(teacherMajor);
                     const pm = majorToFilterCode(doc.major);
                     if (tm && tm !== 'ECE+CCS' && pm) {
                         if (tm === 'ECE' && pm !== 'ECE' && pm !== 'ECE+CCS') {
-                            console.log('  Excluding (major does not match ECE):', doc.title, '| projectMajor:', pm);
                             return false;
                         }
                         if (tm === 'CCS' && pm !== 'CCS' && pm !== 'ECE+CCS') {
-                            console.log('  Excluding (major does not match CCS):', doc.title, '| projectMajor:', pm);
                             return false;
                         }
                     }
-                    
-                    if (doc.supervisorEmail && doc.supervisorEmail.toLowerCase() === teacherEmailLower) {
-                        return true;
-                    }
-
-                    if (teacherDbId && doc.supervisorId &&
-                        String(doc.supervisorId).toLowerCase() === String(teacherDbId).toLowerCase()) {
-                        return true;
-                    }
-                    
-                    if (doc.supervisor && doc.supervisor !== 'TBD' && nameForMatch) {
-                        if (supervisorNameLikelyMatches(doc.supervisor, nameForMatch)) return true;
-
-                        const supLower = doc.supervisor.toLowerCase();
-                        const teacherLower = teacherNameFromEmail.toLowerCase();
-
-                        if (SPECIAL_TEACHER_MAP[teacherEmailLower]) {
-                            const mappedName = SPECIAL_TEACHER_MAP[teacherEmailLower].name.toLowerCase();
-                            if (supLower.includes('bell') ||
-                                mappedName.includes(supLower) || supLower.includes(mappedName.split(' ').pop() || '')) {
-                                return true;
-                            }
-                        }
-
-                        if (teacherLower && (supLower.includes(teacherLower) || teacherLower.includes(supLower))) return true;
-
-                        const supFirstWord = supLower.replace(/^prof\.?\s*/, '').trim().split(/\s+/)[0] || '';
-                        if (teacherLower && supFirstWord && teacherLower.includes(supFirstWord)) return true;
-                    }
-                    
-                    return false;
+                    return projectBelongsToTeacher(doc, ctx);
                 });
                 
                 console.log('Filtered project count:', projects.length);
@@ -1539,10 +1512,12 @@ try {
             if (!teacherEmail) {
                 return res.status(400).json({ success: false, message: 'Teacher email required' });
             }
-            
+
             if (dbEnabled && ProjectModel && StudentModel) {
-                // Get teacher's projects
-                const teacherProjects = await ProjectModel.find({ supervisorEmail: teacherEmail }).lean().exec();
+                const ctx = await loadTeacherFilterContext(teacherEmail);
+                const teacherProjects = await ProjectModel.find({
+                    supervisorEmail: { $regex: new RegExp(`^${escapeRegex(ctx.emailLower)}$`, 'i') },
+                }).lean().exec();
                 const projectIds = teacherProjects.map(p => String(p._id));
                 
                 // Get assigned students
@@ -1561,6 +1536,7 @@ try {
                         projectId: project ? String(project._id) : null,
                         projectCode: project ? project.code : null,
                         projectTitle: project ? project.title : null,
+                        projectType: project ? (project.type === 'student' ? 'student' : 'teacher') : 'teacher',
                         assignedAt: s.updatedAt
                     };
                 });
@@ -1585,7 +1561,10 @@ try {
                 return res.status(400).json({ success: false, message: 'Teacher email required' });
             }
             
-            const { title, description, skills, capacity, department, category } = req.body;
+            const { title, description, skills, capacity, department, category, major: majorFromBody } = req.body;
+            if (!title || !String(title).trim()) {
+                return res.status(400).json({ success: false, message: 'Project title is required' });
+            }
             
             const isDbConnected = teacherCheckDbConnection();
             const Project = require('./models/Project');
@@ -1601,11 +1580,30 @@ try {
                 }
             }
 
-            const majorCodeRaw = majorToFilterCode(teacherMajor);
-            const majorForProject =
-                majorCodeRaw === 'ECE' || majorCodeRaw === 'CCS' || majorCodeRaw === 'ECE+CCS'
-                    ? majorCodeRaw
-                    : 'CCS';
+            const tm = majorToFilterCode(teacherMajor);
+            let chosenMajor = majorToFilterCode(majorFromBody);
+            if (chosenMajor !== 'ECE' && chosenMajor !== 'CCS') {
+                if (tm === 'ECE') chosenMajor = 'ECE';
+                else if (tm === 'CCS') chosenMajor = 'CCS';
+                else if (tm === 'ECE+CCS') {
+                    return res.status(400).json({
+                        success: false,
+                        message: 'Project major (ECE or CCS) is required for your account.',
+                    });
+                } else {
+                    chosenMajor = 'CCS';
+                }
+            } else {
+                if (tm === 'ECE' && chosenMajor !== 'ECE') {
+                    return res.status(400).json({ success: false, message: 'ECE teachers may only create ECE projects.' });
+                }
+                if (tm === 'CCS' && chosenMajor !== 'CCS') {
+                    return res.status(400).json({ success: false, message: 'CCS teachers may only create CCS projects.' });
+                }
+                if (tm === 'ECE+CCS' && chosenMajor !== 'ECE' && chosenMajor !== 'CCS') {
+                    return res.status(400).json({ success: false, message: 'Select ECE or CCS for this project.' });
+                }
+            }
             
             if (isDbConnected && Project) {
                 let supName =
@@ -1615,6 +1613,8 @@ try {
                     supName = `Prof. ${supName}`;
                 }
 
+                const cap = Math.min(10, Math.max(1, parseInt(capacity, 10) || 1));
+
                 // Generate project code
                 const projectCode = `T${Date.now().toString().slice(-6)}`;
                 
@@ -1623,13 +1623,13 @@ try {
                     title,
                     description,
                     skills: skills || [],
-                    capacity: 1,
+                    capacity: cap,
                     type: 'teacher',                           // Mark as teacher-proposed
                     supervisor: supName,
                     supervisorId: (teacherRow && teacherRow.teacherId) || '',
-                    supervisorEmail: teacherEmailCanonical,
+                    supervisorEmail: (teacherRow && teacherRow.email) ? String(teacherRow.email).toLowerCase() : teacherEmailCanonical,
                     department: department || teacherMajor || 'FYP',
-                    major: majorForProject,
+                    major: chosenMajor,
                     category: category || 'General',
                     status: 'Under Review',
                     popularity: 0,
@@ -1657,9 +1657,7 @@ try {
         try {
             const { projectId } = req.params;
             const teacherEmail = req.body.teacherEmail || req.headers['x-teacher-email'];
-            const { title, description, skills, capacity, status } = req.body;
-            
-            console.log('📝 Update request - projectId:', projectId, 'teacherEmail:', teacherEmail);
+            const { title, description, skills, capacity, status, major: majorFromBody } = req.body;
             
             const mongoose = require('mongoose');
             const isDbConnected = mongoose.connection.readyState === 1;
@@ -1689,18 +1687,42 @@ try {
                 }
                 
                 if (!project) {
-                    console.log('❌ Project not found:', projectId);
                     return res.status(404).json({ success: false, message: 'Project not found: ' + projectId });
                 }
-                
-                console.log('✅ Found project:', project.title, 'supervisorEmail:', project.supervisorEmail);
+
+                if (!teacherEmail) {
+                    return res.status(400).json({ success: false, message: 'Teacher email required' });
+                }
+                const ctx = await loadTeacherFilterContext(teacherEmail);
+                if (!projectBelongsToTeacher(project, ctx)) {
+                    return res.status(403).json({ success: false, message: 'You can only edit your own projects.' });
+                }
+
+                const Teacher = require('./models/Teacher');
+                const teacherRow = await Teacher.findOne(emailQueryInsensitive(ctx.emailLower)).lean().exec();
+                const tm = majorToFilterCode(teacherRow?.major || '');
                 
                 // Update the project
                 if (title) project.title = title;
                 if (description) project.description = description;
                 if (skills) project.skills = skills;
-                if (capacity) project.capacity = capacity;
+                if (capacity) project.capacity = Math.min(10, Math.max(1, parseInt(capacity, 10) || project.capacity || 1));
                 if (status) project.status = status;
+                if (majorFromBody != null && majorFromBody !== '') {
+                    const ch = majorToFilterCode(majorFromBody);
+                    if (ch === 'ECE' || ch === 'CCS') {
+                        if (tm === 'ECE' && ch !== 'ECE') {
+                            return res.status(400).json({ success: false, message: 'ECE teachers may only use ECE projects.' });
+                        }
+                        if (tm === 'CCS' && ch !== 'CCS') {
+                            return res.status(400).json({ success: false, message: 'CCS teachers may only use CCS projects.' });
+                        }
+                        if (tm === 'ECE+CCS' && ch !== 'ECE' && ch !== 'CCS') {
+                            return res.status(400).json({ success: false, message: 'Select ECE or CCS.' });
+                        }
+                        project.major = ch;
+                    }
+                }
                 
                 await project.save();
                 console.log('✅ Project updated successfully');
@@ -1829,27 +1851,37 @@ try {
 
     // Get matching results for teacher
     app.get('/api/teacher/matching-results', async (req, res) => {
-        console.log('Request teacher matching results');
         try {
             const teacherEmail = req.query.email || req.headers['x-teacher-email'];
             if (!teacherEmail) {
                 return res.status(400).json({ success: false, message: 'Teacher email required' });
             }
 
-            const SPECIAL_TEACHER_MAP = {
-                'teacher@hkmu.edu.hk': 't001@hkmu.edu.hk'
-            };
-            const resolvedEmail = SPECIAL_TEACHER_MAP[teacherEmail.toLowerCase()] || teacherEmail;
+            const teacherEmailLower = teacherEmail.toLowerCase();
 
             if (dbEnabled && ProjectModel && StudentModel) {
-                // Get teacher's projects (resolve special email)
-                const teacherProjects = await ProjectModel.find({ supervisorEmail: resolvedEmail }).lean().exec();
-                const projectIds = teacherProjects.map(p => String(p._id));
-                
-                // Get assigned students
-                const assignedStudents = await StudentModel.find({ 
-                    assignedProject: { $in: projectIds }
-                }).lean().exec();
+                const ctx = await loadTeacherFilterContext(teacherEmail);
+                const allDocs = await ProjectModel.find({}).lean().exec();
+                const teacherProjects = allDocs.filter((p) => {
+                    const sem = (p.supervisorEmail || '').toLowerCase();
+                    if (sem && (sem === ctx.emailLower || sem === teacherEmailLower)) return true;
+                    const hasReview = (p.teacherReviews || []).some((r) => {
+                        const e = (r.teacherEmail || '').toLowerCase();
+                        return e === ctx.emailLower || e === teacherEmailLower;
+                    });
+                    if (hasReview) return true;
+                    return projectBelongsToTeacher(p, ctx);
+                });
+
+                const mongoose = require('mongoose');
+                const projectIds = teacherProjects.map((p) => String(p._id));
+                const oidList = projectIds
+                    .filter((id) => mongoose.Types.ObjectId.isValid(id))
+                    .map((id) => new mongoose.Types.ObjectId(id));
+
+                const assignedStudents = oidList.length
+                    ? await StudentModel.find({ assignedProject: { $in: oidList } }).lean().exec()
+                    : [];
                 
                 const results = teacherProjects.map(project => {
                     const assigned = assignedStudents.find(s => String(s.assignedProject) === String(project._id));
@@ -2462,7 +2494,9 @@ app.get('/api/admin/project-stats', async (req, res) => {
             ccsTeachers = 1;
             bothTeachers = 1;
         }
-        
+
+        const eceDenom = Math.max(1, eceTeachers + bothTeachers);
+        const ccsDenom = Math.max(1, ccsTeachers + bothTeachers);
         return res.json({
             success: true,
             stats: {
@@ -2475,6 +2509,9 @@ app.get('/api/admin/project-stats', async (req, res) => {
                 bothTeachers,
                 eceNeeded: Math.max(0, eceStudents - eceProjects),
                 ccsNeeded: Math.max(0, ccsStudents - ccsProjects),
+                /** Fair share per supervisor (does not double-count when you add a project) */
+                ecePerTeacherTarget: Math.ceil(eceStudents / eceDenom),
+                ccsPerTeacherTarget: Math.ceil(ccsStudents / ccsDenom),
                 totalStudents: eceStudents + ccsStudents,
                 totalProjects: eceProjects + ccsProjects
             }

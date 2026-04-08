@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 function SupervisionList({ showNotification }) {
   const [supervisionList, setSupervisionList] = useState([]);
   const [loading, setLoading] = useState(true);
-  const userEmail = sessionStorage.getItem('userEmail') || 'teacher@hkmu.edu.hk';
+  const userEmail = sessionStorage.getItem('userEmail') || 't001@hkmu.edu.hk';
 
   useEffect(() => {
     fetchSupervisionList();
@@ -136,7 +136,7 @@ function SupervisionList({ showNotification }) {
                       <div className="detail-row">
                         <span className="detail-label">Project:</span>
                         <span className="detail-value">
-                          {supervisee.projectCode && <strong>{supervisee.projectCode}: </strong>}
+                          {supervisee.projectType !== 'student' && supervisee.projectCode && <strong>{supervisee.projectCode}: </strong>}
                           {supervisee.projectTitle}
                         </span>
                       </div>

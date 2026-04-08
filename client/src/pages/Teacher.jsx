@@ -161,9 +161,9 @@ function Teacher() {
         ? proposalsData.proposals.filter(p => p.myDecision === 'approve').length 
         : 0;
       
-      // Under Review: pending student proposals
-      const underReviewCount = proposalsData.success && proposalsData.proposals 
-        ? proposalsData.proposals.filter(p => !p.myDecision).length 
+      // Under Review: pending student proposals (not yet reviewed by this teacher)
+      const underReviewCount = proposalsData.success && proposalsData.proposals
+        ? proposalsData.proposals.filter(p => !p.myDecision).length
         : 0;
       
       setProjectStats({

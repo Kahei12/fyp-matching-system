@@ -89,11 +89,10 @@ function FinalAssignment({ showNotification }) {
       setMatchedPage(1);
     } catch (error) {
       console.error('Error fetching data:', error);
-      showNotification('Failed to load data', 'error');
     } finally {
       setLoading(false);
     }
-  }, [showNotification]);
+  }, []);
 
   useEffect(() => {
     fetchData();

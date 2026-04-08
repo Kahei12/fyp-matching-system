@@ -6,10 +6,9 @@ function MatchingResults({ showNotification }) {
   const [loading, setLoading] = useState(true);
   const [results, setResults] = useState([]);
   const [summary, setSummary] = useState({
-    totalMatched: 0,
-    available: 0
+    totalMatched: 0
   });
-  const userEmail = sessionStorage.getItem('userEmail') || 'teacher@hkmu.edu.hk';
+  const userEmail = sessionStorage.getItem('userEmail') || 't001@hkmu.edu.hk';
   const userName = sessionStorage.getItem('userName') || '';
 
   useEffect(() => {
@@ -19,9 +18,10 @@ function MatchingResults({ showNotification }) {
   const fetchMatchingResults = async () => {
     try {
       setLoading(true);
-      const response = await fetch(`/api/teacher/matching-results?email=${encodeURIComponent(userEmail)}`, {
+      const email = userEmail || sessionStorage.getItem('userEmail') || 't001@hkmu.edu.hk';
+      const response = await fetch(`/api/teacher/matching-results?email=${encodeURIComponent(email)}`, {
         headers: {
-          'x-teacher-email': userEmail
+          'x-teacher-email': email
         }
       });
       const data = await response.json();
@@ -30,11 +30,9 @@ function MatchingResults({ showNotification }) {
         setResults(data.results);
 
         const matched = data.results.filter(r => r.assignedStudent).length;
-        const available = data.results.filter(r => !r.assignedStudent).length;
 
         setSummary({
-          totalMatched: matched,
-          available: available
+          totalMatched: matched
         });
 
         const matchedWithDate = data.results.find(r => r.assignedStudent?.assignedAt);
@@ -79,8 +77,9 @@ function MatchingResults({ showNotification }) {
 
       const rows = data.results.map((r, i) => {
         const a = r.assignedStudent;
+        const projectCode = r.projectType !== 'student' ? (r.projectCode || '') : '';
         return [
-          r.projectCode || '',
+          projectCode,
           r.projectTitle || '',
           r.capacity || 1,
           sourceTagLabel(r.projectType),
@@ -131,15 +130,10 @@ function MatchingResults({ showNotification }) {
       </div>
 
       <div className="results-summary-grid">
-        <div className="results-summary-card">
+        <div className="results-summary-card results-summary-card-wide">
           <span className="summary-label">Total Matched</span>
           <span className="summary-value">{summary.totalMatched}</span>
           <span className="summary-helper">students assigned</span>
-        </div>
-        <div className="results-summary-card">
-          <span className="summary-label">Available</span>
-          <span className="summary-value">{summary.available}</span>
-          <span className="summary-helper">slots still open</span>
         </div>
       </div>
 
@@ -157,7 +151,7 @@ function MatchingResults({ showNotification }) {
                 <div className="matching-card-header">
                   <div>
                     <h3>
-                      {project.projectCode && (
+                      {project.projectType !== 'student' && project.projectCode && (
                         <span className="project-code-badge">{project.projectCode}</span>
                       )}
                       {project.projectTitle}

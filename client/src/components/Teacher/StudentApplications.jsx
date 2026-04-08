@@ -5,7 +5,7 @@ function StudentApplications({ showNotification, onStatsChange, expiredDeadlineK
   const [loading, setLoading] = useState(true);
   const [proposals, setProposals] = useState([]);
   const [confirmDialog, setConfirmDialog] = useState(null);
-  const userEmail = sessionStorage.getItem('userEmail') || 'teacher@hkmu.edu.hk';
+  const userEmail = sessionStorage.getItem('userEmail') || 't001@hkmu.edu.hk';
   const userName = sessionStorage.getItem('userName') || 'Teacher';
 
   // Proposal review deadline has passed → block all actions
@@ -18,7 +18,6 @@ function StudentApplications({ showNotification, onStatsChange, expiredDeadlineK
   const fetchProposals = async () => {
     try {
       setLoading(true);
-      // Use new API endpoint, only fetch student-proposed projects visible to this teacher
       const response = await fetch(`/api/teacher/student-proposals?email=${encodeURIComponent(userEmail)}`, {
         headers: {
           'x-teacher-email': userEmail
@@ -26,7 +25,6 @@ function StudentApplications({ showNotification, onStatsChange, expiredDeadlineK
       });
       const data = await response.json();
       if (data.success && data.proposals) {
-        console.log('[StudentApplications] proposals count:', data.proposals.length);
         setProposals(data.proposals);
       }
     } catch (error) {
@@ -123,17 +121,21 @@ function StudentApplications({ showNotification, onStatsChange, expiredDeadlineK
   }
 
   // Filter proposals based on visibility rules
-  // Only show: proposals that this teacher hasn't reviewed yet
+  // Only show: proposals that this teacher hasn't approved yet
+  // Hide if another teacher has approved
   const visibleProposals = proposals.filter(p => {
-    if (p.myDecision) {
+    // If teacher has already approved, don't show
+    if (p.myDecision === 'approve') {
       return false;
     }
+    // Hide if another teacher has approved
     const otherApproval = p.teacherReviews?.some(r =>
       r.decision === 'approve' && r.teacherEmail?.toLowerCase() !== userEmail.toLowerCase()
     );
     if (otherApproval) {
       return false;
     }
+    // Show all other proposals (including rejected ones that this teacher can review)
     return true;
   });
 
@@ -164,10 +166,12 @@ function StudentApplications({ showNotification, onStatsChange, expiredDeadlineK
                           <td className="info-value-title">{proposal.title}</td>
                           <td className="info-label">Status</td>
                           <td>
-                            <span className={`proposal-status-badge ${proposal.proposalStatus || 'pending'}`}>
-                              {proposal.proposalStatus === 'pending' ? 'Pending Review' : 
-                               proposal.proposalStatus === 'approved' ? 'Approved' :
-                               proposal.proposalStatus === 'rejected' ? 'Rejected' : 'Pending'}
+                            <span className={`proposal-status-badge ${proposal.myDecision ? proposal.myDecision : 'pending'}`}>
+                              {/* If this teacher has reviewed it, show their decision */}
+                              {proposal.myDecision === 'approve' ? 'Approved' :
+                               proposal.myDecision === 'reject' ? 'Rejected' :
+                               /* Teacher hasn't reviewed: show Pending Review */
+                               'Pending Review'}
                             </span>
                           </td>
                         </tr>
@@ -184,8 +188,8 @@ function StudentApplications({ showNotification, onStatsChange, expiredDeadlineK
                             <td className="info-label">Your Decision</td>
                             <td colSpan="5">
                               <span className={`your-decision ${proposal.myDecision}`}>
-                                {proposal.myDecision === 'approve' ? '✓ You Approved' : 
-                                 proposal.myDecision === 'reject' ? '✗ You Rejected' : 'Pending'}
+                                {proposal.myDecision === 'approve' ? 'You Approved' : 
+                                 proposal.myDecision === 'reject' ? 'You Rejected' : 'Pending'}
                               </span>
                               {proposal.myReviewedAt && (
                                 <span className="decision-date">
@@ -215,24 +219,26 @@ function StudentApplications({ showNotification, onStatsChange, expiredDeadlineK
                     </div>
                   )}
                   
-                  {proposal.proposalStatus === 'pending' && !proposal.myDecision && (
+                  {/* Show action buttons if: not yet reviewed by this teacher, or rejected by this teacher */}
+                  {/* Hide buttons if teacher already approved */}
+                  {!proposal.myDecision || proposal.myDecision === 'reject' ? (
                     <div className="proposal-actions">
                       <button
                         className="btn-approve-proposal"
                         disabled={isReviewExpired}
                         onClick={() => handleApproveProposal(proposal._id)}
                       >
-                        ✓ Approve as Supervisor
+                        Approve as Supervisor
                       </button>
                       <button
                         className="btn-reject-proposal"
                         disabled={isReviewExpired}
                         onClick={() => handleRejectProposal(proposal._id)}
                       >
-                        ✗ Reject
+                        Reject
                       </button>
                     </div>
-                  )}
+                  ) : null}
                 </div>
               ))}
             </div>

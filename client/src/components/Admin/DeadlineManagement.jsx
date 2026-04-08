@@ -125,11 +125,10 @@ function DeadlineManagement({ showNotification }) {
       }
     } catch (e) {
       console.error(e);
-      showNotification('Failed to load deadlines', 'error');
     } finally {
       setLoading(false);
     }
-  }, [showNotification]);
+  }, []);
 
   useEffect(() => {
     loadDeadlines();

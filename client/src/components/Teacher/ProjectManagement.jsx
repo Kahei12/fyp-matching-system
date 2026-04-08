@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import AppModal from '../common/AppModal';
 import { majorToFilterCode } from '../../utils/majorMapping';
+import { PROPOSAL_SKILL_OPTIONS } from '../../constants/proposalSkills';
 
 function ProjectManagement({ showNotification, expiredDeadlineKeys = new Set() }) {
   const [projects, setProjects] = useState([]);
@@ -8,16 +9,20 @@ function ProjectManagement({ showNotification, expiredDeadlineKeys = new Set() }
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingProject, setEditingProject] = useState(null);
+  const [editingSkills, setEditingSkills] = useState([]);
+  const [editingOtherSkills, setEditingOtherSkills] = useState('');
+  const [editingShowOther, setEditingShowOther] = useState(false);
   const [activeTab, setActiveTab] = useState('my-projects');
   /** Teacher Proposal → Student Proposals: Filter reviewed list (All / Approved only / Rejected only) */
   const [reviewedProposalFilter, setReviewedProposalFilter] = useState('all');
   const [newProject, setNewProject] = useState({
     title: '',
     description: '',
-    skills: '',
+    skills: [],
+    otherSkills: '',
+    projectMajor: '',
     capacity: 1,
-    department: 'Computer Science',
-    category: 'General'
+    category: 'General',
   });
   const [deleteConfirm, setDeleteConfirm] = useState(null);
 
@@ -26,6 +31,8 @@ function ProjectManagement({ showNotification, expiredDeadlineKeys = new Set() }
   const [projectStats, setProjectStats] = useState({
     eceNeeded: 0,
     ccsNeeded: 0,
+    ecePerTeacherTarget: 0,
+    ccsPerTeacherTarget: 0,
     eceCreated: 0,
     ccsCreated: 0,
     eceTeachers: 0,
@@ -35,17 +42,37 @@ function ProjectManagement({ showNotification, expiredDeadlineKeys = new Set() }
 
   const isSelfProposalExpired = expiredDeadlineKeys.has('teacherSelfProposal');
 
-  const userEmail = sessionStorage.getItem('userEmail') || 'teacher@hkmu.edu.hk';
+  const userEmail = sessionStorage.getItem('userEmail') || 't001@hkmu.edu.hk';
   const userEmailLower = userEmail.toLowerCase();
 
   const getMyReview = (proposal) =>
     proposal.teacherReviews?.find((r) => r.teacherEmail?.toLowerCase() === userEmailLower);
 
   useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (!e.target.closest('.skills-dropdown')) {
+        document.querySelectorAll('.skills-dropdown-list').forEach(list => {
+          list.style.display = 'none';
+        });
+      }
+    };
+    document.addEventListener('click', handleClickOutside);
+
+    // 初始化数据
     fetchTeacherMajor();
     fetchProjects();
     fetchProposals();
+
+    return () => document.removeEventListener('click', handleClickOutside);
   }, []);
+
+  // When teacher major loads while create modal is open, lock single-programme major
+  useEffect(() => {
+    const tm = majorToFilterCode(teacherMajor);
+    if (showCreateModal && (tm === 'ECE' || tm === 'CCS')) {
+      setNewProject((p) => ({ ...p, projectMajor: tm }));
+    }
+  }, [teacherMajor, showCreateModal]);
 
   const fetchTeacherMajor = async () => {
     try {
@@ -95,9 +122,19 @@ function ProjectManagement({ showNotification, expiredDeadlineKeys = new Set() }
     }
   };
 
-  // Calculate project stats per major — uses p.major (not p.department) to align with DB schema
+  // Per-teacher targets from admin stats (student count ÷ supervisors); own progress = my projects only
   const calculateProjectStats = (myProjects, globalStats) => {
     const stats = globalStats || {};
+    const eceDenom = Math.max(1, (stats.eceTeachers || 0) + (stats.bothTeachers || 0));
+    const ccsDenom = Math.max(1, (stats.ccsTeachers || 0) + (stats.bothTeachers || 0));
+    const eceTarget =
+      stats.ecePerTeacherTarget != null
+        ? stats.ecePerTeacherTarget
+        : Math.ceil((stats.eceStudents || 0) / eceDenom);
+    const ccsTarget =
+      stats.ccsPerTeacherTarget != null
+        ? stats.ccsPerTeacherTarget
+        : Math.ceil((stats.ccsStudents || 0) / ccsDenom);
     const myEceProjects = myProjects.filter((p) => {
       const c = majorToFilterCode(p.major);
       return c === 'ECE' || c === 'ECE+CCS';
@@ -109,6 +146,8 @@ function ProjectManagement({ showNotification, expiredDeadlineKeys = new Set() }
     setProjectStats({
       eceNeeded: Math.max(0, (stats.eceStudents || 0) - (stats.eceProjects || 0)),
       ccsNeeded: Math.max(0, (stats.ccsStudents || 0) - (stats.ccsProjects || 0)),
+      ecePerTeacherTarget: eceTarget,
+      ccsPerTeacherTarget: ccsTarget,
       eceCreated: myEceProjects,
       ccsCreated: myCcsProjects,
       eceTeachers: stats.eceTeachers || 0,
@@ -134,42 +173,77 @@ function ProjectManagement({ showNotification, expiredDeadlineKeys = new Set() }
     }
   };
 
+  const openCreateModal = () => {
+    const tm = majorToFilterCode(teacherMajor);
+    setNewProject({
+      title: '',
+      description: '',
+      skills: [],
+      otherSkills: '',
+      projectMajor: tm === 'ECE' ? 'ECE' : tm === 'CCS' ? 'CCS' : '',
+      capacity: 1,
+      category: 'General',
+    });
+    setShowCreateModal(true);
+  };
+
   const handleCreateProject = async () => {
     if (!newProject.title.trim()) {
       showNotification('Please enter a project title', 'error');
       return;
     }
+    const tm = majorToFilterCode(teacherMajor);
+    if (tm === 'ECE+CCS' && !newProject.projectMajor) {
+      showNotification('Please select project major (ECE or CCS).', 'error');
+      return;
+    }
+    if (!newProject.skills || newProject.skills.length === 0) {
+      showNotification('Select at least one required skill.', 'error');
+      return;
+    }
+    if (newProject.skills.includes('Other') && !String(newProject.otherSkills || '').trim()) {
+      showNotification('Please specify skills for "Other".', 'error');
+      return;
+    }
+
+    let skillsPayload = [...newProject.skills];
+    if (skillsPayload.includes('Other')) {
+      skillsPayload = skillsPayload.filter((s) => s !== 'Other');
+      const extra = String(newProject.otherSkills || '').trim();
+      if (extra) skillsPayload.push(extra);
+    }
 
     try {
-      const skillsArray = newProject.skills
-        .split(',')
-        .map(s => s.trim())
-        .filter(s => s.length > 0);
-
       const response = await fetch('/api/teacher/projects', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-teacher-email': userEmail
+          'x-teacher-email': userEmail,
         },
         body: JSON.stringify({
-          ...newProject,
-          skills: skillsArray,
-          teacherEmail: userEmail
-        })
+          title: newProject.title.trim(),
+          description: newProject.description,
+          skills: skillsPayload,
+          major: newProject.projectMajor,
+          capacity: newProject.capacity,
+          category: newProject.category,
+          teacherEmail: userEmail,
+        }),
       });
 
       const data = await response.json();
       if (data.success) {
         showNotification('Project created successfully!', 'success');
         setShowCreateModal(false);
+        const tmOk = majorToFilterCode(teacherMajor);
         setNewProject({
           title: '',
           description: '',
-          skills: '',
+          skills: [],
+          otherSkills: '',
+          projectMajor: tmOk === 'ECE' ? 'ECE' : tmOk === 'CCS' ? 'CCS' : '',
           capacity: 1,
-          department: 'Computer Science',
-          category: 'General'
+          category: 'General',
         });
         fetchProjects();
       } else {
@@ -184,16 +258,25 @@ function ProjectManagement({ showNotification, expiredDeadlineKeys = new Set() }
   const handleEditProject = async () => {
     if (!editingProject) return;
 
+    const hasOther = editingShowOther && editingOtherSkills.trim();
+    const skillsToSave = [...editingSkills.filter(s => s !== 'Other')];
+    if (hasOther) skillsToSave.push(editingOtherSkills.trim());
+
+    if (skillsToSave.length === 0) {
+      showNotification('Select at least one required skill.', 'error');
+      return;
+    }
+    if (hasOther && !editingOtherSkills.trim()) {
+      showNotification('Please specify skills for "Other".', 'error');
+      return;
+    }
+
     try {
       const projectId = editingProject._id || editingProject.id;
       if (!projectId) {
         showNotification('Error: Project ID not found', 'error');
         return;
       }
-      
-      const skillsArray = typeof editingProject.skills === 'string'
-        ? editingProject.skills.split(',').map(s => s.trim()).filter(s => s.length > 0)
-        : editingProject.skills;
 
       const response = await fetch(`/api/teacher/projects/${projectId}`, {
         method: 'PUT',
@@ -202,8 +285,11 @@ function ProjectManagement({ showNotification, expiredDeadlineKeys = new Set() }
           'x-teacher-email': userEmail
         },
         body: JSON.stringify({
-          ...editingProject,
-          skills: skillsArray,
+          title: editingProject.title,
+          description: editingProject.description,
+          skills: skillsToSave,
+          capacity: editingProject.capacity,
+          major: majorToFilterCode(editingProject.major) || editingProject.major,
           teacherEmail: userEmail
         })
       });
@@ -212,6 +298,9 @@ function ProjectManagement({ showNotification, expiredDeadlineKeys = new Set() }
       if (data.success) {
         showNotification('Project updated successfully!', 'success');
         setEditingProject(null);
+        setEditingSkills([]);
+        setEditingOtherSkills('');
+        setEditingShowOther(false);
         fetchProjects();
       } else {
         showNotification(data.message || 'Failed to update project', 'error');
@@ -288,7 +377,7 @@ function ProjectManagement({ showNotification, expiredDeadlineKeys = new Set() }
           <div className="section-header">
             <h2>My Projects (Teacher-Proposed)</h2>
             {!isSelfProposalExpired && (
-              <button className="btn-create-project" onClick={() => setShowCreateModal(true)}>
+              <button type="button" className="btn-create-project" onClick={openCreateModal}>
                 <span>+</span> Create New Project
               </button>
             )}
@@ -297,13 +386,8 @@ function ProjectManagement({ showNotification, expiredDeadlineKeys = new Set() }
           {/* Project Requirements Hint */}
           {!isSelfProposalExpired && (() => {
             const tm = majorToFilterCode(teacherMajor);
-            // Per-teacher rough share (same as pool shortfall ÷ supervisors in that programme); not the whole pool.
-            const eceDenom = Math.max(1, projectStats.eceTeachers + projectStats.bothTeachers);
-            const ccsDenom = Math.max(1, projectStats.ccsTeachers + projectStats.bothTeachers);
-            const eceShare = Math.ceil(projectStats.eceNeeded / eceDenom);
-            const ccsShare = Math.ceil(projectStats.ccsNeeded / ccsDenom);
-            const stillEce = Math.max(0, eceShare - projectStats.eceCreated);
-            const stillCcs = Math.max(0, ccsShare - projectStats.ccsCreated);
+            const stillEce = Math.max(0, (projectStats.ecePerTeacherTarget || 0) - projectStats.eceCreated);
+            const stillCcs = Math.max(0, (projectStats.ccsPerTeacherTarget || 0) - projectStats.ccsCreated);
             const showEce = tm === 'ECE' || tm === 'ECE+CCS' || !tm;
             const showCcs = tm === 'CCS' || tm === 'ECE+CCS' || !tm;
             return (
@@ -334,9 +418,6 @@ function ProjectManagement({ showNotification, expiredDeadlineKeys = new Set() }
                     <div className="project-main">
                       <div className="project-title-row">
                         <h3>{project.title}</h3>
-                        <span className={`status-badge ${(project.status || 'Under Review').toLowerCase().replace(' ', '-')}`}>
-                          {project.status || 'Under Review'}
-                        </span>
                       </div>
                       <p className="project-description">
                         {project.description || 'No description provided'}
@@ -361,7 +442,19 @@ function ProjectManagement({ showNotification, expiredDeadlineKeys = new Set() }
                       <button
                         className="btn-edit"
                         disabled={isSelfProposalExpired}
-                        onClick={() => !isSelfProposalExpired && setEditingProject(project)}
+                        onClick={() => {
+                          if (!isSelfProposalExpired) {
+                            const rawSkills = project.skills || [];
+                            const parsedSkills = typeof rawSkills === 'string'
+                              ? rawSkills.split(',').map(s => s.trim()).filter(s => s.length > 0)
+                              : rawSkills;
+                            const hasOther = !PROPOSAL_SKILL_OPTIONS.includes(parsedSkills[parsedSkills.length - 1]) && parsedSkills.length > 0;
+                            setEditingSkills(parsedSkills.filter(s => PROPOSAL_SKILL_OPTIONS.includes(s)));
+                            setEditingOtherSkills(hasOther ? parsedSkills[parsedSkills.length - 1] : '');
+                            setEditingShowOther(hasOther);
+                            setEditingProject(project);
+                          }
+                        }}
                         title="Edit"
                       >
                         ✎ Edit
@@ -510,10 +603,10 @@ function ProjectManagement({ showNotification, expiredDeadlineKeys = new Set() }
       {/* Create Project Modal */}
       {showCreateModal && (
         <div className="modal-overlay" onClick={() => setShowCreateModal(false)}>
-          <div className="modal-content create-project-modal" onClick={e => e.stopPropagation()}>
+          <div className="modal-content create-project-modal" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h2>Create New Teacher Project</h2>
-              <button className="modal-close-btn" onClick={() => setShowCreateModal(false)}>×</button>
+              <button type="button" className="modal-close-btn" onClick={() => setShowCreateModal(false)}>×</button>
             </div>
             <div className="modal-body">
               <div className="form-group">
@@ -524,7 +617,7 @@ function ProjectManagement({ showNotification, expiredDeadlineKeys = new Set() }
                   type="text"
                   className="form-input"
                   value={newProject.title}
-                  onChange={e => setNewProject({ ...newProject, title: e.target.value })}
+                  onChange={(e) => setNewProject({ ...newProject, title: e.target.value })}
                   placeholder="Enter project title"
                 />
               </div>
@@ -533,50 +626,137 @@ function ProjectManagement({ showNotification, expiredDeadlineKeys = new Set() }
                 <textarea
                   className="form-textarea"
                   value={newProject.description}
-                  onChange={e => setNewProject({ ...newProject, description: e.target.value })}
+                  onChange={(e) => setNewProject({ ...newProject, description: e.target.value })}
                   placeholder="Describe the project..."
                   rows={10}
                 />
               </div>
               <div className="form-group">
-                <label className="form-label">Required Skills</label>
-                <input
-                  type="text"
-                  className="form-input"
-                  value={newProject.skills}
-                  onChange={e => setNewProject({ ...newProject, skills: e.target.value })}
-                  placeholder="e.g., Python, Machine Learning, Web Development"
-                />
+                <label className="form-label">
+                  Required Skills <span className="required">*</span>
+                </label>
+                <div className="skills-dropdown">
+                  <div
+                    className="skills-dropdown-display"
+                    onClick={() => {
+                      const dropdown = document.querySelector('.create-project-modal .skills-dropdown');
+                      const list = dropdown?.querySelector('.skills-dropdown-list');
+                      if (list) list.style.display = list.style.display === 'block' ? 'none' : 'block';
+                    }}
+                  >
+                    {newProject.skills.length === 0 ? (
+                      <span className="skills-placeholder">Select skills...</span>
+                    ) : (
+                      newProject.skills.map((skill, idx) => (
+                        <span key={idx} className="skill-tag">{skill}</span>
+                      ))
+                    )}
+                    <span className="skills-dropdown-arrow">▼</span>
+                  </div>
+                  <div className="skills-dropdown-list">
+                    {PROPOSAL_SKILL_OPTIONS.map((skill) => (
+                      <label key={skill} className="skill-option">
+                        <input
+                          type="checkbox"
+                          checked={newProject.skills.includes(skill)}
+                          onChange={() => {
+                            const newSkills = newProject.skills.includes(skill)
+                              ? newProject.skills.filter(s => s !== skill)
+                              : [...newProject.skills, skill];
+                            setNewProject(prev => ({ ...prev, skills: newSkills }));
+                          }}
+                        />
+                        <span>{skill}</span>
+                      </label>
+                    ))}
+                    <label className="skill-option">
+                      <input
+                        type="checkbox"
+                        checked={newProject.skills.includes('Other')}
+                        onChange={() => {
+                          const newSkills = newProject.skills.includes('Other')
+                            ? newProject.skills.filter(s => s !== 'Other')
+                            : [...newProject.skills, 'Other'];
+                          setNewProject(prev => ({ ...prev, skills: newSkills, otherSkills: '' }));
+                        }}
+                      />
+                      <span>Other</span>
+                    </label>
+                  </div>
+                </div>
+                {newProject.skills.includes('Other') && (
+                  <input
+                    type="text"
+                    className="form-input"
+                    placeholder="Specify other skills"
+                    value={newProject.otherSkills}
+                    onChange={(e) => setNewProject({ ...newProject, otherSkills: e.target.value })}
+                    style={{ marginTop: '8px' }}
+                  />
+                )}
               </div>
               <div className="form-row">
                 <div className="form-group">
-                  <label className="form-label">Major (ECE/CCS) <span className="required">*</span></label>
-                  <select
-                    className="form-select"
-                    value={newProject.department}
-                    onChange={e => setNewProject({ ...newProject, department: e.target.value })}
-                  >
-                    {(teacherMajor === 'ECE' || teacherMajor === 'ECE+CCS') && (
+                  <label className="form-label" htmlFor="create-project-major">
+                    Major (ECE/CCS) <span className="required">*</span>
+                  </label>
+                  {majorToFilterCode(teacherMajor) === 'ECE+CCS' ? (
+                    <select
+                      id="create-project-major"
+                      className="form-select"
+                      value={newProject.projectMajor}
+                      onChange={(e) => setNewProject({ ...newProject, projectMajor: e.target.value })}
+                      required
+                    >
+                      <option value="">Select major…</option>
                       <option value="ECE">ECE</option>
-                    )}
-                    {(teacherMajor === 'CCS' || teacherMajor === 'ECE+CCS') && (
                       <option value="CCS">CCS</option>
-                    )}
-                    {!teacherMajor && (
-                      <>
-                        <option value="ECE">ECE</option>
-                        <option value="CCS">CCS</option>
-                      </>
-                    )}
-                  </select>
-                  <small className="form-hint">Select based on your teaching major</small>
+                    </select>
+                  ) : (
+                    <select
+                      id="create-project-major"
+                      className="form-select"
+                      value={newProject.projectMajor}
+                      onChange={(e) => setNewProject({ ...newProject, projectMajor: e.target.value })}
+                      disabled
+                    >
+                      {majorToFilterCode(teacherMajor) === 'ECE' && <option value="ECE">ECE</option>}
+                      {majorToFilterCode(teacherMajor) === 'CCS' && <option value="CCS">CCS</option>}
+                      {!majorToFilterCode(teacherMajor) && (
+                        <>
+                          <option value="">Select major…</option>
+                          <option value="ECE">ECE</option>
+                          <option value="CCS">CCS</option>
+                        </>
+                      )}
+                    </select>
+                  )}
+                  <small className="form-hint">
+                    {majorToFilterCode(teacherMajor) === 'ECE+CCS'
+                      ? 'Choose whether this project is for ECE or CCS students.'
+                      : 'Locked to your teaching programme.'}
+                  </small>
+                </div>
+                <div className="form-group">
+                  <label className="form-label" htmlFor="create-capacity">Capacity</label>
+                  <input
+                    id="create-capacity"
+                    type="number"
+                    min={1}
+                    max={10}
+                    className="form-input"
+                    value={newProject.capacity}
+                    onChange={(e) =>
+                      setNewProject({ ...newProject, capacity: Math.min(10, Math.max(1, parseInt(e.target.value, 10) || 1)) })
+                    }
+                  />
                 </div>
                 <div className="form-group">
                   <label className="form-label">Category</label>
                   <select
                     className="form-select"
                     value={newProject.category}
-                    onChange={e => setNewProject({ ...newProject, category: e.target.value })}
+                    onChange={(e) => setNewProject({ ...newProject, category: e.target.value })}
                   >
                     <option value="General">General</option>
                     <option value="AI/ML">AI/ML</option>
@@ -590,8 +770,12 @@ function ProjectManagement({ showNotification, expiredDeadlineKeys = new Set() }
               </div>
             </div>
             <div className="modal-footer">
-              <button className="btn-submit" onClick={handleCreateProject}>Create Project</button>
-              <button className="btn-cancel" onClick={() => setShowCreateModal(false)}>Cancel</button>
+              <button type="button" className="btn-submit" onClick={handleCreateProject}>
+                Create Project
+              </button>
+              <button type="button" className="btn-cancel" onClick={() => setShowCreateModal(false)}>
+                Cancel
+              </button>
             </div>
           </div>
         </div>
@@ -630,30 +814,104 @@ function ProjectManagement({ showNotification, expiredDeadlineKeys = new Set() }
               </div>
               <div className="form-group">
                 <label className="form-label">Required Skills</label>
-                <input
-                  type="text"
-                  className="form-input"
-                  value={Array.isArray(editingProject.skills) ? editingProject.skills.join(', ') : (editingProject.skills || '')}
-                  onChange={e => setEditingProject({ ...editingProject, skills: e.target.value })}
-                  placeholder="e.g., Python, Machine Learning, Web Development"
-                />
+                <div className="skills-dropdown">
+                  <div
+                    className="skills-dropdown-display"
+                    onClick={() => {
+                      const dropdown = document.querySelector('.edit-project-modal .skills-dropdown');
+                      const list = dropdown?.querySelector('.skills-dropdown-list');
+                      if (list) list.style.display = list.style.display === 'block' ? 'none' : 'block';
+                    }}
+                  >
+                    {editingSkills.length === 0 && !editingShowOther ? (
+                      <span className="skills-placeholder">Select skills...</span>
+                    ) : (
+                      <>
+                        {editingSkills.map((skill, idx) => (
+                          <span key={idx} className="skill-tag">{skill}</span>
+                        ))}
+                        {editingShowOther && editingOtherSkills && (
+                          <span className="skill-tag">{editingOtherSkills}</span>
+                        )}
+                      </>
+                    )}
+                    <span className="skills-dropdown-arrow">▼</span>
+                  </div>
+                  <div className="skills-dropdown-list">
+                    {PROPOSAL_SKILL_OPTIONS.map((skill) => (
+                      <label key={skill} className="skill-option">
+                        <input
+                          type="checkbox"
+                          checked={editingSkills.includes(skill)}
+                          onChange={() => {
+                            const newSkills = editingSkills.includes(skill)
+                              ? editingSkills.filter(s => s !== skill)
+                              : [...editingSkills, skill];
+                            setEditingSkills(newSkills);
+                          }}
+                        />
+                        <span>{skill}</span>
+                      </label>
+                    ))}
+                    <label className="skill-option">
+                      <input
+                        type="checkbox"
+                        checked={editingShowOther}
+                        onChange={() => {
+                          const hasOther = !editingShowOther;
+                          setEditingShowOther(hasOther);
+                          if (!hasOther) setEditingOtherSkills('');
+                        }}
+                      />
+                      <span>Other</span>
+                    </label>
+                  </div>
+                </div>
+                {editingShowOther && (
+                  <input
+                    type="text"
+                    className="form-input"
+                    placeholder="Specify other skills"
+                    value={editingOtherSkills}
+                    onChange={(e) => setEditingOtherSkills(e.target.value)}
+                    style={{ marginTop: '8px' }}
+                  />
+                )}
               </div>
               <div className="form-group">
-                <label className="form-label">Status</label>
-                <select
-                  className="form-select"
-                  value={editingProject.status || 'Under Review'}
-                  onChange={e => setEditingProject({ ...editingProject, status: e.target.value })}
-                >
-                  <option value="Under Review">Under Review</option>
-                  <option value="Approved">Approved</option>
-                  <option value="Rejected">Rejected</option>
-                </select>
+                <label className="form-label">Major (ECE/CCS)</label>
+                {majorToFilterCode(teacherMajor) === 'ECE+CCS' ? (
+                  <select
+                    className="form-select"
+                    value={majorToFilterCode(editingProject.major) || ''}
+                    onChange={(e) => setEditingProject({ ...editingProject, major: e.target.value })}
+                  >
+                    <option value="ECE">ECE</option>
+                    <option value="CCS">CCS</option>
+                  </select>
+                ) : (
+                  <select
+                    className="form-select"
+                    value={majorToFilterCode(editingProject.major) || (majorToFilterCode(teacherMajor) === 'ECE' ? 'ECE' : 'CCS')}
+                    disabled
+                  >
+                    {majorToFilterCode(teacherMajor) === 'ECE' ? (
+                      <option value="ECE">ECE</option>
+                    ) : (
+                      <option value="CCS">CCS</option>
+                    )}
+                  </select>
+                )}
               </div>
             </div>
             <div className="modal-footer">
               <button className="btn-submit" onClick={handleEditProject}>Save Changes</button>
-              <button className="btn-cancel" onClick={() => setEditingProject(null)}>Cancel</button>
+              <button className="btn-cancel" onClick={() => {
+                setEditingProject(null);
+                setEditingSkills([]);
+                setEditingOtherSkills('');
+                setEditingShowOther(false);
+              }}>Cancel</button>
             </div>
           </div>
         </div>

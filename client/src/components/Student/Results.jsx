@@ -109,10 +109,8 @@ function Results() {
         }
         
         // If no matching data yet, show pending
-        if (!assignment) {
-          setAssignment(null);
-          setStatusText('Pending');
-        }
+        setAssignment(null);
+        setStatusText('Pending');
       } catch (err) {
         console.error('Fetch match results error:', err);
         setAssignment(null);
@@ -125,7 +123,8 @@ function Results() {
     // Poll for updates every 5 seconds
     const interval = setInterval(fetchAssignment, 5000);
     return () => clearInterval(interval);
-  }, [assignment, lastAssignmentData]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const dismissBanner = () => {
     setShowUpdateBanner(false);
@@ -161,9 +160,6 @@ function Results() {
             </div>
             <div className="result-content">
               <h3>Assigned: {assignment.title}</h3>
-              {assignment.projectCode && (
-                <p className="project-code">Code: {assignment.projectCode}</p>
-              )}
               <p>Supervisor: {assignment.supervisor}</p>
               <p>Student ID: {assignment.studentId}</p>
               <p>GPA: {assignment.studentGpa || 'N/A'}</p>

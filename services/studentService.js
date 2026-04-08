@@ -86,8 +86,10 @@ const studentService = {
                 console.log(`[getAvailableProjects] Applying major filter: ${sm} (from: ${studentMajor})`);
                 if (sm) {
                     filtered = teacherProjects.filter(doc => {
-                        const pm = majorToFilterCode(doc.major) || 'ECE';
-                        if (pm === 'ECE+CCS') return true; // Both projects visible to all students
+                        const pm = majorToFilterCode(doc.major);
+                        // Legacy catalogue rows often omit major — show to all students (do not default to ECE)
+                        if (!pm || pm === '') return true;
+                        if (pm === 'ECE+CCS') return true;
                         return pm === sm;
                     });
                     console.log(`[getAvailableProjects] After major filter: ${filtered.length}`);

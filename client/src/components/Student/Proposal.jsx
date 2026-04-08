@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { PencilGlyph, StarOutlineGlyph, ListGlyph } from '../common/StageGlyphs';
 import OverdueNotice from '../common/OverdueNotice';
 import { formatDateTime24 } from '../../utils/formatDateTime24';
+import { PROPOSAL_SKILL_OPTIONS } from '../../constants/proposalSkills';
 
 const DEFAULT_SYSTEM_DEADLINES = {
   studentSelfProposal: '2025-03-20T23:59:00',
@@ -516,7 +517,7 @@ function Proposal({
                 </label>
                 <div className="skills-select-container">
                   <div className="skills-checkbox-group">
-                    {['Python', 'JavaScript', 'Java', 'C/C++', 'Machine Learning', 'Deep Learning', 'Web Development', 'Mobile App', 'Data Science', 'Cloud Computing', 'IoT', 'Cybersecurity', 'Blockchain'].map(skill => (
+                    {PROPOSAL_SKILL_OPTIONS.map(skill => (
                       <label key={skill} className="skill-checkbox">
                         <input
                           type="checkbox"

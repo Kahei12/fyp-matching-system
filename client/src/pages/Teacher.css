@@ -757,7 +757,7 @@
 
 /* Proposal Info Box - 表格形式 */
 .proposal-info-box {
-  margin-bottom: 1rem;
+  margin: 1.5rem 0;
   border: 1px solid #bdc3c7;
   border-radius: 6px;
   overflow: hidden;
@@ -767,6 +767,7 @@
   width: 100%;
   border-collapse: collapse;
   background: #f8f9fa;
+  table-layout: fixed;
 }
 
 .proposal-info-table tr {
@@ -786,7 +787,7 @@
   font-weight: 600;
   color: #34495e;
   font-size: 0.85rem;
-  width: 80px;
+  width: 25%;
   white-space: nowrap;
   background: #ecf0f1;
 }
@@ -794,6 +795,7 @@
 .proposal-info-table .info-value {
   color: #2c3e50;
   font-size: 0.9rem;
+  width: 25%;
 }
 
 .proposal-info-table .info-value-title {
@@ -801,6 +803,7 @@
   font-size: 0.95rem;
   font-weight: 500;
   padding-right: 1rem;
+  width: 50%;
 }
 
 .proposal-info-table .gpa-value {
@@ -958,10 +961,20 @@
 }
 
 .proposal-description {
-  margin-bottom: 1rem;
+  margin: 1.5rem 0;
   padding: 1rem;
   background: #f8f9fa;
   border-radius: 5px;
+}
+
+.proposal-skills {
+  margin: 1.5rem 0;
+}
+
+.proposal-skills strong {
+  color: #2c3e50;
+  display: block;
+  margin-bottom: 0.5rem;
 }
 
 .proposal-description strong {
@@ -1300,6 +1313,10 @@
 
 .results-summary-card:nth-child(3) {
   background: linear-gradient(135deg, #c0392b, #e74c3c);
+}
+
+.results-summary-card-wide {
+  max-width: 350px;
 }
 
 .summary-label {
@@ -1774,6 +1791,22 @@
   height: auto;
 }
 
+.create-project-modal .teacher-create-skills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.25rem;
+  margin-top: 0.5rem;
+}
+
+.create-project-modal .skill-checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.9rem;
+  cursor: pointer;
+  user-select: none;
+}
+
 .modal-header {
   display: flex;
   justify-content: space-between;
@@ -1851,6 +1884,85 @@
   box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.1);
 }
 
+/* Skills Dropdown */
+.skills-dropdown {
+  position: relative;
+  width: 100%;
+}
+
+.skills-dropdown-display {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid #ced4da;
+  border-radius: 6px;
+  background: white;
+  cursor: pointer;
+  min-height: 44px;
+  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+.skills-dropdown-display:hover {
+  border-color: #adb5bd;
+}
+
+.skills-dropdown-display:focus-within,
+.skills-dropdown-display.active {
+  border-color: #3498db;
+  box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.1);
+}
+
+.skills-dropdown .skills-placeholder {
+  color: #adb5bd;
+  font-size: 0.95rem;
+}
+
+.skills-dropdown .skills-dropdown-arrow {
+  margin-left: auto;
+  font-size: 0.7rem;
+  color: #6c757d;
+  flex-shrink: 0;
+}
+
+.skills-dropdown-list {
+  display: none;
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  background: white;
+  border: 1px solid #ced4da;
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  z-index: 100;
+  max-height: 280px;
+  overflow-y: auto;
+  padding: 0.5rem 0;
+}
+
+.skills-dropdown-list .skill-option {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.5rem 0.9rem;
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: background 0.15s ease;
+}
+
+.skills-dropdown-list .skill-option:hover {
+  background: #f8f9fa;
+}
+
+.skills-dropdown-list .skill-option input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
 .modal-content h2 {
   color: #2c3e50;
   margin-bottom: 1.5rem;
@@ -1899,10 +2011,23 @@
   min-height: 100px;
 }
 
+.create-project-modal .form-row {
+  margin-top: 1.25rem;
+}
+
 .form-row {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr 1fr 1fr;
   gap: 1rem;
+  margin-bottom: 1.25rem;
+}
+
+.form-row:last-child {
+  margin-bottom: 0;
+}
+
+.form-row > .form-group {
+  margin-bottom: 0;
 }
 
 .modal-actions {
