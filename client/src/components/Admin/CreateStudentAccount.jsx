@@ -1,13 +1,18 @@
 import React, { useState } from 'react';
 import './CreateStudentAccount.css';
 
+// ⚠️  IMPORTANT: Default password for all newly created accounts
+// All users (students & teachers) must change this password on first login
+// This password is displayed to admin during account creation
+const DEFAULT_PASSWORD = 'Changeme123!';
+
 function CreateStudentAccount({ showNotification }) {
   const [accountType, setAccountType] = useState('student'); // 'student' | 'teacher'
   const [students, setStudents] = useState([
-    { id: 1, studentId: '', name: '', major: '', password: '', studentIdError: '', nameError: '', majorError: '', passwordError: '' }
+    { id: 1, studentId: '', name: '', major: '', studentIdError: '', nameError: '', majorError: '' }
   ]);
   const [teachers, setTeachers] = useState([
-    { id: 1, teacherId: '', name: '', major: '', password: '', teacherIdError: '', nameError: '', majorError: '', passwordError: '' }
+    { id: 1, teacherId: '', name: '', major: '', teacherIdError: '', nameError: '', majorError: '' }
   ]);
 
   const studentMajorOptions = [
@@ -29,7 +34,7 @@ function CreateStudentAccount({ showNotification }) {
   const handleAddStudentRow = () => {
     setStudents(prev => [
       ...prev,
-      { id: generateId(prev), studentId: '', name: '', major: '', password: '', studentIdError: '', nameError: '', majorError: '', passwordError: '' }
+      { id: generateId(prev), studentId: '', name: '', major: '', studentIdError: '', nameError: '', majorError: '' }
     ]);
   };
 
@@ -41,7 +46,7 @@ function CreateStudentAccount({ showNotification }) {
   const handleAddTeacherRow = () => {
     setTeachers(prev => [
       ...prev,
-      { id: generateId(prev), teacherId: '', name: '', major: '', password: '', teacherIdError: '', nameError: '', majorError: '', passwordError: '' }
+      { id: generateId(prev), teacherId: '', name: '', major: '', teacherIdError: '', nameError: '', majorError: '' }
     ]);
   };
 
@@ -57,7 +62,6 @@ function CreateStudentAccount({ showNotification }) {
         if (field === 'studentId') newS.studentIdError = '';
         if (field === 'name') newS.nameError = '';
         if (field === 'major') newS.majorError = '';
-        if (field === 'password') newS.passwordError = '';
         return newS;
       }
       return s;
@@ -71,7 +75,6 @@ function CreateStudentAccount({ showNotification }) {
         if (field === 'teacherId') newT.teacherIdError = '';
         if (field === 'name') newT.nameError = '';
         if (field === 'major') newT.majorError = '';
-        if (field === 'password') newT.passwordError = '';
         return newT;
       }
       return t;
@@ -80,7 +83,7 @@ function CreateStudentAccount({ showNotification }) {
 
   const validateStudentRow = (student) => {
     let valid = true;
-    let newStudent = { ...student, studentIdError: '', nameError: '', majorError: '', passwordError: '' };
+    let newStudent = { ...student, studentIdError: '', nameError: '', majorError: '' };
 
     // Format: 1-10 digits, e.g. 001, 002, ..., 9999999999
     if (!student.studentId) {
@@ -101,20 +104,12 @@ function CreateStudentAccount({ showNotification }) {
       valid = false;
     }
 
-    if (!student.password) {
-      newStudent.passwordError = 'Required';
-      valid = false;
-    } else if (student.password.length < 8) {
-      newStudent.passwordError = 'Min 8 characters';
-      valid = false;
-    }
-
     return { valid, newStudent };
   };
 
   const validateTeacherRow = (teacher) => {
     let valid = true;
-    let newTeacher = { ...teacher, teacherIdError: '', nameError: '', majorError: '', passwordError: '' };
+    let newTeacher = { ...teacher, teacherIdError: '', nameError: '', majorError: '' };
 
     // Format: 1-10 digits, e.g. 001, 002, ..., 9999999999
     if (!teacher.teacherId) {
@@ -132,14 +127,6 @@ function CreateStudentAccount({ showNotification }) {
 
     if (!teacher.major) {
       newTeacher.majorError = 'Required';
-      valid = false;
-    }
-
-    if (!teacher.password) {
-      newTeacher.passwordError = 'Required';
-      valid = false;
-    } else if (teacher.password.length < 8) {
-      newTeacher.passwordError = 'Min 8 characters';
       valid = false;
     }
 
@@ -196,13 +183,13 @@ function CreateStudentAccount({ showNotification }) {
             studentId: 's' + s.studentId,
             name: s.name,
             major: s.major,
-            password: s.password
+            password: DEFAULT_PASSWORD
           }))
         : teachers.map(t => ({
             teacherId: 't' + t.teacherId,
             name: t.name,
             major: t.major,
-            password: t.password
+            password: DEFAULT_PASSWORD
           }));
 
       const body =
@@ -217,6 +204,14 @@ function CreateStudentAccount({ showNotification }) {
         },
         body
       });
+
+      // Check if response is valid JSON
+      const contentType = response.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        const text = await response.text();
+        console.error('Non-JSON response:', text);
+        throw new Error(`Server returned ${response.status}: ${text.substring(0, 100)}`);
+      }
 
       const result = await response.json();
 
@@ -235,7 +230,7 @@ function CreateStudentAccount({ showNotification }) {
                   studentIdError: result.results[i].message?.includes('already exists') ? 'Already exists' : '',
                 };
               }
-              return { id: s.id, studentId: '', name: '', major: '', password: '', studentIdError: '', nameError: '', majorError: '', passwordError: '' };
+              return { id: s.id, studentId: '', name: '', major: '', studentIdError: '', nameError: '', majorError: '' };
             }));
           } else {
             setTeachers(prev => prev.map((t, i) => {
@@ -245,7 +240,7 @@ function CreateStudentAccount({ showNotification }) {
                   teacherIdError: result.results[i].message?.includes('already exists') ? 'Already exists' : '',
                 };
               }
-              return { id: t.id, teacherId: '', name: '', major: '', password: '', teacherIdError: '', nameError: '', majorError: '', passwordError: '' };
+              return { id: t.id, teacherId: '', name: '', major: '', teacherIdError: '', nameError: '', majorError: '' };
             }));
           }
         } else {
@@ -256,7 +251,8 @@ function CreateStudentAccount({ showNotification }) {
       }
     } catch (error) {
       console.error('Batch create error:', error);
-      showNotification('Network error. Please try again later.', 'error');
+      const errorMessage = error.message || 'Network error. Please try again later.';
+      showNotification(`Failed to create accounts: ${errorMessage}`, 'error');
     } finally {
       setIsLoading(false);
     }
@@ -264,19 +260,20 @@ function CreateStudentAccount({ showNotification }) {
 
   const handleReset = () => {
     setStudents([
-      { id: 1, studentId: '', name: '', major: '', password: '', studentIdError: '', nameError: '', majorError: '', passwordError: '' }
+      { id: 1, studentId: '', name: '', major: '', studentIdError: '', nameError: '', majorError: '' }
     ]);
     setTeachers([
-      { id: 1, teacherId: '', name: '', major: '', password: '', teacherIdError: '', nameError: '', majorError: '', passwordError: '' }
+      { id: 1, teacherId: '', name: '', major: '', teacherIdError: '', nameError: '', majorError: '' }
     ]);
     setResults(null);
   };
 
   const handleDownloadStudentTemplate = () => {
+    // CSV模板：学号加引号以保留前导0，不包含Password列（使用默认密码）
     const csvContent = [
-      ['Student Number', 'Name', 'Major', 'Password'],
-      ['001', 'John Chan', 'Computer and Cyber Security', 'changeme123'],
-      ['002', 'Mary Lee', 'Electronics and Computer Engineering', 'changeme123'],
+      ['Student Number', 'Name', 'Major'],
+      ['"001"', 'John Chan', 'Computer and Cyber Security'],
+      ['"002"', 'Mary Lee', 'Electronics and Computer Engineering'],
     ].map(row => row.join(',')).join('\n');
 
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -287,11 +284,12 @@ function CreateStudentAccount({ showNotification }) {
   };
 
   const handleDownloadTeacherTemplate = () => {
+    // CSV模板：教师号加引号以保留前导0，不包含Password列（使用默认密码）
     const csvContent = [
-      ['Teacher Number', 'Name', 'Major', 'Password'],
-      ['001', 'Dr. Bell Liu', 'Electronics and Computer Engineering', 'changeme123'],
-      ['002', 'Dr. Alex Wong', 'Computer and Cyber Security', 'changeme123'],
-      ['003', 'Dr. Chris Lee', 'Computer and Cyber Security + Electronics and Computer Engineering', 'changeme123'],
+      ['Teacher Number', 'Name', 'Major'],
+      ['"001"', 'Dr. Bell Liu', 'Electronics and Computer Engineering'],
+      ['"002"', 'Dr. Alex Wong', 'Computer and Cyber Security'],
+      ['"003"', 'Dr. Chris Lee', 'Computer and Cyber Security + Electronics and Computer Engineering'],
     ].map(row => row.join(',')).join('\n');
 
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -317,17 +315,15 @@ function CreateStudentAccount({ showNotification }) {
       }
 
       const newStudents = dataRows.map((line, index) => {
-        const parts = line.split(',').map(s => s.trim());
+        const parts = line.split(',').map(s => s.trim().replace(/^"|"$/g, '')); // Remove quotes from ID
         return {
           id: generateId(students) + index,
           studentId: parts[0] || '',
           name: parts[1] || '',
           major: parts[2] || '',
-          password: parts[3] || '',
           studentIdError: '',
           nameError: '',
           majorError: '',
-          passwordError: '',
         };
       });
 
@@ -354,17 +350,15 @@ function CreateStudentAccount({ showNotification }) {
       }
 
       const newTeachers = dataRows.map((line, index) => {
-        const parts = line.split(',').map(s => s.trim());
+        const parts = line.split(',').map(s => s.trim().replace(/^"|"$/g, '')); // Remove quotes from ID
         return {
           id: generateId(teachers) + index,
           teacherId: parts[0] || '',
           name: parts[1] || '',
           major: parts[2] || '',
-          password: parts[3] || '',
           teacherIdError: '',
           nameError: '',
           majorError: '',
-          passwordError: '',
         };
       });
 
@@ -447,6 +441,11 @@ function CreateStudentAccount({ showNotification }) {
       )}
 
       <form className="batch-form" onSubmit={handleSubmit}>
+        {/* ⚠️ Default Password Notice */}
+        <div className="default-password-notice">
+          <strong>⚠️ Default Password:</strong> <code>Changeme123!</code> (Users must change on first login)
+        </div>
+
         <div className="batch-actions">
           <button
             type="button"
@@ -489,15 +488,12 @@ function CreateStudentAccount({ showNotification }) {
                   <th className="col-major">
                     Major <span className="required">*</span>
                   </th>
-                  <th className="col-password">
-                    Password <span className="required">*</span>
-                  </th>
                   <th className="col-action"></th>
                 </tr>
               </thead>
               <tbody>
                 {students.map((student, index) => (
-                  <tr key={student.id} className={student.studentIdError || student.nameError || student.majorError || student.passwordError ? 'row-error' : ''}>
+                  <tr key={student.id} className={student.studentIdError || student.nameError || student.majorError ? 'row-error' : ''}>
                     <td className="col-index">{index + 1}</td>
                     <td className="col-student-id">
                       <input
@@ -546,18 +542,6 @@ function CreateStudentAccount({ showNotification }) {
                         <span className="cell-error">{student.majorError}</span>
                       )}
                     </td>
-                    <td className="col-password">
-                      <input
-                        type="password"
-                        value={student.password}
-                        onChange={(e) => handleStudentChange(student.id, 'password', e.target.value)}
-                        placeholder="Min 8 characters"
-                        className={student.passwordError ? 'error' : ''}
-                      />
-                      {student.passwordError && (
-                        <span className="cell-error">{student.passwordError}</span>
-                      )}
-                    </td>
                     <td className="col-action">
                       {students.length > 1 && (
                         <button
@@ -589,15 +573,12 @@ function CreateStudentAccount({ showNotification }) {
                   <th className="col-major">
                     Major <span className="required">*</span>
                   </th>
-                  <th className="col-password">
-                    Password <span className="required">*</span>
-                  </th>
                   <th className="col-action"></th>
                 </tr>
               </thead>
               <tbody>
                 {teachers.map((teacher, index) => (
-                  <tr key={teacher.id} className={teacher.teacherIdError || teacher.nameError || teacher.majorError || teacher.passwordError ? 'row-error' : ''}>
+                  <tr key={teacher.id} className={teacher.teacherIdError || teacher.nameError || teacher.majorError ? 'row-error' : ''}>
                     <td className="col-index">{index + 1}</td>
                     <td className="col-teacher-id">
                       <input
@@ -646,18 +627,6 @@ function CreateStudentAccount({ showNotification }) {
                         <span className="cell-error">{teacher.majorError}</span>
                       )}
                     </td>
-                    <td className="col-password">
-                      <input
-                        type="password"
-                        value={teacher.password}
-                        onChange={(e) => handleTeacherChange(teacher.id, 'password', e.target.value)}
-                        placeholder="Min 8 characters"
-                        className={teacher.passwordError ? 'error' : ''}
-                      />
-                      {teacher.passwordError && (
-                        <span className="cell-error">{teacher.passwordError}</span>
-                      )}
-                    </td>
                     <td className="col-action">
                       {teachers.length > 1 && (
                         <button
@@ -700,21 +669,21 @@ function CreateStudentAccount({ showNotification }) {
         <h4>Batch Registration Instructions</h4>
         {accountType === 'student' ? (
           <ul>
-            <li>Student Number: Enter 1-10 digits (e.g., 001, 002, 1234567890)</li>
+            <li>Student Number: Enter 1-10 digits (e.g., 001, 002, 1234567890). Use quotes in CSV to preserve leading zeros.</li>
             <li>Major options: Computer and Cyber Security, Electronics and Computer Engineering</li>
             <li>Email is auto-generated as s[Number]@hkmu.edu.hk (e.g., s001@hkmu.edu.hk)</li>
-            <li>Password: each row has its own password field (minimum 8 characters)</li>
-            <li>Download CSV template for bulk import (includes password column)</li>
-            <li>After creation, students can login with their generated credentials</li>
+            <li>Default password: Changeme123! (all users must change password on first login)</li>
+            <li>Download CSV template for bulk import (no password column needed)</li>
+            <li>After creation, students can login with their student ID and default password</li>
           </ul>
         ) : (
           <ul>
-            <li>Teacher ID: Enter 1-10 digits (e.g., 001, 002, 1234567890)</li>
+            <li>Teacher ID: Enter 1-10 digits (e.g., 001, 002, 1234567890). Use quotes in CSV to preserve leading zeros.</li>
             <li>Major options: Computer and Cyber Security, Electronics and Computer Engineering, or Both</li>
             <li>Email is auto-generated as t[ID]@hkmu.edu.hk (e.g., t001@hkmu.edu.hk)</li>
-            <li>Password: each row has its own password field (minimum 8 characters)</li>
-            <li>Download CSV template for bulk import (includes password column)</li>
-            <li>After creation, teachers can login with their generated credentials</li>
+            <li>Default password: Changeme123! (all users must change password on first login)</li>
+            <li>Download CSV template for bulk import (no password column needed)</li>
+            <li>After creation, teachers can login with their teacher ID and default password</li>
           </ul>
         )}
       </div>

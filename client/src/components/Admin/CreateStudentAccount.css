@@ -703,3 +703,39 @@
     padding: 1rem;
   }
 }
+
+/* ⚠️ Default Password Notice */
+.default-password-notice {
+  background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);
+  border: 2px solid #1976d2;
+  border-radius: 8px;
+  padding: 1rem 1.25rem;
+  margin-bottom: 1.5rem;
+  font-size: 0.95rem;
+  color: #0d47a1;
+  box-shadow: 0 2px 8px rgba(25, 118, 210, 0.12);
+}
+
+.default-password-notice strong {
+  color: #1565c0;
+  font-weight: 600;
+  display: inline-block;
+  margin-right: 0.5rem;
+}
+
+.default-password-notice code {
+  background: #fff;
+  border: 1px solid #1976d2;
+  border-radius: 4px;
+  padding: 0.2rem 0.5rem;
+  font-family: 'Courier New', monospace;
+  font-weight: 600;
+  color: #0d47a1;
+  font-size: 1rem;
+  letter-spacing: 0.5px;
+}
+
+.default-password-notice:hover {
+  background: linear-gradient(135deg, #bbdefb 0%, #90caf9 100%);
+  transition: all 0.3s ease;
+}

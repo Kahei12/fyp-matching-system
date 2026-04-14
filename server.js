@@ -1,6 +1,7 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
 const { Parser } = require('json2csv');
+const cors = require('cors');
 const app = express();
 const port = 3000;
 
@@ -13,6 +14,7 @@ function generateRandomGPA() {
 }
 
 // Middleware
+app.use(cors());
 app.use(express.json());
 
 // load env and attempt DB connection
@@ -65,6 +67,7 @@ if (process.env.MONGO_URI) {
 }
 const fs = require('fs');
 const Project = require('./models/Project');
+const Teacher = require('./models/Teacher');
 const { ensureDatabaseSeeded } = require('./services/seedDatabase');
 const { majorsMatchForFilter, majorToFilterCode } = require('./services/majorMapping');
 const mockData = require('./services/mockData');
@@ -733,6 +736,31 @@ try {
         } catch (error) {
             console.error('Export project list error:', error);
             res.status(500).json({ success: false, message: 'Failed to export project list' });
+        }
+    });
+
+    // Export teacher list
+    app.get('/api/export/teacher-list', async (req, res) => {
+        console.log('Export teacher list');
+        try {
+            const teachers = await Teacher.find().lean().exec();
+            const csvData = teachers.map(teacher => ({
+                'Teacher ID': teacher.teacherId || '',
+                'Name': teacher.name || '',
+                'Email': teacher.email || '',
+                'Department': teacher.department || '',
+                'Major': teacher.major || ''
+            }));
+
+            const parser = new Parser();
+            const csv = parser.parse(csvData);
+
+            res.header('Content-Type', 'text/csv');
+            res.attachment('teacher_list.csv');
+            res.send(csv);
+        } catch (error) {
+            console.error('Export teacher list error:', error);
+            res.status(500).json({ success: false, message: 'Failed to export teacher list' });
         }
     });
 
@@ -1973,8 +2001,11 @@ initializeUsers().then(async () => {
 const checkDbConnectionForAdmin = () => {
     try {
         const mongoose = require('mongoose');
-        return mongoose.connection.readyState === 1;
+        const state = mongoose.connection.readyState;
+        console.log(`[checkDBConnection] mongoose.readyState: ${state} (0=disconnected, 1=connected, 2=connecting, 3=disconnecting)`);
+        return state === 1;
     } catch (e) {
+        console.error('[checkDBConnection] Error:', e.message);
         return false;
     }
 };
@@ -1983,60 +2014,53 @@ const checkDbConnectionForAdmin = () => {
 app.post('/api/admin/students/create', async (req, res) => {
     console.log('Admin creates student account:', req.body);
     try {
-        const { studentId, password, name, major } = req.body;
-        
-        // Validation
-        if (!studentId || !password || !name || !major) {
-            return res.status(400).json({ 
-                success: false, 
-                message: 'All fields are required: studentId, password, name, major' 
+        const { studentId, name, major } = req.body;
+
+        // Validation (password not required - using default)
+        if (!studentId || !name || !major) {
+            return res.status(400).json({
+                success: false,
+                message: 'All fields are required: studentId, name, major'
             });
         }
-        
+
         // Validate studentId: 8 digits
         if (!/^\d{8}$/.test(studentId)) {
-            return res.status(400).json({ 
-                success: false, 
-                message: 'Student ID must be exactly 8 digits' 
+            return res.status(400).json({
+                success: false,
+                message: 'Student ID must be exactly 8 digits'
             });
         }
-        
-        // Validate password: at least 8 characters
-        if (password.length < 8) {
-            return res.status(400).json({ 
-                success: false, 
-                message: 'Password must be at least 8 characters' 
-            });
-        }
-        
+
         const isDbConnected = checkDbConnectionForAdmin();
         const Student = require('./models/Student');
-        
+
         if (isDbConnected && Student) {
             // Check if student ID already exists
             const existingStudent = await Student.findOne({ id: studentId }).exec();
             if (existingStudent) {
-                return res.status(400).json({ 
-                    success: false, 
-                    message: `Student ID ${studentId} already exists` 
+                return res.status(400).json({
+                    success: false,
+                    message: `Student ID ${studentId} already exists`
                 });
             }
-            
+
             // Generate email: first 7 digits + @hkmu.edu.hk
             const email = studentId.substring(0, 7) + '@hkmu.edu.hk';
-            
+
             // Check if email already exists
             const existingEmail = await Student.findOne({ email: email }).exec();
             if (existingEmail) {
-                return res.status(400).json({ 
-                    success: false, 
-                    message: `Email ${email} already exists` 
+                return res.status(400).json({
+                    success: false,
+                    message: `Email ${email} already exists`
                 });
             }
-            
-            // Hash password for security
-            const hashedPassword = await bcrypt.hash(password, 10);
-            
+
+            // Use default password (admin doesn't need to set it)
+            const DEFAULT_PASSWORD = 'Changeme123!';
+            const hashedPassword = await bcrypt.hash(DEFAULT_PASSWORD, 10);
+
             // Create new student
             const newStudent = new Student({
                 id: studentId,
@@ -2053,24 +2077,20 @@ app.post('/api/admin/students/create', async (req, res) => {
                 proposalApproved: false,
                 proposalStatus: 'none',
                 mustChangePassword: true,
-                initialPassword: password
+                initialPassword: DEFAULT_PASSWORD
             });
-            
+
             await newStudent.save();
 
-            // Verify the save worked
-            const savedStudent = await Student.findOne({ email: email }).exec();
-            console.log('🔍 Single create - mustChangePassword:', savedStudent?.mustChangePassword);
-            
             console.log('✅ Student account created:', {
                 id: studentId,
                 name: name,
                 email: email,
                 major: major
             });
-            
-            return res.json({ 
-                success: true, 
+
+            return res.json({
+                success: true,
                 message: 'Student account created successfully!',
                 student: {
                     id: studentId,
@@ -2081,40 +2101,20 @@ app.post('/api/admin/students/create', async (req, res) => {
                 },
                 loginCredentials: {
                     email: email,
-                    password: password
+                    password: DEFAULT_PASSWORD
                 }
             });
+        } else {
+            return res.status(500).json({
+                success: false,
+                message: 'Database not available'
+            });
         }
-        
-        // If no database, return mock success for testing
-        const email = studentId.substring(0, 7) + '@hkmu.edu.hk';
-        console.log('⚠️ Database not connected - mock success response');
-        console.log('   Student ID:', studentId);
-        console.log('   Email:', email);
-        console.log('   Name:', name);
-        console.log('   Major:', major);
-        
-        return res.json({ 
-            success: true, 
-            message: 'Student account created successfully! (Mock mode - no database)',
-            student: {
-                id: studentId,
-                name: name,
-                email: email,
-                major: major,
-                year: 'Year 4'
-            },
-            loginCredentials: {
-                email: email,
-                password: password
-            }
-        });
-        
     } catch (error) {
-        console.error('Create student account error:', error);
-        return res.status(500).json({ 
-            success: false, 
-            message: 'Failed to create student account: ' + error.message 
+        console.error('Create single student account error:', error);
+        return res.status(500).json({
+            success: false,
+            message: 'Failed to create student account: ' + error.message
         });
     }
 });
@@ -2122,32 +2122,41 @@ app.post('/api/admin/students/create', async (req, res) => {
 // Batch create student accounts (admin only)
 // New format: Student ID is 's001', 's002', etc.
 app.post('/api/admin/students/batch-create', async (req, res) => {
+    console.log('=== Batch create student accounts START ===');
     console.log('Admin batch creates student accounts:', req.body);
     try {
         const students = req.body.students ?? req.body.accounts;
 
         if (!students || !Array.isArray(students) || students.length === 0) {
+            console.log('❌ Invalid request: no students array');
             return res.status(400).json({
                 success: false,
                 message: 'Students array is required'
             });
         }
 
+        console.log(`📝 Processing ${students.length} student(s)`);
         const isDbConnected = checkDbConnectionForAdmin();
+        console.log(`📊 Database connected: ${isDbConnected}`);
         const Student = require('./models/Student');
         const results = [];
 
+        // ⚠️ IMPORTANT: All accounts use the same default password
+        // Admin does NOT need to provide passwords - they are auto-generated
+        // Users MUST change password on first login
+        const DEFAULT_PASSWORD = 'Changeme123!';
+
         for (const studentData of students) {
-            const { studentId, password, name, major } = studentData;
+            const { studentId, name, major } = studentData;
 
             try {
-                // Validation
-                if (!studentId || !password || !name || !major) {
+                // Validation (password not required - using default)
+                if (!studentId || !name || !major) {
                     results.push({
                         studentId,
                         name,
                         success: false,
-                        message: 'All fields are required'
+                        message: 'All fields are required: studentId, name, major'
                     });
                     continue;
                 }
@@ -2159,17 +2168,6 @@ app.post('/api/admin/students/batch-create', async (req, res) => {
                         name,
                         success: false,
                         message: 'Invalid student ID format. Must be s001, s002, etc. (1-10 digits)'
-                    });
-                    continue;
-                }
-
-                // Validate password: at least 8 characters
-                if (password.length < 8) {
-                    results.push({
-                        studentId,
-                        name,
-                        success: false,
-                        message: 'Password must be at least 8 characters'
                     });
                     continue;
                 }
@@ -2214,8 +2212,9 @@ app.post('/api/admin/students/batch-create', async (req, res) => {
                         continue;
                     }
 
-                    // Hash password for security
-                    const hashedPassword = await bcrypt.hash(password, 10);
+                    // Use default password (admin doesn't need to set it)
+                    const DEFAULT_PASSWORD = 'Changeme123!';
+                    const hashedPassword = await bcrypt.hash(DEFAULT_PASSWORD, 10);
 
                     // Generate random GPA between 2.5 and 3.8
                     const randomGPA = generateRandomGPA();
@@ -2236,15 +2235,10 @@ app.post('/api/admin/students/batch-create', async (req, res) => {
                         proposalApproved: false,
                         proposalStatus: 'none',
                         mustChangePassword: true,
-                        initialPassword: password
+                        initialPassword: DEFAULT_PASSWORD
                     });
 
                     await newStudent.save();
-
-                    // Verify the save worked
-                    const savedStudent = await Student.findOne({ email: email }).exec();
-                    console.log('🔍 Verification - mustChangePassword:', savedStudent?.mustChangePassword);
-                    console.log('🔍 Generated GPA:', randomGPA);
 
                     console.log('✅ Student account created:', {
                         id: studentId,
@@ -2306,32 +2300,36 @@ app.post('/api/admin/students/batch-create', async (req, res) => {
 // Batch create teacher accounts
 // New format: Teacher ID is 't001', 't002', etc.
 app.post('/api/admin/teachers/batch-create', async (req, res) => {
+    console.log('=== Batch create teacher accounts START ===');
     console.log('Admin batch creates teacher accounts:', req.body);
     try {
         const { accounts } = req.body;
 
         if (!accounts || !Array.isArray(accounts) || accounts.length === 0) {
+            console.log('❌ Invalid request: no accounts array');
             return res.status(400).json({
                 success: false,
                 message: 'Accounts array is required'
             });
         }
 
+        console.log(`📝 Processing ${accounts.length} teacher(s)`);
         const isDbConnected = checkDbConnectionForAdmin();
+        console.log(`📊 Database connected: ${isDbConnected}`);
         const Teacher = require('./models/Teacher');
         const results = [];
 
         for (const teacherData of accounts) {
-            const { teacherId, name, password, major } = teacherData;
+            const { teacherId, name, major } = teacherData;
 
             try {
-                // Validation
-                if (!teacherId || !name || !password || !major) {
+                // Validation (password not required - using default)
+                if (!teacherId || !name || !major) {
                     results.push({
                         teacherId,
                         name,
                         success: false,
-                        message: 'All fields are required'
+                        message: 'All fields are required: teacherId, name, major'
                     });
                     continue;
                 }
@@ -2359,17 +2357,6 @@ app.post('/api/admin/teachers/batch-create', async (req, res) => {
                     continue;
                 }
 
-                // Validate password: at least 8 characters
-                if (password.length < 8) {
-                    results.push({
-                        teacherId,
-                        name,
-                        success: false,
-                        message: 'Password must be at least 8 characters'
-                    });
-                    continue;
-                }
-
                 // Email is the teacherId + @hkmu.edu.hk
                 const email = `${teacherId}@hkmu.edu.hk`;
 
@@ -2387,8 +2374,9 @@ app.post('/api/admin/teachers/batch-create', async (req, res) => {
                         continue;
                     }
 
-                    // Hash password for security
-                    const hashedPassword = await bcrypt.hash(password, 10);
+                    // Use default password (admin doesn't need to set it)
+                    const DEFAULT_PASSWORD = 'Changeme123!';
+                    const hashedPassword = await bcrypt.hash(DEFAULT_PASSWORD, 10);
 
                     // Create new teacher
                     const newTeacher = new Teacher({
@@ -2399,7 +2387,7 @@ app.post('/api/admin/teachers/batch-create', async (req, res) => {
                         department: 'FYP',
                         major: major,
                         mustChangePassword: true,
-                        initialPassword: password
+                        initialPassword: DEFAULT_PASSWORD
                     });
 
                     await newTeacher.save();

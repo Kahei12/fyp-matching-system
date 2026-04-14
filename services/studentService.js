@@ -333,6 +333,46 @@ const studentService = {
                         console.warn(`[setPreferences] Project not found: ${prefId}`);
                     }
                 }
+
+                // ── Update popularity: compare old vs new preference lists ──────────
+                if (!isDraft) {
+                    const oldPrefs = (student.preferences || []).map(String); // stringify
+                    const newPrefs = validProjects;
+
+                    // Build sets for difference
+                    const oldSet = new Set(oldPrefs);
+                    const newSet = new Set(newPrefs);
+
+                    // Projects to add (in new but not in old)
+                    const toAdd = [...newSet].filter(x => !oldSet.has(x));
+                    // Projects to remove (in old but not in new)
+                    const toRemove = [...oldSet].filter(x => !newSet.has(x));
+
+                    // Increment popularity for newly added projects
+                    for (const pid of toAdd) {
+                        const proj = resolveProjectByPref(allProjects, pid);
+                        if (proj) {
+                            await ProjectModel.findOneAndUpdate(
+                                { $or: [{ _id: proj._id }, { code: pid }, { id: pid }] },
+                                { $inc: { popularity: 1 } }
+                            ).exec();
+                            console.log(`[setPreferences] Incremented popularity for project ${pid}`);
+                        }
+                    }
+
+                    // Decrement popularity for removed projects
+                    for (const pid of toRemove) {
+                        const proj = resolveProjectByPref(allProjects, pid);
+                        if (proj) {
+                            await ProjectModel.findOneAndUpdate(
+                                { $or: [{ _id: proj._id }, { code: pid }, { id: pid }] },
+                                { $inc: { popularity: -1 } }
+                            ).exec();
+                            console.log(`[setPreferences] Decremented popularity for project ${pid}`);
+                        }
+                    }
+                }
+
                 // Use validated project IDs
                 student.preferences = validProjects;
                 // Only lock (preferencesSubmitted) on final submit — not on draft moves/removes
@@ -340,6 +380,20 @@ const studentService = {
                     student.preferencesSubmitted = true;
                 }
             } else {
+                // Clearing preferences — decrement popularity for all previous preferences
+                if (!isDraft && student.preferences && student.preferences.length > 0) {
+                    const allProjects = await ProjectModel.find({}).lean().exec();
+                    for (const pid of student.preferences) {
+                        const proj = resolveProjectByPref(allProjects, pid);
+                        if (proj) {
+                            await ProjectModel.findOneAndUpdate(
+                                { $or: [{ _id: proj._id }, { code: pid }, { id: pid }] },
+                                { $inc: { popularity: -1 } }
+                            ).exec();
+                            console.log(`[setPreferences] Decremented popularity for cleared project ${pid}`);
+                        }
+                    }
+                }
                 student.preferences = stringPrefs;
                 student.preferencesSubmitted = false;
             }

@@ -57,14 +57,19 @@ npm run client
 ### Admin（管理員）
 - Email: `admin@hkmu.edu.hk`
 - Password: `admin123`
+- 注意：Admin創建學生/教師賬戶時，系統自動使用默認密碼 `Changeme123!`，用戶首次登錄後必須修改
 
 ### Student（學生）
-- Email: `student@hkmu.edu.hk`
-- Password: `student123`
+- 通過Admin創建的賬戶：
+  - 賬號：`s001@hkmu.edu.hk`（或學生ID）
+  - 默認密碼：`Changeme123!`（首次登錄必須修改）
+- 種子數據賬戶（如student@hkmu.edu.hk）：密碼為`student123`
 
 ### Teacher（教師）
-- Email: `teacher@hkmu.edu.hk`
-- Password: `teacher123`
+- 通過Admin創建的賬戶：
+  - 賬號：`t001@hkmu.edu.hk`（或教師ID）
+  - 默認密碼：`Changeme123!`（首次登錄必須修改）
+- 種子數據賬戶（如teacher@hkmu.edu.hk）：密碼為`teacher123`
 
 ## 📁 項目結構
 
@@ -146,6 +151,10 @@ FYP Matching System/
 - Matching Control（匹配控制）
 - Final Assignment（最終分配）
 - Deadline Management（截止日期管理）
+- **Create Student/Teacher Accounts**（批量創建賬戶）
+  - 無需手動輸入密碼，系統使用默認密碼 `Changeme123!`
+  - 支持表格輸入或CSV模板批量導入
+  - 所有新用戶首次登錄必須修改密碼
 
 ## 📝 可用的 NPM 腳本
 
@@ -180,6 +189,9 @@ npm start            # 啟動後端生產服務器
 
 ### Q: 前端無法連接後端 API？
 A: 確保後端服務器在 3000 端口運行，Vite 配置中已設置代理。
+
+### Q: Admin創建賬戶時需要輸入密碼嗎？
+A: 不需要。系統使用統一默認密碼 `Changeme123!`，所有用戶首次登錄後必須修改密碼。
 
 ### Q: 登入後頁面跳轉失敗？
 A: 檢查 sessionStorage 是否正確保存了登入狀態。

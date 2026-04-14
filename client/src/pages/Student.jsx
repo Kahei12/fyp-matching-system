@@ -277,9 +277,23 @@ function Student() {
 
   const handleRemovePreference = async (projectId) => {
     const currentStudentId = studentData.studentId || sessionStorage.getItem('studentId') || 's001';
-    
+
     console.log('Removing preference:', { projectId, currentStudentId });
-    
+
+    // Check if preferences have been submitted
+    const submittedFlag = isPrefsSubmitted();
+
+    // If not submitted, only update local state (DB doesn't have these preferences yet)
+    if (!submittedFlag) {
+      console.log('Preferences not submitted yet - updating local state only');
+      const newPreferences = preferences.filter(p => p.id !== projectId);
+      setPreferences(newPreferences);
+      localStorage.setItem(`studentPreferences_${currentStudentId}`, JSON.stringify(newPreferences));
+      showNotification('Project removed', 'success');
+      return;
+    }
+
+    // If submitted, call API to update DB
     try {
       const response = await fetch(`/api/student/${currentStudentId}/preferences/${projectId}`, {
         method: 'DELETE'
