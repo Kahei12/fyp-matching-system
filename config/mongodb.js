@@ -1,63 +1,63 @@
 /**
- * MongoDB 連接配置
- * 使用 MongoDB Driver 直接連接，更穩定
+ * MongoDB connection configuration
+ * Direct connection using MongoDB Driver, more stable
  */
 
 const { MongoClient } = require('mongodb');
 
-// 從環境變量讀取連接字串
+// Read connection string from environment variables
 const MONGO_URI = process.env.MONGO_URI || 'mongodb+srv://fyp_user:fypmatchingsystem@fypmatching.j1hzf6h.mongodb.net/fyp_matching?retryWrites=true&w=majority';
 
 let client = null;
 let db = null;
 
-// MongoDB Atlas TLS 連接選項 - 專門解決 Windows SSL 握手問題
+// MongoDB Atlas TLS connection options - specifically for Windows SSL handshake issues
 const clientOptions = {
-    // 伺服器選擇超時
+    // Server selection timeout
     serverSelectionTimeoutMS: 30000,
-    // Socket 超時
+    // Socket timeout
     socketTimeoutMS: 45000,
-    // 連接池
+    // Connection pool
     maxPoolSize: 5,
     minPoolSize: 1,
-    // 重試
+    // Retry
     retryWrites: true,
-    // TLS/SSL 配置
+    // TLS/SSL configuration
     tls: true,
     tlsAllowInvalidCertificates: true,
     tlsAllowInvalidHostnames: true,
-    // 強制使用 TLS v1.2（更相容）
+    // Force TLS v1.2 (better compatibility)
     // tlsProtocol: 'TLSv1.2'
 };
 
 async function connectToMongoDB() {
     if (db) {
-        return db; // 已經連接
+        return db; // already connected
     }
 
     try {
-        console.log('🔄 正在連接 MongoDB Atlas...');
+        console.log('Connecting to MongoDB Atlas...');
 
         client = new MongoClient(MONGO_URI, clientOptions);
 
-        // 監聽連接事件
+        // Listen to connection events
         client.on('topologyDescriptionChanged', (event) => {
-            console.log('📊 拓撲結構變更:', event.topologyDescription.type);
+            console.log('Topology changed:', event.topologyDescription.type);
         });
 
         await client.connect();
 
         db = client.db('fyp_matching');
-        console.log('✅ MongoDB Atlas 連接成功');
+        console.log('MongoDB Atlas connected');
 
-        // 測試連接
+        // Test connection
         await db.command({ ping: 1 });
-        console.log('✅ 連接測試成功');
+        console.log('Connection test successful');
 
         return db;
     } catch (error) {
-        console.error('❌ MongoDB 連接失敗:', error.message);
-        console.log('⚠️ 將使用模擬數據模式運行');
+        console.error('MongoDB connection failed:', error.message);
+        console.log('Running in mock data mode');
         return null;
     }
 }
@@ -74,11 +74,11 @@ async function closeConnection() {
         await client.close();
         client = null;
         db = null;
-        console.log('🔒 MongoDB 連接已關閉');
+        console.log('MongoDB connection closed');
     }
 }
 
-// 優雅關閉
+// Graceful shutdown
 process.on('SIGINT', async () => {
     await closeConnection();
     process.exit(0);

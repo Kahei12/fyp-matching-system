@@ -58,7 +58,7 @@ function ProjectManagement({ showNotification, expiredDeadlineKeys = new Set() }
     };
     document.addEventListener('click', handleClickOutside);
 
-    // 初始化数据
+    // Initialize data
     fetchTeacherMajor();
     fetchProjects();
     fetchProposals();

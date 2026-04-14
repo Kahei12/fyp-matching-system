@@ -20,7 +20,7 @@
   margin: 20px;
 }
 
-/* Logo 容器 - 單獨一行 */
+/* Logo container - separate line */
 .logo-container {
   text-align: center;
   margin-bottom: 1rem;
@@ -32,7 +32,7 @@
   object-fit: contain;
 }
 
-/* 標題容器 */
+/* Title container */
 .title-container {
   text-align: center;
   margin-bottom: 0.5rem;
@@ -139,7 +139,7 @@ footer {
   font-size: 0.75rem;
 }
 
-/* 消息彈出樣式 */
+/* Message popup styles */
 .message-popup {
   position: fixed;
   top: 20px;

@@ -1,18 +1,18 @@
-# 依賴目錄 - 絕對不要上傳！
+# Dependencies - do not upload
 node_modules/
 
-# 環境變量 - 可能包含密碼
+# Environment variables
 .env
 .env.local
 
-# 日誌文件
+# Log files
 *.log
 npm-debug.log*
 
-# 系統文件
+# System files
 .DS_Store
 Thumbs.db
 
-# 運行時臨時文件
+# Temp files
 temp/
 tmp/

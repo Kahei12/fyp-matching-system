@@ -1,25 +1,16 @@
-# Render 部署配置
-# FYP Matching System - Monorepo (Express + React)
+# Render deployment configuration
+# FYP Matching System
 
 service: node
-
 runtime: node
 nodeVersion: "22"
 
-# 構建命令 - 安裝依賴並構建前端
 buildCommand: npm install && npm run build
-
-# 啟動命令
 startCommand: node server.js
 
-# 環境變量（在 Render Dashboard 中設定）
-# MONGO_URI - MongoDB 連接字串
-
-# 健康檢查
 healthCheckPath: /api/health
-
-# 實例類型（免費 tier）
 plan: free
-
-# 免費實例會睡眠，設置為 false 避免問題
 autoDeploy: true
+
+# Environment variables (set in Render Dashboard)
+# MONGO_URI - MongoDB connection string

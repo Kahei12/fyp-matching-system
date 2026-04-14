@@ -1,11 +1,11 @@
-/* 重置樣式 */
+/* Reset styles */
 * {
   margin: 0;
   padding: 0;
   box-sizing: border-box;
 }
 
-/* Teacher 容器 */
+/* Teacher container */
 .teacher-container {
   display: flex;
   min-height: 100vh;
@@ -13,7 +13,7 @@
   color: #333;
 }
 
-/* 側邊欄樣式 - 與 Student 和 Admin 相同 */
+/* Sidebar styles - same as Student and Admin */
 .sidebar {
   width: 280px;
   flex: 0 0 280px;
@@ -125,7 +125,7 @@
   font-size: 1rem;
 }
 
-/* 主內容區域 */
+/* Main content area */
 .main-content {
   flex: 1;
   background: white;
@@ -134,7 +134,7 @@
   min-width: 0;
 }
 
-/* 麵包屑導航 */
+/* Breadcrumb navigation */
 .breadcrumb {
   padding: 1rem 2rem;
   background: #f8f9fa;
@@ -163,7 +163,7 @@
   margin: 0 0.5rem;
 }
 
-/* 內容區域 */
+/* Content area */
 .content-section {
   flex: 1;
   padding: 2rem;
@@ -755,7 +755,7 @@
   margin-bottom: 1rem;
 }
 
-/* Proposal Info Box - 表格形式 */
+/* Proposal Info Box - table format */
 .proposal-info-box {
   margin: 1.5rem 0;
   border: 1px solid #bdc3c7;
@@ -1643,7 +1643,7 @@
   background: #f8f9fa;
 }
 
-/* 通知樣式 */
+/* Notification styles */
 .notification {
   position: fixed;
   top: 20px;
@@ -1668,7 +1668,7 @@
   background: #3498db;
 }
 
-/* 響應式設計 */
+/* Responsive design */
 @media (max-width: 768px) {
   .teacher-container {
     flex-direction: column;

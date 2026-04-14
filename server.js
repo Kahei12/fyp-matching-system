@@ -17,16 +17,15 @@ function generateRandomGPA() {
 app.use(cors());
 app.use(express.json());
 
-// 允許 Railway 動態分配 PORT
+// Allow dynamic PORT assignment
 const PORT = process.env.PORT || 3000;
 
-// Railway 靜態文件服務 - 從 Railway 的 STATIC_URL 指向的資料夾讀取
-// Railway 會把 client/dist 的內容放到這個目錄
+// Static file serving
 const path = require('path');
 const staticPath = process.env.STATIC_DIR || path.join(__dirname, 'client', 'dist');
 app.use(express.static(staticPath));
 
-// 健康檢查端點（用於 Railway 部署驗證）
+// Health check endpoint
 app.get('/api/health', (req, res) => {
     res.json({
         status: 'ok',
@@ -3188,8 +3187,8 @@ process.on('unhandledRejection', (err) => {
     process.exit(1);
 });
 
-// SPA 路由 - 所有非 API 路由都返回 index.html（放在所有 API 路由之後）
-// Express 5 不再支持 '*'，改用正規表達式
+// SPA routing - all non-API routes return index.html (place after all API routes)
+// Express 5 no longer supports '*', use regex instead
 app.get(/^(?!\/api).*$/, (req, res) => {
     const indexPath = path.join(staticPath, 'index.html');
     if (require('fs').existsSync(indexPath)) {

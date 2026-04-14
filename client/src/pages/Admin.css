@@ -1,11 +1,11 @@
-/* 重置樣式 */
+/* Reset styles */
 * {
   margin: 0;
   padding: 0;
   box-sizing: border-box;
 }
 
-/* 管理容器 */
+/* Admin container */
 .admin-container {
   display: flex;
   min-height: 100vh;
@@ -13,7 +13,7 @@
   color: #333;
 }
 
-/* 側邊欄樣式 - 與 student 相同 */
+/* Sidebar styles - same as student */
 .sidebar {
   width: 280px;
   background: #2c3e50;
@@ -103,7 +103,7 @@
   background: #c0392b;
 }
 
-/* 主內容區域 */
+/* Main content area */
 .main-content {
   flex: 1;
   background: white;
@@ -111,7 +111,7 @@
   flex-direction: column;
 }
 
-/* 麵包屑導航 */
+/* Breadcrumb navigation */
 .breadcrumb {
   padding: 1rem 2rem;
   background: #f8f9fa;
@@ -136,7 +136,7 @@
   margin: 0 0.5rem;
 }
 
-/* 內容區域 */
+/* Content area */
 .content-section {
   flex: 1;
   padding: 2rem;
@@ -166,7 +166,7 @@
   color: #6c757d;
 }
 
-/* 項目審核樣式 */
+/* Project review styles */
 .pending-review h3 {
   margin-bottom: 1rem;
   color: #2c3e50;
@@ -235,7 +235,7 @@
   gap: 0.5rem;
 }
 
-/* 按鈕樣式 */
+/* Button styles */
 .btn-approve, .btn-reject, .btn-comment, 
 .btn-primary, .btn-secondary, .btn-assign,
 .btn-export, .btn-edit {
@@ -323,7 +323,7 @@
   background: #d68910;
 }
 
-/* 匹配控制面板 */
+/* Matching control panel */
 .matching-control-panel {
   background: #f8f9fa;
   padding: 2rem;
@@ -464,7 +464,7 @@
   font-size: 0.95rem;
 }
 
-/* 最終分配樣式 */
+/* Final assignment styles */
 .assignment-header {
   display: flex;
   justify-content: space-between;
@@ -607,7 +607,7 @@
   font-size: 0.9rem;
 }
 
-/* 截止日期管理 */
+/* Deadline management */
 .deadline-management-panel {
   background: #f8f9fa;
   padding: 2rem;
@@ -763,7 +763,7 @@
   width: 100%;
 }
 
-/* 響應式設計 */
+/* Responsive design */
 .notification {
   position: fixed;
   top: 20px;
@@ -788,7 +788,7 @@
   background: #3498db;
 }
 
-/* 響應式設計 */
+/* Responsive design */
 @media (max-width: 768px) {
   .admin-container {
     flex-direction: column;

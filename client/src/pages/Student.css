@@ -1,13 +1,13 @@
-/* 引用所有 Student 頁面的樣式 - 直接從原有的 student.css 複製 */
+/* Import all Student page styles - copied from original student.css */
 
-/* 重置樣式 */
+/* Reset styles */
 * {
   margin: 0;
   padding: 0;
   box-sizing: border-box;
 }
 
-/* Student 容器 */
+/* Student container */
 .student-container {
   display: flex;
   min-height: 100vh;
@@ -15,16 +15,16 @@
   color: #333;
 }
 
-/* 側邊欄樣式 */
+/* Sidebar styles */
 .sidebar {
   width: 280px;
-  flex: 0 0 280px; /* 固定寬度且不隨右側內容改變 */
+  flex: 0 0 280px; /* Fixed width, does not change with right content */
   max-width: 280px;
   min-width: 280px;
-  position: sticky; /* 固定在視窗頂端 */
+  position: sticky; /* Sticky to window top */
   top: 0;
-  height: 100vh; /* 與視窗同高 */
-  overflow-y: auto; /* 側欄獨立滾動，確保能看到 footer 與 Logout */
+  height: 100vh; /* Same height as window */
+  overflow-y: auto; /* Sidebar independent scrolling, ensure footer and Logout are visible */
   background: #2c3e50;
   color: white;
   display: flex;
@@ -142,16 +142,16 @@
   background: #c0392b;
 }
 
-/* 主內容區域 */
+/* Main content area */
 .main-content {
   flex: 1;
   background: white;
   display: flex;
   flex-direction: column;
-  min-width: 0; /* 防止內容撐開導致側邊欄比例看起來不一致 */
+  min-width: 0; /* Prevent content from expanding causing sidebar proportion inconsistency */
 }
 
-/* 麵包屑導航 */
+/* Breadcrumb navigation */
 .breadcrumb {
   padding: 1rem 2rem;
   background: #f8f9fa;
@@ -180,11 +180,11 @@
   margin: 0 0.5rem;
 }
 
-/* 內容區域 */
+/* Content area */
 .content-section {
   flex: 1;
   padding: 2rem;
-  min-width: 0; /* 防止此層在 Flex 內撐開主區域 */
+  min-width: 0; /* Prevent this layer from expanding main area in Flex */
 }
 
 .content-section.active {
@@ -241,7 +241,7 @@
   color: #6c757d;
 }
 
-/* 狀態卡片 */
+/* Status cards */
 .status-cards {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
@@ -257,7 +257,7 @@
   display: flex;
   align-items: center;
   gap: 1rem;
-  position: relative; /* 讓徽章可定位在卡片內 */
+  position: relative; /* Badge positioning on card */
 }
 
 /* Stage Status Cards (always visible at top) */
@@ -286,17 +286,17 @@
   transform: translateY(-4px);
 }
 
-/* 根據 Stage 設置左邊框顏色 */
+/* Set left border color according to Stage */
 .status-card-stage-1 {
-  border-left-color: #6f42c1; /* 紫色 - 與 stage-1 相同 */
+  border-left-color: #6f42c1; /* Purple - same as stage-1 */
 }
 
 .status-card-stage-2 {
-  border-left-color: #0d6efd; /* 藍色 - 與 stage-2 相同 */
+  border-left-color: #0d6efd; /* Blue - same as stage-2 */
 }
 
 .status-card-stage-3 {
-  border-left-color: #198754; /* 綠色 - 與 stage-3 相同 */
+  border-left-color: #198754; /* Green - same as stage-3 */
 }
 
 /* Disabled / overdue stage cards */
@@ -397,7 +397,7 @@
   background: #2980b9;
 }
 
-/* 階段徽章 */
+/* Stage badge */
 .stage-badge {
   position: absolute;
   top: 10px;
@@ -413,7 +413,7 @@
 .stage-2 { background: #0d6efd; }
 .stage-3 { background: #198754; }
 
-/* 截止日期提醒 */
+/* Deadline reminder */
 .deadline-reminder {
   background: #ffe5e5;
   border: 1px solid #ff9999;
@@ -470,7 +470,7 @@
   background: #e74c3c;
 }
 
-/* 搜索和排序 */
+/* Search and sort */
 .search-sort {
   display: flex;
   gap: 1rem;
@@ -491,7 +491,7 @@
   background: white;
 }
 
-/* 搜索過濾器樣式 */
+/* Search filter styles */
 .search-filters {
   background: #f8f9fa;
   padding: 1.5rem;
@@ -542,14 +542,14 @@
   font-weight: 500;
 }
 
-/* 項目網格 */
+/* Project grid */
 .projects-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
   gap: 1.5rem;
 }
 
-/* 載入更多按鈕容器 */
+/* Load more button container */
 .load-more-container {
   grid-column: 1 / -1;
   display: flex;
@@ -620,8 +620,8 @@
 .project-description {
   margin-bottom: 1rem;
   line-height: 1.5;
-  word-break: break-word; /* 長字串換行，避免撐寬 */
-  overflow-wrap: anywhere; /* 更積極的換行策略 */
+  word-break: break-word; /* Long string wrap to prevent width overflow */
+  overflow-wrap: anywhere; /* More aggressive wrap strategy */
 }
 
 .project-skills {
@@ -630,7 +630,7 @@
   color: #495057;
 }
 
-/* 技能標籤 */
+/* Skill tags */
 .skill-tags {
   display: flex;
   flex-wrap: wrap;
@@ -652,7 +652,7 @@
   gap: 0.5rem;
 }
 
-/* 按鈕樣式 */
+/* Button styles */
 .btn-primary, .btn-secondary, .btn-remove, .btn-move {
   padding: 0.5rem 1rem;
   border: none;
@@ -716,7 +716,7 @@ button:disabled {
   cursor: not-allowed;
 }
 
-/* 偏好列表 */
+/* Preferences list */
 .preferences-list {
   display: flex;
   flex-direction: column;
@@ -749,7 +749,7 @@ button:disabled {
   transform: translateY(-2px);
 }
 
-/* 拖曳狀態 */
+/* Drag state */
 .preference-item.drag-over {
   border-color: #27ae60;
   border-style: solid;
@@ -758,7 +758,7 @@ button:disabled {
   transform: scale(1.02);
 }
 
-/* 拖曳手柄 */
+/* Drag handle */
 .drag-handle {
   display: flex;
   align-items: center;
@@ -922,7 +922,7 @@ button:disabled {
   gap: 1rem;
 }
 
-/* 結果卡片 */
+/* Result card */
 .assignment-result {
   margin-bottom: 2rem;
 }
@@ -952,7 +952,7 @@ button:disabled {
   margin-top: 0.5rem;
 }
 
-/* 統計網格 */
+/* Statistics grid */
 .statistics-section {
   background: #f8f9fa;
   padding: 1.5rem;
@@ -987,7 +987,7 @@ button:disabled {
   color: #2c3e50;
 }
 
-/* 個人資料卡片 */
+/* Profile card */
 .profile-card {
   background: white;
   border: 1px solid #e9ecef;
@@ -1038,7 +1038,7 @@ button:disabled {
   color: #2c3e50;
 }
 
-/* 無結果提示 */
+/* No results message */
 .no-results {
   text-align: center;
   padding: 3rem;
@@ -1059,7 +1059,7 @@ button:disabled {
   height: 3rem;
 }
 
-/* 通知樣式 */
+/* Notification styles */
 .notification {
   position: fixed;
   top: 20px;
@@ -1096,7 +1096,7 @@ button:disabled {
   }
 }
 
-/* 響應式設計 */
+/* Responsive design */
 @media (max-width: 768px) {
   .student-container {
     flex-direction: column;
@@ -1104,9 +1104,9 @@ button:disabled {
   
   .sidebar {
     width: 100%;
-    flex: none; /* 手機版改為不固定寬度 */
+    flex: none; /* Mobile version uses non-fixed width */
     height: auto;
-    position: static; /* 取消貼齊效果，讓其隨內容流動 */
+    position: static; /* Disable sticky, let it flow with content */
     overflow: visible;
   }
   

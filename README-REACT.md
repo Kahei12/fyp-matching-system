@@ -1,213 +1,201 @@
-# FYP Matching System - React 版本
+# FYP Matching System - React Version
 
-## 📋 項目說明
+## Project Overview
 
-這是一個「大學畢業專題匹配系統」，已成功從純 HTML/CSS/JavaScript 遷移到 React。
+A Final Year Project Matching System, migrated from plain HTML/CSS/JavaScript to React.
 
-### 技術架構
+### Tech Stack
 
-- **前端**: React 18 + Vite
-- **後端**: Node.js + Express
-- **路由**: React Router v6
-- **認證**: Session-based
-- **數據**: JSON 模擬數據
+- Frontend: React 18 + Vite
+- Backend: Node.js + Express
+- Routing: React Router v6
+- Authentication: Session-based
+- Data: JSON mock data
 
-## 🚀 快速開始
+## Quick Start
 
-### 1. 安裝依賴
+### 1. Install Dependencies
 
 ```bash
-# 安裝後端依賴
+# Install backend dependencies
 npm install
 
-# 安裝前端依賴
+# Install frontend dependencies
 cd client
 npm install
 cd ..
 ```
 
-### 2. 啟動應用
+### 2. Start the Application
 
-#### 方式一：同時啟動前後端（推薦）
+#### Option A: Start both frontend and backend (Recommended)
 
 ```bash
 npm run dev
 ```
 
-這會同時啟動：
-- 後端服務器: `http://localhost:3000`
-- 前端開發服務器: `http://localhost:5173`
+This starts:
+- Backend server: http://localhost:3000
+- Frontend dev server: http://localhost:5173
 
-#### 方式二：分別啟動
+#### Option B: Start separately
 
 ```bash
-# 終端 1 - 啟動後端
+# Terminal 1 - Start backend
 npm run server:dev
 
-# 終端 2 - 啟動前端
+# Terminal 2 - Start frontend
 npm run client
 ```
 
-### 3. 訪問應用
+### 3. Access the Application
 
-打開瀏覽器訪問: **http://localhost:5173**
+Open your browser: http://localhost:5173
 
-## 🔑 測試帳號
+## Test Accounts
 
-### Admin（管理員）
-- Email: `admin@hkmu.edu.hk`
-- Password: `admin123`
-- 注意：Admin創建學生/教師賬戶時，系統自動使用默認密碼 `Changeme123!`，用戶首次登錄後必須修改
+### Admin
+- Email: admin@hkmu.edu.hk
+- Password: admin123
+- Note: When Admin creates student/teacher accounts, the system uses default password Changeme123!. Users must change it after first login.
 
-### Student（學生）
-- 通過Admin創建的賬戶：
-  - 賬號：`s001@hkmu.edu.hk`（或學生ID）
-  - 默認密碼：`Changeme123!`（首次登錄必須修改）
-- 種子數據賬戶（如student@hkmu.edu.hk）：密碼為`student123`
+### Student
+- Accounts created by Admin:
+  - Username: s001@hkmu.edu.hk (or student ID)
+  - Default password: Changeme123!
+- Seed data accounts: password is student123
 
-### Teacher（教師）
-- 通過Admin創建的賬戶：
-  - 賬號：`t001@hkmu.edu.hk`（或教師ID）
-  - 默認密碼：`Changeme123!`（首次登錄必須修改）
-- 種子數據賬戶（如teacher@hkmu.edu.hk）：密碼為`teacher123`
+### Teacher
+- Accounts created by Admin:
+  - Username: t001@hkmu.edu.hk (or teacher ID)
+  - Default password: Changeme123!
+- Seed data accounts: password is teacher123
 
-## 📁 項目結構
+## Project Structure
 
 ```
 FYP Matching System/
-├── client/                    # React 前端
+├── client/                    # React Frontend
 │   ├── src/
-│   │   ├── components/       # 可重用組件
+│   │   ├── components/       # Reusable components
 │   │   │   ├── PrivateRoute.jsx
-│   │   │   └── Student/     # Student 頁面子組件
+│   │   │   └── Student/     # Student page sub-components
 │   │   │       ├── Dashboard.jsx
 │   │   │       ├── ProjectBrowse.jsx
 │   │   │       ├── MyPreferences.jsx
 │   │   │       ├── Results.jsx
 │   │   │       ├── Profile.jsx
 │   │   │       └── Sidebar.jsx
-│   │   ├── pages/           # 頁面組件
+│   │   ├── pages/           # Page components
 │   │   │   ├── Login.jsx
 │   │   │   ├── Login.css
 │   │   │   ├── Student.jsx
 │   │   │   ├── Student.css
 │   │   │   ├── Admin.jsx
 │   │   │   └── Admin.css
-│   │   ├── App.jsx          # 主應用組件
-│   │   ├── main.jsx         # React 入口
-│   │   └── index.css        # 全局樣式
+│   │   ├── App.jsx          # Main app component
+│   │   ├── main.jsx         # React entry point
+│   │   └── index.css        # Global styles
 │   ├── index.html
-│   ├── vite.config.js       # Vite 配置（含後端代理）
+│   ├── vite.config.js       # Vite config (with backend proxy)
 │   └── package.json
-├── public/                   # 舊版靜態文件（保留作為參考）
-├── services/                 # 後端服務
+├── public/                   # Legacy static files
+├── services/                 # Backend services
 │   ├── studentService.js
 │   └── mockData.js
 ├── data/
 │   └── user.json
-├── server.js                 # Express 後端服務器
+├── server.js                 # Express backend server
 ├── package.json
 └── README-REACT.md
 ```
 
-## 🔄 從舊版遷移的變更
+## Migration Changes
 
-### 1. **前端架構**
-- ✅ 純 HTML → React 組件
-- ✅ 內聯 JavaScript → React Hooks (useState, useEffect)
-- ✅ DOM 操作 → React 狀態管理
-- ✅ 多個 HTML 文件 → 單頁應用 (SPA)
+### Frontend Architecture
+- Pure HTML → React components
+- Inline JavaScript → React Hooks
+- DOM manipulation → React state management
+- Multiple HTML files → Single Page Application (SPA)
 
-### 2. **路由系統**
-- ✅ 服務器路由 → React Router
-- ✅ 保護路由實現（PrivateRoute 組件）
+### Routing System
+- Server routing → React Router
+- Route protection (PrivateRoute component)
 
-### 3. **API 通信**
-- ✅ 配置 Vite 代理轉發到後端
-- ✅ 所有 API 調用保持不變
+### API Communication
+- Vite proxy configured to forward to backend
+- All API calls remain unchanged
 
-### 4. **樣式**
-- ✅ 所有 CSS 完整保留
-- ✅ 分離為組件級 CSS 文件
+### Styles
+- All CSS preserved
+- Separated into component-level CSS files
 
-## 🎯 功能完整性
+## Features
 
-### ✅ Login 頁面
-- 用戶登入
-- 角色驗證（admin/student/teacher）
-- Session 管理
-- 錯誤提示
+### Login Page
+- User login
+- Role verification (admin/student/teacher)
+- Session management
+- Error handling
 
-### ✅ Student 界面
-- Dashboard（儀表板）
-- Browse Projects（瀏覽項目 + 搜索過濾）
-- My Preferences（偏好管理）
-- Results（結果查看）
-- Profile（個人資料）
-- 完整的搜索和過濾功能
+### Student Interface
+- Dashboard
+- Browse Projects (search & filter)
+- My Preferences (preference management)
+- Results (view results)
+- Profile (personal info)
+- Search and filter functionality
 
-### ✅ Admin 界面
-- Project Review（項目審核）
-- Matching Control（匹配控制）
-- Final Assignment（最終分配）
-- Deadline Management（截止日期管理）
-- **Create Student/Teacher Accounts**（批量創建賬戶）
-  - 無需手動輸入密碼，系統使用默認密碼 `Changeme123!`
-  - 支持表格輸入或CSV模板批量導入
-  - 所有新用戶首次登錄必須修改密碼
+### Admin Interface
+- Project Review
+- Matching Control
+- Final Assignment
+- Deadline Management
+- Create Student/Teacher Accounts (batch account creation)
+  - Default password Changeme123!
+  - Supports CSV template batch import
+  - All users must change password after first login
 
-## 📝 可用的 NPM 腳本
+## NPM Scripts
 
 ```bash
-npm run dev          # 同時啟動前後端開發服務器
-npm run server       # 僅啟動後端（生產模式）
-npm run server:dev   # 僅啟動後端（開發模式，帶 nodemon）
-npm run client       # 僅啟動前端開發服務器
-npm run build        # 構建前端生產版本
-npm start            # 啟動後端生產服務器
+npm run dev          # Start both frontend and backend
+npm run server       # Start backend only (production)
+npm run server:dev   # Start backend only (dev mode)
+npm run client       # Start frontend dev server only
+npm run build        # Build frontend for production
+npm start            # Start backend production server
 ```
 
-## 🔧 開發注意事項
+## Development Notes
 
-1. **前端開發端口**: 5173 (Vite 默認)
-2. **後端 API 端口**: 3000
-3. **API 代理**: 前端請求會自動代理到 `http://localhost:3000`
-4. **熱重載**: 
-   - 前端修改自動刷新（Vite HMR）
-   - 後端修改自動重啟（nodemon）
+1. Frontend dev port: 5173
+2. Backend API port: 3000
+3. API proxy: Frontend requests automatically proxied to http://localhost:3000
+4. Hot reload works for both frontend and backend
 
-## 🌟 遷移優勢
+## FAQ
 
-1. ✅ **組件化**: 代碼更易維護和重用
-2. ✅ **狀態管理**: React Hooks 提供更好的狀態管理
-3. ✅ **開發體驗**: 熱重載、更好的錯誤提示
-4. ✅ **性能**: 虛擬 DOM 和優化的渲染
-5. ✅ **擴展性**: 更容易添加新功能和頁面
-6. ✅ **類型安全**: 未來可輕鬆添加 TypeScript
+Q: Frontend can't connect to backend API?
+A: Make sure backend is running on port 3000, Vite proxy is configured.
 
-## 🐛 常見問題
+Q: Does Admin need to enter password when creating accounts?
+A: No. System uses default password Changeme123!, all users must change password after first login.
 
-### Q: 前端無法連接後端 API？
-A: 確保後端服務器在 3000 端口運行，Vite 配置中已設置代理。
+Q: Page redirect fails after login?
+A: Check if sessionStorage saved the login state correctly.
 
-### Q: Admin創建賬戶時需要輸入密碼嗎？
-A: 不需要。系統使用統一默認密碼 `Changeme123!`，所有用戶首次登錄後必須修改密碼。
+Q: CSS styles not applied?
+A: Make sure CSS files are correctly imported in components.
 
-### Q: 登入後頁面跳轉失敗？
-A: 檢查 sessionStorage 是否正確保存了登入狀態。
+## Support
 
-### Q: CSS 樣式沒有生效？
-A: 確保在組件中正確導入了對應的 CSS 文件。
-
-## 📞 支持
-
-如有問題，請檢查：
-1. 所有依賴是否正確安裝
-2. 端口 3000 和 5173 是否被占用
-3. Node.js 版本是否 >= 16
+Check:
+1. All dependencies installed correctly
+2. Ports 3000 and 5173 are available
+3. Node.js version >= 16
 
 ---
 
-**開發完成日期**: 2025-10-22
-**版本**: 2.0.0 (React)
-
+Development Date: 2025-10-22
+Version: 2.0.0 (React)

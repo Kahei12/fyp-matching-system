@@ -269,7 +269,7 @@ function CreateStudentAccount({ showNotification }) {
   };
 
   const handleDownloadStudentTemplate = () => {
-    // CSV模板：学号加引号以保留前导0，不包含Password列（使用默认密码）
+    // CSV template: student number in quotes to preserve leading zeros, no Password column (uses default password)
     const csvContent = [
       ['Student Number', 'Name', 'Major'],
       ['"001"', 'John Chan', 'Computer and Cyber Security'],
@@ -284,7 +284,7 @@ function CreateStudentAccount({ showNotification }) {
   };
 
   const handleDownloadTeacherTemplate = () => {
-    // CSV模板：教师号加引号以保留前导0，不包含Password列（使用默认密码）
+    // CSV template: teacher number in quotes to preserve leading zeros, no Password column (uses default password)
     const csvContent = [
       ['Teacher Number', 'Name', 'Major'],
       ['"001"', 'Dr. Bell Liu', 'Electronics and Computer Engineering'],
