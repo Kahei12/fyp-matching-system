@@ -3189,7 +3189,8 @@ process.on('unhandledRejection', (err) => {
 });
 
 // SPA 路由 - 所有非 API 路由都返回 index.html（放在所有 API 路由之後）
-app.get('*', (req, res) => {
+// Express 5 不再支持 '*'，改用正規表達式
+app.get(/^(?!\/api).*$/, (req, res) => {
     const indexPath = path.join(staticPath, 'index.html');
     if (require('fs').existsSync(indexPath)) {
         res.sendFile(indexPath);
