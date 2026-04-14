@@ -10,7 +10,7 @@
     "server:dev": "nodemon server.js",
     "client": "cd client && npm run dev",
     "dev": "concurrently \"npm run server:dev\" \"npm run client\"",
-    "postinstall": "cd client && npm install && npx vite build"
+    "postinstall": "cd client && npm install --include=dev && npx vite build"
   },
   "engines": {
     "node": ">=18.0.0"
