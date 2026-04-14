@@ -17,6 +17,24 @@ function generateRandomGPA() {
 app.use(cors());
 app.use(express.json());
 
+// 允許 Railway 動態分配 PORT
+const PORT = process.env.PORT || 3000;
+
+// Railway 靜態文件服務 - 從 Railway 的 STATIC_URL 指向的資料夾讀取
+// Railway 會把 client/dist 的內容放到這個目錄
+const path = require('path');
+const staticPath = process.env.STATIC_DIR || path.join(__dirname, 'client', 'dist');
+app.use(express.static(staticPath));
+
+// 健康檢查端點（用於 Railway 部署驗證）
+app.get('/api/health', (req, res) => {
+    res.json({
+        status: 'ok',
+        timestamp: new Date().toISOString(),
+        mongodb: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected'
+    });
+});
+
 // load env and attempt DB connection
 require('dotenv').config();
 const mongoose = require('mongoose');
@@ -1977,8 +1995,9 @@ try {
 initializeUsers().then(async () => {
     await ensureDatabaseSeeded();
     
-    app.listen(port, () => {
-        console.log(`API server running on http://localhost:${port}`);
+    app.listen(PORT, () => {
+        const baseUrl = process.env.RENDER_EXTERNAL_URL || `http://localhost:${PORT}`;
+        console.log(`API server running on ${baseUrl}`);
         console.log(`Available API endpoints:`);
         console.log(`   POST /login - Login verification`);
         console.log(`   GET  /api/student/projects - Get project list`);
@@ -3167,4 +3186,30 @@ app.put('/api/admin/students/test-account-sid', async (req, res) => {
 process.on('unhandledRejection', (err) => {
     console.error('Unhandled error:', err);
     process.exit(1);
+});
+
+// SPA 路由 - 所有非 API 路由都返回 index.html（放在所有 API 路由之後）
+app.get('*', (req, res) => {
+    const indexPath = path.join(staticPath, 'index.html');
+    if (require('fs').existsSync(indexPath)) {
+        res.sendFile(indexPath);
+    } else {
+        res.status(200).send(`
+            <!DOCTYPE html>
+            <html>
+            <head><title>FYP Matching System</title></head>
+            <body>
+                <h1>FYP Matching System</h1>
+                <p>Backend is running. Frontend build pending.</p>
+                <p>Please wait for deployment to complete...</p>
+            </body>
+            </html>
+        `);
+    }
+});
+
+// Start server
+app.listen(PORT, '0.0.0.0', () => {
+    console.log(`🚀 Server running on port ${PORT}`);
+    console.log(`📁 Static files from: ${staticPath}`);
 });
