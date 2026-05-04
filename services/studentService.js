@@ -436,23 +436,27 @@ const studentService = {
                 const settings = await SystemSettingsModel.findOne({ key: 'system' }).lean().exec();
                 console.log('[getDeadlines] settings found:', settings ? 'yes' : 'no', '| deadlines:', JSON.stringify(settings?.deadlines));
                 if (settings && settings.deadlines) {
-                    return {
-                        studentSelfProposal: settings.deadlines.studentSelfProposal ? settings.deadlines.studentSelfProposal.toISOString() : null,
-                        preference: settings.deadlines.preference ? settings.deadlines.preference.toISOString() : null,
-                        teacherProposalReview: settings.deadlines.teacherProposalReview ? settings.deadlines.teacherProposalReview.toISOString() : null,
-                        teacherSelfProposal: settings.deadlines.teacherSelfProposal ? settings.deadlines.teacherSelfProposal.toISOString() : null
-                    };
+                    const dl = settings.deadlines;
+                    // Only return DB values if at least one deadline is set
+                    if (dl.studentSelfProposal || dl.preference || dl.teacherProposalReview || dl.teacherSelfProposal) {
+                        return {
+                            studentSelfProposal: dl.studentSelfProposal ? dl.studentSelfProposal.toISOString() : null,
+                            preference: dl.preference ? dl.preference.toISOString() : null,
+                            teacherProposalReview: dl.teacherProposalReview ? dl.teacherProposalReview.toISOString() : null,
+                            teacherSelfProposal: dl.teacherSelfProposal ? dl.teacherSelfProposal.toISOString() : null
+                        };
+                    }
                 }
-                console.log('[getDeadlines] No settings found — returning empty deadlines');
+                console.log('[getDeadlines] DB has no deadlines — falling back to local file');
             } catch (err) {
                 console.error('[getDeadlines] MongoDB error:', err.message);
             }
-        } else {
-            console.log('[getDeadlines] DB not connected — trying local file fallback');
-            const fileDeadlines = loadDeadlinesFromFile();
-            if (fileDeadlines) return fileDeadlines;
-            console.log('[getDeadlines] No local file fallback — returning empty deadlines');
         }
+        // Fallback to local file when DB is unavailable or has no deadlines
+        console.log('[getDeadlines] Trying local file fallback');
+        const fileDeadlines = loadDeadlinesFromFile();
+        if (fileDeadlines) return fileDeadlines;
+        console.log('[getDeadlines] No local file fallback — returning empty deadlines');
         return {};
     },
 

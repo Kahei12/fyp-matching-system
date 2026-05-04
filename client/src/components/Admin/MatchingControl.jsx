@@ -6,6 +6,21 @@ function MatchingControl({ showNotification }) {
   const [totalProjects, setTotalProjects] = useState(0);
   const [matchedProjects, setMatchedProjects] = useState(0);
   const [confirmDialog, setConfirmDialog] = useState(null);
+  const [currentTime, setCurrentTime] = useState(new Date());
+
+  // Update current time every second
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  // Format date for display
+  const formatDisplayDate = (date) => {
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+  };
   
   // Major statistics
   const [majorStats, setMajorStats] = useState({
@@ -161,7 +176,7 @@ function MatchingControl({ showNotification }) {
           <div className="current-phase">
             <strong>Current Stage:</strong> 
             <span className="phase-dates">
-              2024-03-21 00:01 [Init: 2024-04-05 23:39]
+              {formatDisplayDate(currentTime)}
             </span>
           </div>
         </div>
