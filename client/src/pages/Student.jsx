@@ -234,10 +234,8 @@ function Student() {
   };
 
   const handleAddPreference = async (projectId) => {
-    // Buffer preference locally; only submit to server on Submit Preferences
     const currentStudentId = studentData.studentId || sessionStorage.getItem('studentId') || 's001';
 
-    // Check if already submitted or matching completed
     const submittedFlag = isPrefsSubmitted();
     const locked = submittedFlag || matchingCompleted || isAssigned;
     
@@ -271,8 +269,19 @@ function Student() {
     const newPreferences = [...preferences, newPref];
     setPreferences(newPreferences);
     localStorage.setItem(`studentPreferences_${currentStudentId}`, JSON.stringify(newPreferences));
+
+    // Increment popularity on backend immediately so "x selections" updates in real-time
+    try {
+      await fetch(`/api/student/${currentStudentId}/preferences/${projectId}/track`, {
+        method: 'POST'
+      });
+      // Reload projects to get updated popularity counts
+      await loadProjects();
+    } catch (err) {
+      console.error('[handleAddPreference] Failed to increment popularity:', err);
+    }
+
     showNotification(`Project added to preferences (${newPreferences.length}/10). Please go to My Preferences to check.`, 'success');
-    // Do not auto-navigate, let user continue adding projects
   };
 
   const handleRemovePreference = async (projectId) => {
@@ -280,39 +289,35 @@ function Student() {
 
     console.log('Removing preference:', { projectId, currentStudentId });
 
-    // Check if preferences have been submitted
     const submittedFlag = isPrefsSubmitted();
 
-    // If not submitted, only update local state (DB doesn't have these preferences yet)
-    if (!submittedFlag) {
-      console.log('Preferences not submitted yet - updating local state only');
-      const newPreferences = preferences.filter(p => p.id !== projectId);
-      setPreferences(newPreferences);
-      localStorage.setItem(`studentPreferences_${currentStudentId}`, JSON.stringify(newPreferences));
-      showNotification('Project removed', 'success');
-      return;
-    }
+    // Always update local state first
+    const newPreferences = preferences.filter(p => p.id !== projectId);
+    setPreferences(newPreferences);
+    localStorage.setItem(`studentPreferences_${currentStudentId}`, JSON.stringify(newPreferences));
 
-    // If submitted, call API to update DB
+    // Always decrement popularity on backend so "x selections" stays accurate
     try {
-      const response = await fetch(`/api/student/${currentStudentId}/preferences/${projectId}`, {
+      await fetch(`/api/student/${currentStudentId}/preferences/${projectId}/track`, {
         method: 'DELETE'
       });
-      const result = await response.json();
-      console.log('Remove response:', result);
-
-      if (result.success) {
-        const newPreferences = preferences.filter(p => p.id !== projectId);
-        setPreferences(newPreferences);
-        localStorage.setItem(`studentPreferences_${currentStudentId}`, JSON.stringify(newPreferences));
-        showNotification('Project removed', 'success');
-      } else {
-        showNotification(result.message, 'error');
-      }
-    } catch (error) {
-      console.error('Remove preference error:', error);
-      showNotification('Failed to remove project', 'error');
+      await loadProjects();
+    } catch (err) {
+      console.error('[handleRemovePreference] Failed to decrement popularity:', err);
     }
+
+    // If submitted, also remove from DB
+    if (submittedFlag) {
+      try {
+        await fetch(`/api/student/${currentStudentId}/preferences/${projectId}`, {
+          method: 'DELETE'
+        });
+      } catch (err) {
+        console.error('[handleRemovePreference] DB remove error:', err);
+      }
+    }
+
+    showNotification('Project removed', 'success');
   };
 
   const runSubmitPreferences = async () => {

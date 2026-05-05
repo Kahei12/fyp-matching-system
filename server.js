@@ -567,6 +567,29 @@ try {
         }
     });
 
+    // Track popularity only — no preference management
+    app.post('/api/student/:id/preferences/:projectId/track', async (req, res) => {
+        try {
+            const { projectId } = req.params;
+            const result = await studentService.incrementPopularity(projectId);
+            res.json(result);
+        } catch (error) {
+            console.error('Track add popularity error:', error);
+            res.json({ success: false, message: 'Failed to track preference' });
+        }
+    });
+
+    app.delete('/api/student/:id/preferences/:projectId/track', async (req, res) => {
+        try {
+            const { projectId } = req.params;
+            const result = await studentService.decrementPopularity(projectId);
+            res.json(result);
+        } catch (error) {
+            console.error('Track remove popularity error:', error);
+            res.json({ success: false, message: 'Failed to untrack preference' });
+        }
+    });
+
     app.put('/api/student/:id/preferences/:projectId/move', async (req, res) => {
         console.log('Move preference:', { studentId: req.params.id, projectId: req.params.projectId, direction: req.body.direction });
         try {

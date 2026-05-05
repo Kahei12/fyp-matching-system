@@ -813,6 +813,62 @@ const studentService = {
         
         return { success: false, message: 'Database unavailable' };
     },
+    // Increment project popularity (called when a student adds it to their draft preferences)
+    incrementPopularity: async (projectId) => {
+        if (checkDBConnection() && ProjectModel) {
+            try {
+                const mongoose = require('mongoose');
+                const query = { $or: [] };
+
+                // Try to match as ObjectId if valid
+                if (mongoose.Types.ObjectId.isValid(projectId)) {
+                    query.$or.push({ _id: new mongoose.Types.ObjectId(projectId) });
+                }
+                // Also try matching by code or numeric id fields
+                query.$or.push({ code: String(projectId) });
+                query.$or.push({ id: projectId });
+
+                await ProjectModel.findOneAndUpdate(
+                    query,
+                    { $inc: { popularity: 1 } }
+                ).exec();
+                return { success: true };
+            } catch (e) {
+                console.error('[incrementPopularity] error:', e.message);
+                return { success: false };
+            }
+        }
+        return { success: false, message: 'Database unavailable' };
+    },
+
+    // Decrement project popularity (called when a student removes it from their draft preferences)
+    decrementPopularity: async (projectId) => {
+        if (checkDBConnection() && ProjectModel) {
+            try {
+                const mongoose = require('mongoose');
+                const query = { $or: [] };
+
+                // Try to match as ObjectId if valid
+                if (mongoose.Types.ObjectId.isValid(projectId)) {
+                    query.$or.push({ _id: new mongoose.Types.ObjectId(projectId) });
+                }
+                // Also try matching by code or numeric id fields
+                query.$or.push({ code: String(projectId) });
+                query.$or.push({ id: projectId });
+
+                await ProjectModel.findOneAndUpdate(
+                    query,
+                    { $inc: { popularity: -1 } }
+                ).exec();
+                return { success: true };
+            } catch (e) {
+                console.error('[decrementPopularity] error:', e.message);
+                return { success: false };
+            }
+        }
+        return { success: false, message: 'Database unavailable' };
+    },
+
     updateStudentProfile: async (studentId, updates) => {
         if (!checkDBConnection() || !StudentModel) {
             return { success: false, message: 'Database unavailable' };
